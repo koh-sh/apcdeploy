@@ -357,6 +357,66 @@ func TestInitializer_Run(t *testing.T) {
 			},
 		},
 		{
+			name: "error during resource resolution",
+			opts: &Options{
+				Application: "test-app",
+				Profile:     "test-profile",
+				Environment: "test-env",
+				ConfigFile:  "test.yml",
+			},
+			mockSetup: func(m *mock.MockAppConfigClient) {
+				m.ListApplicationsFunc = func(ctx context.Context, params *appconfig.ListApplicationsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListApplicationsOutput, error) {
+					return nil, errors.New("API error")
+				}
+			},
+			wantErr:     true,
+			errContains: "API error",
+		},
+		{
+			name: "error during file generation",
+			opts: &Options{
+				Application: "test-app",
+				Profile:     "test-profile",
+				Environment: "test-env",
+				ConfigFile:  "/invalid/path/test.yml",
+			},
+			mockSetup: func(m *mock.MockAppConfigClient) {
+				m.ListApplicationsFunc = func(ctx context.Context, params *appconfig.ListApplicationsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListApplicationsOutput, error) {
+					return &appconfig.ListApplicationsOutput{
+						Items: []types.Application{
+							{Id: aws.String("app-123"), Name: aws.String("test-app")},
+						},
+					}, nil
+				}
+				m.ListConfigurationProfilesFunc = func(ctx context.Context, params *appconfig.ListConfigurationProfilesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListConfigurationProfilesOutput, error) {
+					return &appconfig.ListConfigurationProfilesOutput{
+						Items: []types.ConfigurationProfileSummary{
+							{Id: aws.String("prof-456"), Name: aws.String("test-profile")},
+						},
+					}, nil
+				}
+				m.GetConfigurationProfileFunc = func(ctx context.Context, params *appconfig.GetConfigurationProfileInput, optFns ...func(*appconfig.Options)) (*appconfig.GetConfigurationProfileOutput, error) {
+					return &appconfig.GetConfigurationProfileOutput{
+						Id:   aws.String("prof-456"),
+						Name: aws.String("test-profile"),
+						Type: aws.String("AWS.AppConfig.Freeform"),
+					}, nil
+				}
+				m.ListEnvironmentsFunc = func(ctx context.Context, params *appconfig.ListEnvironmentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListEnvironmentsOutput, error) {
+					return &appconfig.ListEnvironmentsOutput{
+						Items: []types.Environment{
+							{Id: aws.String("env-789"), Name: aws.String("test-env")},
+						},
+					}, nil
+				}
+				m.ListHostedConfigurationVersionsFunc = func(ctx context.Context, params *appconfig.ListHostedConfigurationVersionsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListHostedConfigurationVersionsOutput, error) {
+					return nil, errors.New("no versions")
+				}
+			},
+			wantErr:     true,
+			errContains: "failed to generate config file",
+		},
+		{
 			name: "flow without version",
 			opts: &Options{
 				Application: "test-app",
