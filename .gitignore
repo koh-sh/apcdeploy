@@ -43,4 +43,5 @@ tmp/*
 # outputs
 apcdeploy.yml
 data.json
-data.yml
+data.yaml
+data.txt
