@@ -169,7 +169,7 @@ func (i *Initializer) generateFiles(opts *Options, result *Result) error {
 	i.reporter.Progress(fmt.Sprintf("Generating configuration file: %s", result.ConfigFile))
 
 	// Use the resolved region from AWS client (which may have been auto-resolved by SDK)
-	if err := config.GenerateConfigFile(result.AppName, result.ProfileName, result.EnvName, result.DataFile, i.awsClient.Region, result.DeploymentStrategy, result.ConfigFile); err != nil {
+	if err := config.GenerateConfigFile(result.AppName, result.ProfileName, result.EnvName, result.DataFile, i.awsClient.Region, result.DeploymentStrategy, result.ConfigFile, opts.Force); err != nil {
 		return fmt.Errorf("failed to generate config file: %w", err)
 	}
 
@@ -180,7 +180,7 @@ func (i *Initializer) generateFiles(opts *Options, result *Result) error {
 		dataFilePath := filepath.Join(filepath.Dir(result.ConfigFile), result.DataFile)
 		i.reporter.Progress(fmt.Sprintf("Writing configuration data: %s", dataFilePath))
 
-		if err := config.WriteDataFile(result.VersionInfo.Content, result.VersionInfo.ContentType, dataFilePath, result.ProfileType); err != nil {
+		if err := config.WriteDataFile(result.VersionInfo.Content, result.VersionInfo.ContentType, dataFilePath, result.ProfileType, opts.Force); err != nil {
 			return fmt.Errorf("failed to write data file: %w", err)
 		}
 

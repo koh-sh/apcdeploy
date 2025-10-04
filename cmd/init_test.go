@@ -28,6 +28,11 @@ func TestInitCommand(t *testing.T) {
 			args:    []string{"--app", "test-app", "--profile", "test-profile", "--env", "test-env", "--region", "us-east-1", "--output-data", "custom-data.json"},
 			wantErr: false,
 		},
+		{
+			name:    "with optional force flag",
+			args:    []string{"--app", "test-app", "--profile", "test-profile", "--env", "test-env", "--region", "us-east-1", "--force"},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -39,6 +44,7 @@ func TestInitCommand(t *testing.T) {
 			initRegion = ""
 			initConfig = "apcdeploy.yml"
 			initOutputData = ""
+			initForce = false
 
 			cmd := newInitCmd()
 			cmd.SetArgs(tt.args)

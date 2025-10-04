@@ -12,6 +12,7 @@ type Options struct {
 	Region      string
 	ConfigFile  string
 	OutputData  string
+	Force       bool
 }
 
 // Result contains the result of initialization

@@ -11,9 +11,9 @@ import (
 )
 
 // GenerateConfigFile generates an apcdeploy.yml file with the given parameters
-func GenerateConfigFile(app, profile, env, dataFile, region, deploymentStrategy, outputPath string) error {
+func GenerateConfigFile(app, profile, env, dataFile, region, deploymentStrategy, outputPath string, force bool) error {
 	// Check if file already exists
-	if _, err := os.Stat(outputPath); err == nil {
+	if _, err := os.Stat(outputPath); err == nil && !force {
 		return fmt.Errorf("config file already exists at %s (use --force to overwrite)", outputPath)
 	}
 
@@ -70,9 +70,9 @@ func DetermineDataFileName(contentType string) string {
 
 // WriteDataFile writes configuration data to a file with appropriate formatting
 // For FeatureFlags profile type, it removes _updatedAt and _createdAt fields
-func WriteDataFile(content []byte, contentType, outputPath, profileType string) error {
+func WriteDataFile(content []byte, contentType, outputPath, profileType string, force bool) error {
 	// Check if file already exists
-	if _, err := os.Stat(outputPath); err == nil {
+	if _, err := os.Stat(outputPath); err == nil && !force {
 		return fmt.Errorf("data file already exists at %s (use --force to overwrite)", outputPath)
 	}
 

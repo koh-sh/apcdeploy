@@ -16,6 +16,7 @@ var (
 	initRegion     string
 	initConfig     string
 	initOutputData string
+	initForce      bool
 )
 
 // InitCommand returns the init command
@@ -39,6 +40,7 @@ configuration and generating apcdeploy.yml and data files.`,
 	cmd.Flags().StringVar(&initRegion, "region", "", "AWS region (optional, uses default from AWS config)")
 	cmd.Flags().StringVarP(&initConfig, "config", "c", "apcdeploy.yml", "Output config file path")
 	cmd.Flags().StringVar(&initOutputData, "output-data", "", "Output data file path (optional, auto-detected from ContentType)")
+	cmd.Flags().BoolVar(&initForce, "force", false, "Overwrite existing files without prompting")
 
 	cmd.MarkFlagRequired("app")
 	cmd.MarkFlagRequired("profile")
@@ -64,6 +66,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		Region:      initRegion,
 		ConfigFile:  initConfig,
 		OutputData:  initOutputData,
+		Force:       initForce,
 	}
 
 	// Create reporter

@@ -91,7 +91,7 @@ func TestGenerateConfigFile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := GenerateConfigFile(tt.app, tt.profile, tt.env, tt.dataFile, tt.region, tt.deploymentStrategy, tt.outputPath)
+			err := GenerateConfigFile(tt.app, tt.profile, tt.env, tt.dataFile, tt.region, tt.deploymentStrategy, tt.outputPath, false)
 
 			if tt.wantErr && err == nil {
 				t.Error("expected error but got none")
@@ -135,9 +135,15 @@ func TestGenerateConfigFileOverwrite(t *testing.T) {
 	}
 
 	// Try to generate - should fail without force flag
-	err := GenerateConfigFile("app", "profile", "env", "data.json", "us-east-1", "", configPath)
+	err := GenerateConfigFile("app", "profile", "env", "data.json", "us-east-1", "", configPath, false)
 	if err == nil {
 		t.Error("expected error when overwriting existing file, but got none")
+	}
+
+	// Try again with force flag - should succeed
+	err = GenerateConfigFile("app", "profile", "env", "data.json", "us-east-1", "", configPath, true)
+	if err != nil {
+		t.Errorf("expected success with force flag, but got error: %v", err)
 	}
 }
 
@@ -282,7 +288,7 @@ func TestWriteDataFile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := WriteDataFile(tt.content, tt.contentType, tt.outputPath, "")
+			err := WriteDataFile(tt.content, tt.contentType, tt.outputPath, "", false)
 
 			if tt.wantErr && err == nil {
 				t.Error("expected error but got none")
@@ -366,7 +372,7 @@ func TestWriteDataFileFeatureFlags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := WriteDataFile(tt.content, tt.contentType, tt.outputPath, tt.profileType)
+			err := WriteDataFile(tt.content, tt.contentType, tt.outputPath, tt.profileType, false)
 
 			if tt.wantErr && err == nil {
 				t.Error("expected error but got none")
@@ -393,7 +399,7 @@ func TestWriteDataFileOverwrite(t *testing.T) {
 
 	// Try to write data file - should fail without force flag
 	newContent := []byte(`{"new":"data"}`)
-	err := WriteDataFile(newContent, "application/json", dataPath, "")
+	err := WriteDataFile(newContent, "application/json", dataPath, "", false)
 	if err == nil {
 		t.Error("expected error when overwriting existing data file, but got none")
 	}
@@ -410,6 +416,22 @@ func TestWriteDataFileOverwrite(t *testing.T) {
 	}
 	if string(data) != string(initialContent) {
 		t.Error("original file should not be modified when overwrite is not allowed")
+	}
+
+	// Try again with force flag - should succeed
+	err = WriteDataFile(newContent, "application/json", dataPath, "", true)
+	if err != nil {
+		t.Errorf("expected success with force flag, but got error: %v", err)
+	}
+
+	// Verify file was overwritten
+	data, err = os.ReadFile(dataPath)
+	if err != nil {
+		t.Fatalf("failed to read file: %v", err)
+	}
+	expected := "{\n  \"new\": \"data\"\n}\n"
+	if string(data) != expected {
+		t.Errorf("file should be overwritten with force flag, expected %q, got %q", expected, string(data))
 	}
 }
 

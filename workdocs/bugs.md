@@ -18,7 +18,7 @@
 
 ### 優先度 low
 
-- [ ] ファイルがすでに存在してエラーになった際に--force オプションについて言及しているがヘルプ表示には --force オプションについて表記されていない
+- [x] ファイルがすでに存在してエラーになった際に--force オプションについて言及しているがヘルプ表示には --force オプションについて表記されていない
 - [ ] 設定ファイルがすでにあるかは先にチェックしたい。現状はappやenvの解決をした後のエラー表示される
 
 ## status
@@ -28,10 +28,6 @@
 - [ ] statusがROLLED_BACKなのに Descriptionが Deploying new configuration
 - [ ] ROLLED_BACKの要因は CloudWatch Alermとは限らないので、理由を取得できたら取得して表示したい。できなければrollbackされたという事実だけ表示する
 - [ ] statusの表示にデプロイ戦略を表示したい
-
-### 優先度 low
-
-- [ ] status実行の際は Resolving resources... の表示はいらない
 
 ## diff
 
@@ -46,10 +42,6 @@
 - [ ] 既存のパラメータ修正の際に+0 additions, -0 deletionsとなっている。1 add 1 delete とするか、modified のような表記が欲しい
 - [ ] deploy中のwarningが目立たないので見逃してしまう。Fetching latest deploymentの表記から一行あけたい
 - [ ] featureflagの時は _updatedAt,_createdAt を差分表示しないようにしたい
-
-### 優先度 low
-
-- [ ] diff実行の際は Resolving resources... の表示はいらない
 
 ## deploy
 
