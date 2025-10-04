@@ -111,7 +111,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	e.reporter.Success(fmt.Sprintf("Deployment #%d started", deploymentNumber))
 
 	// Step 9: Wait for deployment if requested
-	if !opts.NoWait {
+	if opts.Wait {
 		e.reporter.Progress("Waiting for deployment to complete...")
 		if err := deployer.WaitForDeployment(ctx, resolved, deploymentNumber, opts.Timeout); err != nil {
 			return fmt.Errorf("deployment failed: %w", err)

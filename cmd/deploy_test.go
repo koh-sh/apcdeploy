@@ -21,8 +21,8 @@ func TestDeployCommand(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "no-wait flag",
-			args:    []string{"--no-wait"},
+			name:    "wait flag",
+			args:    []string{"--wait"},
 			wantErr: false,
 		},
 		{
@@ -36,8 +36,8 @@ func TestDeployCommand(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Reset global flags for each test
 			deployConfigFile = "apcdeploy.yml"
-			deployNoWait = false
-			deployTimeout = 300
+			deployWait = false
+			deployTimeout = 600
 
 			cmd := newDeployCmd()
 			cmd.SetArgs(tt.args)
@@ -52,8 +52,8 @@ func TestDeployCommand(t *testing.T) {
 
 func TestDeployCommandFlags(t *testing.T) {
 	deployConfigFile = "apcdeploy.yml"
-	deployNoWait = false
-	deployTimeout = 300
+	deployWait = false
+	deployTimeout = 600
 
 	cmd := newDeployCmd()
 
@@ -70,7 +70,7 @@ func TestDeployCommandFlags(t *testing.T) {
 		{
 			name:         "timeout flag has default",
 			flagName:     "timeout",
-			defaultValue: "300",
+			defaultValue: "600",
 		},
 	}
 
@@ -89,21 +89,21 @@ func TestDeployCommandFlags(t *testing.T) {
 	}
 }
 
-func TestDeployCommandNoWaitFlag(t *testing.T) {
+func TestDeployCommandWaitFlag(t *testing.T) {
 	deployConfigFile = "apcdeploy.yml"
-	deployNoWait = false
-	deployTimeout = 300
+	deployWait = false
+	deployTimeout = 600
 
 	cmd := newDeployCmd()
 
-	flag := cmd.Flags().Lookup("no-wait")
+	flag := cmd.Flags().Lookup("wait")
 	if flag == nil {
-		t.Error("Flag no-wait not found")
+		t.Error("Flag wait not found")
 		return
 	}
 
 	if flag.DefValue != "false" {
-		t.Errorf("Flag no-wait default = %v, want false", flag.DefValue)
+		t.Errorf("Flag wait default = %v, want false", flag.DefValue)
 	}
 }
 

@@ -10,7 +10,7 @@ import (
 
 var (
 	deployConfigFile string
-	deployNoWait     bool
+	deployWait       bool
 	deployTimeout    int
 )
 
@@ -36,8 +36,8 @@ This command will:
 	}
 
 	cmd.Flags().StringVarP(&deployConfigFile, "config", "c", "apcdeploy.yml", "Path to configuration file")
-	cmd.Flags().BoolVar(&deployNoWait, "no-wait", false, "Do not wait for deployment to complete")
-	cmd.Flags().IntVar(&deployTimeout, "timeout", 300, "Timeout in seconds for deployment (default: 300)")
+	cmd.Flags().BoolVar(&deployWait, "wait", false, "Wait for deployment to complete")
+	cmd.Flags().IntVar(&deployTimeout, "timeout", 600, "Timeout in seconds for deployment")
 
 	return cmd
 }
@@ -48,7 +48,7 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 	// Create options
 	opts := &deploy.Options{
 		ConfigFile: deployConfigFile,
-		NoWait:     deployNoWait,
+		Wait:       deployWait,
 		Timeout:    deployTimeout,
 	}
 

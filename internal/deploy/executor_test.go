@@ -62,7 +62,7 @@ func TestExecutorValidateTimeout(t *testing.T) {
 
 			opts := &Options{
 				ConfigFile: "nonexistent.yml",
-				NoWait:     true,
+				Wait:       false,
 				Timeout:    tt.timeout,
 			}
 
@@ -91,7 +91,7 @@ func TestExecutorLoadConfigurationError(t *testing.T) {
 
 	opts := &Options{
 		ConfigFile: "nonexistent.yml",
-		NoWait:     true,
+		Wait:       false,
 		Timeout:    300,
 	}
 
@@ -228,7 +228,7 @@ region: us-east-1
 
 	opts := &Options{
 		ConfigFile: configPath,
-		NoWait:     true,
+		Wait:       false,
 		Timeout:    300,
 	}
 
@@ -368,7 +368,7 @@ region: us-east-1
 
 			opts := &Options{
 				ConfigFile: configPath,
-				NoWait:     false, // Wait for deployment
+				Wait:       true, // Wait for deployment
 				Timeout:    30,
 			}
 
@@ -465,7 +465,7 @@ region: us-east-1
 
 	opts := &Options{
 		ConfigFile: configPath,
-		NoWait:     true,
+		Wait:       false,
 		Timeout:    300,
 	}
 

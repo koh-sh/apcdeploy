@@ -7,40 +7,40 @@ func TestOptions(t *testing.T) {
 		name       string
 		opts       *Options
 		wantConfig string
-		wantNoWait bool
+		wantWait   bool
 		wantTime   int
 	}{
 		{
 			name: "default options",
 			opts: &Options{
 				ConfigFile: "apcdeploy.yml",
-				NoWait:     false,
-				Timeout:    300,
+				Wait:       false,
+				Timeout:    600,
 			},
 			wantConfig: "apcdeploy.yml",
-			wantNoWait: false,
-			wantTime:   300,
+			wantWait:   false,
+			wantTime:   600,
 		},
 		{
 			name: "custom options",
 			opts: &Options{
 				ConfigFile: "custom.yml",
-				NoWait:     true,
+				Wait:       true,
 				Timeout:    600,
 			},
 			wantConfig: "custom.yml",
-			wantNoWait: true,
+			wantWait:   true,
 			wantTime:   600,
 		},
 		{
 			name: "zero timeout",
 			opts: &Options{
 				ConfigFile: "apcdeploy.yml",
-				NoWait:     false,
+				Wait:       false,
 				Timeout:    0,
 			},
 			wantConfig: "apcdeploy.yml",
-			wantNoWait: false,
+			wantWait:   false,
 			wantTime:   0,
 		},
 	}
@@ -50,8 +50,8 @@ func TestOptions(t *testing.T) {
 			if tt.opts.ConfigFile != tt.wantConfig {
 				t.Errorf("ConfigFile = %v, want %v", tt.opts.ConfigFile, tt.wantConfig)
 			}
-			if tt.opts.NoWait != tt.wantNoWait {
-				t.Errorf("NoWait = %v, want %v", tt.opts.NoWait, tt.wantNoWait)
+			if tt.opts.Wait != tt.wantWait {
+				t.Errorf("Wait = %v, want %v", tt.opts.Wait, tt.wantWait)
 			}
 			if tt.opts.Timeout != tt.wantTime {
 				t.Errorf("Timeout = %v, want %v", tt.opts.Timeout, tt.wantTime)
