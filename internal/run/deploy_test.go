@@ -2,6 +2,7 @@ package run
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -44,6 +45,19 @@ region: us-east-1
 		t.Fatalf("Failed to write data file: %v", err)
 	}
 
+	// Create a config file with missing data file
+	missingDataConfigPath := filepath.Join(tempDir, "missing-data.yml")
+	missingDataContent := `application: test-app
+configuration_profile: test-profile
+environment: test-env
+deployment_strategy: AppConfig.AllAtOnce
+data_file: nonexistent.json
+region: us-east-1
+`
+	if err := os.WriteFile(missingDataConfigPath, []byte(missingDataContent), 0o644); err != nil {
+		t.Fatalf("Failed to write config with missing data: %v", err)
+	}
+
 	tests := []struct {
 		name       string
 		configPath string
@@ -57,6 +71,11 @@ region: us-east-1
 		{
 			name:       "non-existent config file",
 			configPath: filepath.Join(tempDir, "nonexistent.yml"),
+			wantErr:    true,
+		},
+		{
+			name:       "config with missing data file",
+			configPath: missingDataConfigPath,
 			wantErr:    true,
 		},
 	}
@@ -166,6 +185,12 @@ func TestDeployer_ValidateLocalData(t *testing.T) {
 			contentType: "application/json",
 			wantErr:     true,
 		},
+		{
+			name:        "unsupported content type",
+			data:        []byte("some data"),
+			contentType: "application/xml",
+			wantErr:     true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -247,22 +272,38 @@ func TestDeployer_DetermineContentType(t *testing.T) {
 }
 
 func TestNew(t *testing.T) {
-	ctx := context.Background()
-	cfg := &config.Config{
-		Application:          "test-app",
-		ConfigurationProfile: "test-profile",
-		Environment:          "test-env",
-		DeploymentStrategy:   "AppConfig.AllAtOnce",
-		Region:               "us-east-1",
-		DataFile:             "data.json",
+	tests := []struct {
+		name    string
+		region  string
+		wantErr bool
+	}{
+		{
+			name:    "valid region",
+			region:  "us-east-1",
+			wantErr: false,
+		},
 	}
 
-	d, err := New(ctx, cfg)
-	if err != nil {
-		t.Errorf("New() error = %v", err)
-	}
-	if d == nil {
-		t.Error("Expected deployer to be non-nil")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			cfg := &config.Config{
+				Application:          "test-app",
+				ConfigurationProfile: "test-profile",
+				Environment:          "test-env",
+				DeploymentStrategy:   "AppConfig.AllAtOnce",
+				Region:               tt.region,
+				DataFile:             "data.json",
+			}
+
+			d, err := New(ctx, cfg)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("New() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if !tt.wantErr && d == nil {
+				t.Error("Expected deployer to be non-nil")
+			}
+		})
 	}
 }
 
@@ -322,90 +363,126 @@ func TestNewWithClient(t *testing.T) {
 }
 
 func TestResolveResourcesWithMock(t *testing.T) {
-	cfg := &config.Config{
-		Application:          "test-app",
-		ConfigurationProfile: "test-profile",
-		Environment:          "test-env",
-		DeploymentStrategy:   "AppConfig.AllAtOnce",
-		DataFile:             "data.json",
-		Region:               "us-east-1",
+	tests := []struct {
+		name               string
+		listAppsError      error
+		wantErr            bool
+		expectedAppID      string
+		expectedProfileID  string
+		expectedEnvID      string
+		expectedStrategyID string
+	}{
+		{
+			name:               "successful resolution",
+			listAppsError:      nil,
+			wantErr:            false,
+			expectedAppID:      "app-123",
+			expectedProfileID:  "profile-123",
+			expectedEnvID:      "env-123",
+			expectedStrategyID: "strategy-123",
+		},
+		{
+			name:          "error listing applications",
+			listAppsError: errors.New("failed to list applications"),
+			wantErr:       true,
+		},
 	}
 
-	mockClient := &mock.MockAppConfigClient{
-		ListApplicationsFunc: func(ctx context.Context, params *appconfig.ListApplicationsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListApplicationsOutput, error) {
-			return &appconfig.ListApplicationsOutput{
-				Items: []types.Application{
-					{
-						Id:   aws.String("app-123"),
-						Name: aws.String("test-app"),
-					},
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{
+				Application:          "test-app",
+				ConfigurationProfile: "test-profile",
+				Environment:          "test-env",
+				DeploymentStrategy:   "AppConfig.AllAtOnce",
+				DataFile:             "data.json",
+				Region:               "us-east-1",
+			}
+
+			mockClient := &mock.MockAppConfigClient{
+				ListApplicationsFunc: func(ctx context.Context, params *appconfig.ListApplicationsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListApplicationsOutput, error) {
+					if tt.listAppsError != nil {
+						return nil, tt.listAppsError
+					}
+					return &appconfig.ListApplicationsOutput{
+						Items: []types.Application{
+							{
+								Id:   aws.String("app-123"),
+								Name: aws.String("test-app"),
+							},
+						},
+					}, nil
 				},
-			}, nil
-		},
-		ListConfigurationProfilesFunc: func(ctx context.Context, params *appconfig.ListConfigurationProfilesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListConfigurationProfilesOutput, error) {
-			return &appconfig.ListConfigurationProfilesOutput{
-				Items: []types.ConfigurationProfileSummary{
-					{
+				ListConfigurationProfilesFunc: func(ctx context.Context, params *appconfig.ListConfigurationProfilesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListConfigurationProfilesOutput, error) {
+					return &appconfig.ListConfigurationProfilesOutput{
+						Items: []types.ConfigurationProfileSummary{
+							{
+								Id:   aws.String("profile-123"),
+								Name: aws.String("test-profile"),
+								Type: aws.String("AWS.Freeform"),
+							},
+						},
+					}, nil
+				},
+				GetConfigurationProfileFunc: func(ctx context.Context, params *appconfig.GetConfigurationProfileInput, optFns ...func(*appconfig.Options)) (*appconfig.GetConfigurationProfileOutput, error) {
+					return &appconfig.GetConfigurationProfileOutput{
 						Id:   aws.String("profile-123"),
 						Name: aws.String("test-profile"),
 						Type: aws.String("AWS.Freeform"),
-					},
+					}, nil
 				},
-			}, nil
-		},
-		GetConfigurationProfileFunc: func(ctx context.Context, params *appconfig.GetConfigurationProfileInput, optFns ...func(*appconfig.Options)) (*appconfig.GetConfigurationProfileOutput, error) {
-			return &appconfig.GetConfigurationProfileOutput{
-				Id:   aws.String("profile-123"),
-				Name: aws.String("test-profile"),
-				Type: aws.String("AWS.Freeform"),
-			}, nil
-		},
-		ListEnvironmentsFunc: func(ctx context.Context, params *appconfig.ListEnvironmentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListEnvironmentsOutput, error) {
-			return &appconfig.ListEnvironmentsOutput{
-				Items: []types.Environment{
-					{
-						Id:   aws.String("env-123"),
-						Name: aws.String("test-env"),
-					},
+				ListEnvironmentsFunc: func(ctx context.Context, params *appconfig.ListEnvironmentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListEnvironmentsOutput, error) {
+					return &appconfig.ListEnvironmentsOutput{
+						Items: []types.Environment{
+							{
+								Id:   aws.String("env-123"),
+								Name: aws.String("test-env"),
+							},
+						},
+					}, nil
 				},
-			}, nil
-		},
-		ListDeploymentStrategiesFunc: func(ctx context.Context, params *appconfig.ListDeploymentStrategiesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentStrategiesOutput, error) {
-			return &appconfig.ListDeploymentStrategiesOutput{
-				Items: []types.DeploymentStrategy{
-					{
-						Id:   aws.String("strategy-123"),
-						Name: aws.String("AppConfig.AllAtOnce"),
-					},
+				ListDeploymentStrategiesFunc: func(ctx context.Context, params *appconfig.ListDeploymentStrategiesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentStrategiesOutput, error) {
+					return &appconfig.ListDeploymentStrategiesOutput{
+						Items: []types.DeploymentStrategy{
+							{
+								Id:   aws.String("strategy-123"),
+								Name: aws.String("AppConfig.AllAtOnce"),
+							},
+						},
+					}, nil
 				},
-			}, nil
-		},
-	}
+			}
 
-	awsClient := &awsInternal.Client{
-		AppConfig: mockClient,
-	}
+			awsClient := &awsInternal.Client{
+				AppConfig: mockClient,
+			}
 
-	deployer := NewWithClient(cfg, awsClient)
-	resolved, err := deployer.ResolveResources(context.Background())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+			deployer := NewWithClient(cfg, awsClient)
+			resolved, err := deployer.ResolveResources(context.Background())
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("ResolveResources() error = %v, wantErr %v", err, tt.wantErr)
+			}
 
-	if resolved.ApplicationID != "app-123" {
-		t.Errorf("expected ApplicationID 'app-123', got '%s'", resolved.ApplicationID)
-	}
+			if tt.wantErr {
+				return
+			}
 
-	if resolved.Profile.ID != "profile-123" {
-		t.Errorf("expected ProfileID 'profile-123', got '%s'", resolved.Profile.ID)
-	}
+			if resolved.ApplicationID != tt.expectedAppID {
+				t.Errorf("expected ApplicationID '%s', got '%s'", tt.expectedAppID, resolved.ApplicationID)
+			}
 
-	if resolved.EnvironmentID != "env-123" {
-		t.Errorf("expected EnvironmentID 'env-123', got '%s'", resolved.EnvironmentID)
-	}
+			if resolved.Profile.ID != tt.expectedProfileID {
+				t.Errorf("expected ProfileID '%s', got '%s'", tt.expectedProfileID, resolved.Profile.ID)
+			}
 
-	if resolved.DeploymentStrategyID != "strategy-123" {
-		t.Errorf("expected DeploymentStrategyID 'strategy-123', got '%s'", resolved.DeploymentStrategyID)
+			if resolved.EnvironmentID != tt.expectedEnvID {
+				t.Errorf("expected EnvironmentID '%s', got '%s'", tt.expectedEnvID, resolved.EnvironmentID)
+			}
+
+			if resolved.DeploymentStrategyID != tt.expectedStrategyID {
+				t.Errorf("expected DeploymentStrategyID '%s', got '%s'", tt.expectedStrategyID, resolved.DeploymentStrategyID)
+			}
+		})
 	}
 }
 
@@ -583,6 +660,7 @@ func TestWaitForDeploymentWithMock(t *testing.T) {
 		name        string
 		mockStates  []types.DeploymentState
 		timeout     int
+		invalidTime bool
 		wantErr     bool
 		description string
 	}{
@@ -751,4 +829,541 @@ func TestFormatValidationError(t *testing.T) {
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
 		(len(s) > 0 && (s[:len(substr)] == substr || contains(s[1:], substr))))
+}
+
+func TestRemoveTimestampFieldsRecursive(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    any
+		expected any
+	}{
+		{
+			name: "map with timestamp fields",
+			input: map[string]any{
+				"name":       "test",
+				"_updatedAt": "2023-01-01",
+				"_createdAt": "2023-01-01",
+				"value":      42,
+			},
+			expected: map[string]any{
+				"name":  "test",
+				"value": 42,
+			},
+		},
+		{
+			name: "nested map with timestamp fields",
+			input: map[string]any{
+				"outer": map[string]any{
+					"inner": map[string]any{
+						"_updatedAt": "2023-01-01",
+						"_createdAt": "2023-01-01",
+						"data":       "value",
+					},
+				},
+			},
+			expected: map[string]any{
+				"outer": map[string]any{
+					"inner": map[string]any{
+						"data": "value",
+					},
+				},
+			},
+		},
+		{
+			name: "array of maps with timestamp fields",
+			input: []any{
+				map[string]any{
+					"_updatedAt": "2023-01-01",
+					"name":       "first",
+				},
+				map[string]any{
+					"_createdAt": "2023-01-01",
+					"name":       "second",
+				},
+			},
+			expected: []any{
+				map[string]any{
+					"name": "first",
+				},
+				map[string]any{
+					"name": "second",
+				},
+			},
+		},
+		{
+			name:     "primitive string",
+			input:    "test",
+			expected: "test",
+		},
+		{
+			name:     "primitive number",
+			input:    42,
+			expected: 42,
+		},
+		{
+			name:     "primitive bool",
+			input:    true,
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := removeTimestampFieldsRecursive(tt.input)
+			resultJSON, err := json.Marshal(result)
+			if err != nil {
+				t.Fatalf("failed to marshal result: %v", err)
+			}
+			expectedJSON, err := json.Marshal(tt.expected)
+			if err != nil {
+				t.Fatalf("failed to marshal expected: %v", err)
+			}
+			if string(resultJSON) != string(expectedJSON) {
+				t.Errorf("removeTimestampFieldsRecursive() = %s, want %s", string(resultJSON), string(expectedJSON))
+			}
+		})
+	}
+}
+
+func TestNormalizeJSON(t *testing.T) {
+	tests := []struct {
+		name        string
+		content     string
+		profileType string
+		wantErr     bool
+	}{
+		{
+			name:        "valid JSON - Freeform",
+			content:     `{"key":"value","nested":{"a":1}}`,
+			profileType: "AWS.Freeform",
+			wantErr:     false,
+		},
+		{
+			name:        "valid JSON - FeatureFlags",
+			content:     `{"flags":{"flag1":{"enabled":true,"_updatedAt":"2023-01-01"}}}`,
+			profileType: "AWS.AppConfig.FeatureFlags",
+			wantErr:     false,
+		},
+		{
+			name:        "invalid JSON - syntax error",
+			content:     `{invalid json}`,
+			profileType: "AWS.Freeform",
+			wantErr:     true,
+		},
+		{
+			name:        "invalid JSON - malformed",
+			content:     `{"key":`,
+			profileType: "AWS.Freeform",
+			wantErr:     true,
+		},
+		{
+			name:        "empty JSON",
+			content:     `{}`,
+			profileType: "AWS.Freeform",
+			wantErr:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := normalizeJSON(tt.content, tt.profileType)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("normalizeJSON() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr && result == "" {
+				t.Error("normalizeJSON() returned empty string for valid input")
+			}
+		})
+	}
+}
+
+func TestNormalizeYAML(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		wantErr bool
+	}{
+		{
+			name:    "valid YAML",
+			content: "key: value\nnested:\n  a: 1\n",
+			wantErr: false,
+		},
+		{
+			name:    "invalid YAML - malformed",
+			content: ":\n  invalid yaml\n:",
+			wantErr: true,
+		},
+		{
+			name:    "invalid YAML - bad indentation",
+			content: "key:\nvalue",
+			wantErr: false, // This is actually valid YAML
+		},
+		{
+			name:    "empty YAML",
+			content: "",
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := normalizeYAML(tt.content)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("normalizeYAML() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr && result == "" && tt.content != "" {
+				t.Error("normalizeYAML() returned empty string for non-empty valid input")
+			}
+		})
+	}
+}
+
+func TestNormalizeText(t *testing.T) {
+	tests := []struct {
+		name     string
+		content  string
+		expected string
+	}{
+		{
+			name:     "unix line endings",
+			content:  "line1\nline2\nline3",
+			expected: "line1\nline2\nline3\n",
+		},
+		{
+			name:     "windows line endings",
+			content:  "line1\r\nline2\r\nline3",
+			expected: "line1\nline2\nline3\n",
+		},
+		{
+			name:     "mixed line endings",
+			content:  "line1\nline2\r\nline3",
+			expected: "line1\nline2\nline3\n",
+		},
+		{
+			name:     "multiple trailing newlines",
+			content:  "line1\nline2\n\n\n",
+			expected: "line1\nline2\n",
+		},
+		{
+			name:     "no trailing newline",
+			content:  "line1\nline2",
+			expected: "line1\nline2\n",
+		},
+		{
+			name:     "empty string",
+			content:  "",
+			expected: "\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := normalizeText(tt.content)
+			if result != tt.expected {
+				t.Errorf("normalizeText() = %q, want %q", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestNormalizeContentForComparison(t *testing.T) {
+	tests := []struct {
+		name        string
+		content     string
+		ext         string
+		profileType string
+		wantErr     bool
+	}{
+		{
+			name:        "JSON file",
+			content:     `{"key":"value"}`,
+			ext:         ".json",
+			profileType: "AWS.Freeform",
+			wantErr:     false,
+		},
+		{
+			name:        "YAML file",
+			content:     "key: value\n",
+			ext:         ".yaml",
+			profileType: "AWS.Freeform",
+			wantErr:     false,
+		},
+		{
+			name:        "YML file",
+			content:     "key: value\n",
+			ext:         ".yml",
+			profileType: "AWS.Freeform",
+			wantErr:     false,
+		},
+		{
+			name:        "text file",
+			content:     "plain text\ncontent",
+			ext:         ".txt",
+			profileType: "AWS.Freeform",
+			wantErr:     false,
+		},
+		{
+			name:        "invalid JSON",
+			content:     `{invalid}`,
+			ext:         ".json",
+			profileType: "AWS.Freeform",
+			wantErr:     true,
+		},
+		{
+			name:        "invalid YAML",
+			content:     ":\ninvalid\n:",
+			ext:         ".yaml",
+			profileType: "AWS.Freeform",
+			wantErr:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := normalizeContentForComparison(tt.content, tt.ext, tt.profileType)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("normalizeContentForComparison() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr && result == "" {
+				t.Error("normalizeContentForComparison() returned empty string for valid input")
+			}
+		})
+	}
+}
+
+func TestHasConfigurationChanges(t *testing.T) {
+	tests := []struct {
+		name                 string
+		localContent         []byte
+		remoteContent        []byte
+		fileName             string
+		profileType          string
+		hasDeployment        bool
+		wantChanges          bool
+		wantErr              bool
+		mockDeployment       *types.DeploymentSummary
+		listDeploymentsError error
+		getVersionError      error
+	}{
+		{
+			name:          "no previous deployment",
+			localContent:  []byte(`{"key":"value"}`),
+			fileName:      "config.json",
+			profileType:   "AWS.Freeform",
+			hasDeployment: false,
+			wantChanges:   true,
+			wantErr:       false,
+		},
+		{
+			name:                 "error listing deployments",
+			localContent:         []byte(`{"key":"value"}`),
+			fileName:             "config.json",
+			profileType:          "AWS.Freeform",
+			hasDeployment:        false,
+			wantChanges:          false,
+			wantErr:              true,
+			listDeploymentsError: errors.New("failed to list deployments"),
+		},
+		{
+			name:          "error getting version",
+			localContent:  []byte(`{"key":"value"}`),
+			fileName:      "config.json",
+			profileType:   "AWS.Freeform",
+			hasDeployment: true,
+			wantChanges:   false,
+			wantErr:       true,
+			mockDeployment: &types.DeploymentSummary{
+				ConfigurationVersion: aws.String("1"),
+				State:                types.DeploymentStateComplete,
+			},
+			getVersionError: errors.New("failed to get version"),
+		},
+		{
+			name:          "invalid local JSON",
+			localContent:  []byte(`{invalid}`),
+			remoteContent: []byte(`{"key":"value"}`),
+			fileName:      "config.json",
+			profileType:   "AWS.Freeform",
+			hasDeployment: true,
+			wantChanges:   false,
+			wantErr:       true,
+			mockDeployment: &types.DeploymentSummary{
+				ConfigurationVersion: aws.String("1"),
+				State:                types.DeploymentStateComplete,
+			},
+		},
+		{
+			name:          "invalid remote JSON",
+			localContent:  []byte(`{"key":"value"}`),
+			remoteContent: []byte(`{invalid}`),
+			fileName:      "config.json",
+			profileType:   "AWS.Freeform",
+			hasDeployment: true,
+			wantChanges:   false,
+			wantErr:       true,
+			mockDeployment: &types.DeploymentSummary{
+				ConfigurationVersion: aws.String("1"),
+				State:                types.DeploymentStateComplete,
+			},
+		},
+		{
+			name:          "identical JSON content",
+			localContent:  []byte(`{"key":"value"}`),
+			remoteContent: []byte(`{"key":"value"}`),
+			fileName:      "config.json",
+			profileType:   "AWS.Freeform",
+			hasDeployment: true,
+			wantChanges:   false,
+			wantErr:       false,
+			mockDeployment: &types.DeploymentSummary{
+				ConfigurationVersion: aws.String("1"),
+				State:                types.DeploymentStateComplete,
+			},
+		},
+		{
+			name:          "different JSON content",
+			localContent:  []byte(`{"key":"new-value"}`),
+			remoteContent: []byte(`{"key":"old-value"}`),
+			fileName:      "config.json",
+			profileType:   "AWS.Freeform",
+			hasDeployment: true,
+			wantChanges:   true,
+			wantErr:       false,
+			mockDeployment: &types.DeploymentSummary{
+				ConfigurationVersion: aws.String("1"),
+				State:                types.DeploymentStateComplete,
+			},
+		},
+		{
+			name:          "identical YAML content",
+			localContent:  []byte("key: value\n"),
+			remoteContent: []byte("key: value\n"),
+			fileName:      "config.yaml",
+			profileType:   "AWS.Freeform",
+			hasDeployment: true,
+			wantChanges:   false,
+			wantErr:       false,
+			mockDeployment: &types.DeploymentSummary{
+				ConfigurationVersion: aws.String("1"),
+				State:                types.DeploymentStateComplete,
+			},
+		},
+		{
+			name:          "different YAML content",
+			localContent:  []byte("key: new-value\n"),
+			remoteContent: []byte("key: old-value\n"),
+			fileName:      "config.yaml",
+			profileType:   "AWS.Freeform",
+			hasDeployment: true,
+			wantChanges:   true,
+			wantErr:       false,
+			mockDeployment: &types.DeploymentSummary{
+				ConfigurationVersion: aws.String("1"),
+				State:                types.DeploymentStateComplete,
+			},
+		},
+		{
+			name:          "identical text content",
+			localContent:  []byte("text content"),
+			remoteContent: []byte("text content"),
+			fileName:      "config.txt",
+			profileType:   "AWS.Freeform",
+			hasDeployment: true,
+			wantChanges:   false,
+			wantErr:       false,
+			mockDeployment: &types.DeploymentSummary{
+				ConfigurationVersion: aws.String("1"),
+				State:                types.DeploymentStateComplete,
+			},
+		},
+		{
+			name:          "different text content",
+			localContent:  []byte("new text content"),
+			remoteContent: []byte("old text content"),
+			fileName:      "config.txt",
+			profileType:   "AWS.Freeform",
+			hasDeployment: true,
+			wantChanges:   true,
+			wantErr:       false,
+			mockDeployment: &types.DeploymentSummary{
+				ConfigurationVersion: aws.String("1"),
+				State:                types.DeploymentStateComplete,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{
+				Application:          "test-app",
+				ConfigurationProfile: "test-profile",
+				Environment:          "test-env",
+				DeploymentStrategy:   "AppConfig.AllAtOnce",
+				DataFile:             "data.json",
+				Region:               "us-east-1",
+			}
+
+			mockClient := &mock.MockAppConfigClient{
+				ListDeploymentsFunc: func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
+					if tt.listDeploymentsError != nil {
+						return nil, tt.listDeploymentsError
+					}
+					if !tt.hasDeployment {
+						return &appconfig.ListDeploymentsOutput{
+							Items: []types.DeploymentSummary{},
+						}, nil
+					}
+					return &appconfig.ListDeploymentsOutput{
+						Items: []types.DeploymentSummary{*tt.mockDeployment},
+					}, nil
+				},
+				GetDeploymentFunc: func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
+					if !tt.hasDeployment {
+						return nil, errors.New("no deployment found")
+					}
+					return &appconfig.GetDeploymentOutput{
+						ConfigurationProfileId: aws.String("profile-123"),
+						ConfigurationVersion:   tt.mockDeployment.ConfigurationVersion,
+						State:                  types.DeploymentStateComplete,
+					}, nil
+				},
+				GetHostedConfigurationVersionFunc: func(ctx context.Context, params *appconfig.GetHostedConfigurationVersionInput, optFns ...func(*appconfig.Options)) (*appconfig.GetHostedConfigurationVersionOutput, error) {
+					if tt.getVersionError != nil {
+						return nil, tt.getVersionError
+					}
+					return &appconfig.GetHostedConfigurationVersionOutput{
+						Content: tt.remoteContent,
+					}, nil
+				},
+			}
+
+			awsClient := &awsInternal.Client{
+				AppConfig: mockClient,
+			}
+
+			deployer := NewWithClient(cfg, awsClient)
+
+			resolved := &awsInternal.ResolvedResources{
+				ApplicationID:        "app-123",
+				EnvironmentID:        "env-123",
+				DeploymentStrategyID: "strategy-123",
+				Profile: &awsInternal.ProfileInfo{
+					ID:   "profile-123",
+					Type: tt.profileType,
+				},
+			}
+
+			hasChanges, err := deployer.HasConfigurationChanges(context.Background(), resolved, tt.localContent, tt.fileName, "application/json")
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("HasConfigurationChanges() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			if hasChanges != tt.wantChanges {
+				t.Errorf("HasConfigurationChanges() = %v, want %v", hasChanges, tt.wantChanges)
+			}
+		})
+	}
 }
