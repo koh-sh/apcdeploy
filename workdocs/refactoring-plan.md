@@ -178,9 +178,9 @@ reporter := &reportertest.MockReporter{}
 ### Phase 3: AWS Resolverのリファクタリング（優先度: 中）
 
 #### Task 3.1: 共通resolve関数の設計と実装
-- [ ] `internal/aws/resolver_common.go` を作成
-- [ ] ジェネリクスを使用した共通resolve関数を実装
-- [ ] 既存のResolve*メソッドから共通パターンを抽出
+- [x] `internal/aws/resolver_common.go` を作成
+- [x] ジェネリクスを使用した共通resolve関数を実装
+- [x] 既存のResolve*メソッドから共通パターンを抽出
 
 **成果物例**:
 ```go
@@ -225,9 +225,9 @@ func resolveByName[T interface{ GetName() *string; GetId() *string }](
 ---
 
 #### Task 3.2: 既存Resolveメソッドのリファクタリング
-- [ ] `ResolveApplication` を共通関数使用に書き換え
-- [ ] `ResolveEnvironment` を共通関数使用に書き換え
-- [ ] `ResolveDeploymentStrategy` を共通関数使用に書き換え
+- [x] `ResolveApplication` を共通関数使用に書き換え
+- [x] `ResolveEnvironment` を共通関数使用に書き換え
+- [x] `ResolveDeploymentStrategy` を共通関数使用に書き換え
 
 **注意**: `ResolveConfigurationProfile` は戻り値が異なるため個別実装を維持
 
@@ -236,10 +236,10 @@ func resolveByName[T interface{ GetName() *string; GetId() *string }](
 ---
 
 #### Task 3.3: Phase 3 完了チェック（必須）
-- [ ] `make ci` を実行してパスすることを確認
-- [ ] `make cov` でカバレッジを確認、特に`internal/aws/resolver_common.go`の新規コードを確認
-- [ ] 既存のResolver関連テストが全て通ることを確認
-- [ ] このドキュメントのPhase 3チェックリストを全て更新
+- [x] `make ci` を実行してパスすることを確認
+- [x] `make cov` でカバレッジを確認、特に`internal/aws/resolver_common.go`の新規コードを確認
+- [x] 既存のResolver関連テストが全て通ることを確認
+- [x] このドキュメントのPhase 3チェックリストを全て更新
 - [ ] 変更をコミット: `git add . && git commit -m "refactor: extract common resolver logic using generics"`
 - [ ] リモートにプッシュ: `git push`
 

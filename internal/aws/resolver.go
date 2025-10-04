@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/appconfig"
+	"github.com/aws/aws-sdk-go-v2/service/appconfig/types"
 	"github.com/koh-sh/apcdeploy/internal/aws/mock"
 )
 
@@ -27,24 +28,13 @@ func (r *Resolver) ResolveApplication(ctx context.Context, appName string) (stri
 		return "", fmt.Errorf("failed to list applications: %w", err)
 	}
 
-	var matches []string
-	for _, app := range output.Items {
-		if app.Name != nil && *app.Name == appName {
-			if app.Id != nil {
-				matches = append(matches, *app.Id)
-			}
-		}
-	}
-
-	if len(matches) == 0 {
-		return "", fmt.Errorf("application not found: %s", appName)
-	}
-
-	if len(matches) > 1 {
-		return "", fmt.Errorf("multiple applications found with name: %s", appName)
-	}
-
-	return matches[0], nil
+	return resolveByName(
+		output.Items,
+		appName,
+		"application",
+		func(app types.Application) *string { return app.Name },
+		func(app types.Application) *string { return app.Id },
+	)
 }
 
 // ProfileInfo contains Configuration Profile details
@@ -111,24 +101,13 @@ func (r *Resolver) ResolveEnvironment(ctx context.Context, appID, envName string
 		return "", fmt.Errorf("failed to list environments: %w", err)
 	}
 
-	var matches []string
-	for _, env := range output.Items {
-		if env.Name != nil && *env.Name == envName {
-			if env.Id != nil {
-				matches = append(matches, *env.Id)
-			}
-		}
-	}
-
-	if len(matches) == 0 {
-		return "", fmt.Errorf("environment not found: %s", envName)
-	}
-
-	if len(matches) > 1 {
-		return "", fmt.Errorf("multiple environments found with name: %s", envName)
-	}
-
-	return matches[0], nil
+	return resolveByName(
+		output.Items,
+		envName,
+		"environment",
+		func(env types.Environment) *string { return env.Name },
+		func(env types.Environment) *string { return env.Id },
+	)
 }
 
 // ResolveDeploymentStrategy resolves a deployment strategy name to its ID
@@ -138,16 +117,13 @@ func (r *Resolver) ResolveDeploymentStrategy(ctx context.Context, strategyName s
 		return "", fmt.Errorf("failed to list deployment strategies: %w", err)
 	}
 
-	// Look for exact match (case-sensitive)
-	for _, strategy := range output.Items {
-		if strategy.Name != nil && *strategy.Name == strategyName {
-			if strategy.Id != nil {
-				return *strategy.Id, nil
-			}
-		}
-	}
-
-	return "", fmt.Errorf("deployment strategy not found: %s", strategyName)
+	return resolveByName(
+		output.Items,
+		strategyName,
+		"deployment strategy",
+		func(strategy types.DeploymentStrategy) *string { return strategy.Name },
+		func(strategy types.DeploymentStrategy) *string { return strategy.Id },
+	)
 }
 
 // ResolvedResources contains all resolved AWS resource IDs and details
