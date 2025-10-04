@@ -542,7 +542,7 @@ AWS APIのモックを使用してテストファーストで実装します。
     - [x] `git add .`
     - [x] `git commit -m "feat: complete Epic 4 - deploy command implementation"`
     - [x] `git push origin main`
-    - [ ] チェックリスト更新をコミット・プッシュ
+    - [x] チェックリスト更新をコミット・プッシュ
 
 ---
 
