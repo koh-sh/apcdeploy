@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 )
@@ -43,8 +44,15 @@ It provides commands to initialize, deploy, diff, and check the status of config
 // Execute runs the root command
 func Execute() {
 	rootCmd := NewRootCommand()
+
+	// Enable custom error formatting
+	rootCmd.SilenceErrors = true
+
 	if err := rootCmd.Execute(); err != nil {
-		// Error is already printed by cobra
-		return
+		// Print error with blank lines before and after for better visibility
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		fmt.Fprintln(os.Stderr)
+		os.Exit(1)
 	}
 }
