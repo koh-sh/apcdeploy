@@ -86,10 +86,10 @@
 
 ### タスクチェックリスト
 
-- [ ] **1.1 プロジェクト初期化**
-  - [ ] Go モジュール初期化 (`go.mod`, `go.sum`) - Go 1.25使用
-  - [ ] `.gitignore` 作成
-  - [ ] ディレクトリ構造作成
+- [x] **1.1 プロジェクト初期化**
+  - [x] Go モジュール初期化 (`go.mod`, `go.sum`) - Go 1.25使用
+  - [x] `.gitignore` 作成
+  - [x] ディレクトリ構造作成
 
 ```text
 apcdeploy/
@@ -103,98 +103,98 @@ apcdeploy/
 └── main.go
 ```
 
-- [ ] **1.2 依存関係インストール**
-  - [ ] Cobra のインストールと初期化
-  - [ ] AWS SDK for Go v2 のインストール
-  - [ ] go-yaml のインストール
-  - [ ] go-diff のインストール
-  - [ ] テスト用ライブラリ確認（標準 testing パッケージ使用）
+- [x] **1.2 依存関係インストール**
+  - [x] Cobra のインストールと初期化
+  - [x] AWS SDK for Go v2 のインストール
+  - [x] go-yaml のインストール
+  - [x] go-diff のインストール
+  - [x] テスト用ライブラリ確認（標準 testing パッケージ使用）
 
-- [ ] **1.3 CLI基本構造実装（TDD）**
-  - [ ] `cmd/root_test.go` 作成 - ルートコマンドのテスト
-  - [ ] `cmd/root.go` 実装 - ルートコマンド定義
-  - [ ] `main.go` 作成
-  - [ ] バージョン情報コマンドテスト作成
-  - [ ] バージョン情報コマンド実装 (`--version`)
-  - [ ] グローバルフラグのテスト作成
-  - [ ] グローバルフラグ実装
-    - [ ] `--config, -c` フラグ
-    - [ ] `--region` フラグ
-  - [ ] ヘルプメッセージテンプレート
+- [x] **1.3 CLI基本構造実装（TDD）**
+  - [x] `cmd/root_test.go` 作成 - ルートコマンドのテスト
+  - [x] `cmd/root.go` 実装 - ルートコマンド定義
+  - [x] `main.go` 作成
+  - [x] バージョン情報コマンドテスト作成
+  - [x] バージョン情報コマンド実装 (`--version`)
+  - [x] グローバルフラグのテスト作成
+  - [x] グローバルフラグ実装
+    - [x] `--config, -c` フラグ
+    - [x] `--region` フラグ
+  - [x] ヘルプメッセージテンプレート
 
-- [ ] **1.4 設定ファイル構造体定義（TDD）**
-  - [ ] `internal/config/types_test.go` 作成
-    - [ ] 構造体のバリデーションテスト
-    - [ ] デフォルト値適用テスト
-  - [ ] `internal/config/types.go` 実装
-    - [ ] `Config` 構造体（apcdeploy.yml）
-    - [ ] `DeploymentConfig` 構造体
-    - [ ] 構造体のバリデーションタグ追加
-    - [ ] デフォルト値の定義
+- [x] **1.4 設定ファイル構造体定義（TDD）**
+  - [x] `internal/config/types_test.go` 作成
+    - [x] 構造体のバリデーションテスト
+    - [x] デフォルト値適用テスト
+  - [x] `internal/config/types.go` 実装
+    - [x] `Config` 構造体（apcdeploy.yml）
+    - [x] `DeploymentConfig` 構造体
+    - [x] 構造体のバリデーションタグ追加
+    - [x] デフォルト値の定義
 
-- [ ] **1.5 設定ファイル読み込み機能（TDD）**
-  - [ ] `internal/config/loader_test.go` 作成
-    - [ ] 正常系テスト（有効なYAML読み込み）
-    - [ ] ファイル不存在エラーテスト
-    - [ ] YAML構文エラーテスト
-    - [ ] 必須フィールド欠如テスト
-    - [ ] デフォルト値適用テスト
-    - [ ] パス解決テスト（相対パス→絶対パス）
-  - [ ] テストデータ作成 (`testdata/config/`)
-  - [ ] `internal/config/loader.go` 実装
-    - [ ] YAML読み込み関数
-    - [ ] 設定ファイルバリデーション
-    - [ ] デフォルト値の適用
-    - [ ] パス解決
-  - [ ] エラーハンドリング実装
-  - [ ] リファクタリング
+- [x] **1.5 設定ファイル読み込み機能（TDD）**
+  - [x] `internal/config/loader_test.go` 作成
+    - [x] 正常系テスト（有効なYAML読み込み）
+    - [x] ファイル不存在エラーテスト
+    - [x] YAML構文エラーテスト
+    - [x] 必須フィールド欠如テスト
+    - [x] デフォルト値適用テスト
+    - [x] パス解決テスト（相対パス→絶対パス）
+  - [x] テストデータ作成 (`testdata/config/`)
+  - [x] `internal/config/loader.go` 実装
+    - [x] YAML読み込み関数
+    - [x] 設定ファイルバリデーション
+    - [x] デフォルト値の適用
+    - [x] パス解決
+  - [x] エラーハンドリング実装
+  - [x] リファクタリング
 
-- [ ] **1.6 設定データファイル処理（TDD）**
-  - [ ] `internal/config/data_test.go` 作成
-    - [ ] JSON読み込みテスト（正常系・異常系）
-    - [ ] YAML読み込みテスト（正常系・異常系）
-    - [ ] Text読み込みテスト
-    - [ ] ContentType判定テスト
-    - [ ] サイズチェックテスト（2MB境界値）
-    - [ ] 構文バリデーションテスト
-  - [ ] テストデータ作成
-    - [ ] 有効なJSON/YAML/Text
-    - [ ] 不正なJSON/YAML
-    - [ ] サイズ超過データ
-  - [ ] `internal/config/data.go` 実装
-    - [ ] JSON読み込み
-    - [ ] YAML読み込み
-    - [ ] Text読み込み
-    - [ ] ContentType判定機能
-    - [ ] サイズチェック
-    - [ ] 構文バリデーション
-  - [ ] リファクタリング
+- [x] **1.6 設定データファイル処理（TDD）**
+  - [x] `internal/config/data_test.go` 作成
+    - [x] JSON読み込みテスト（正常系・異常系）
+    - [x] YAML読み込みテスト（正常系・異常系）
+    - [x] Text読み込みテスト
+    - [x] ContentType判定テスト
+    - [x] サイズチェックテスト（2MB境界値）
+    - [x] 構文バリデーションテスト
+  - [x] テストデータ作成
+    - [x] 有効なJSON/YAML/Text
+    - [x] 不正なJSON/YAML
+    - [x] サイズ超過データ
+  - [x] `internal/config/data.go` 実装
+    - [x] JSON読み込み
+    - [x] YAML読み込み
+    - [x] Text読み込み
+    - [x] ContentType判定機能
+    - [x] サイズチェック
+    - [x] 構文バリデーション
+  - [x] リファクタリング
 
-- [ ] **1.7 共通ユーティリティ（TDD）**
-  - [ ] `internal/display/output_test.go` 作成
-    - [ ] 成功メッセージフォーマットテスト
-    - [ ] エラーメッセージフォーマットテスト
-    - [ ] 警告メッセージフォーマットテスト
-    - [ ] 進捗表示テスト
-  - [ ] `internal/display/output.go` 実装
-    - [ ] 成功メッセージフォーマット（✓）
-    - [ ] エラーメッセージフォーマット（✗）
-    - [ ] 警告メッセージフォーマット（⚠）
-    - [ ] 進捗表示（⏳）
-  - [ ] ロギング設定
-  - [ ] リファクタリング
+- [x] **1.7 共通ユーティリティ（TDD）**
+  - [x] `internal/display/output_test.go` 作成
+    - [x] 成功メッセージフォーマットテスト
+    - [x] エラーメッセージフォーマットテスト
+    - [x] 警告メッセージフォーマットテスト
+    - [x] 進捗表示テスト
+  - [x] `internal/display/output.go` 実装
+    - [x] 成功メッセージフォーマット（✓）
+    - [x] エラーメッセージフォーマット（✗）
+    - [x] 警告メッセージフォーマット（⚠）
+    - [x] 進捗表示（⏳）
+  - [x] ロギング設定
+  - [x] リファクタリング
 
-- [ ] **1.8 Epic 1 完了確認（MUST）**
-  - [ ] `make ci` 実行
-    - [ ] `make test` - すべてのテストがパス
-    - [ ] `make lint` - リンターエラーを修正
-    - [ ] `make modernize` - 最新化の問題を修正
-    - [ ] `make fmt` - フォーマット適用
-  - [ ] すべてのチェックがパスするまで修正を繰り返す
-  - [ ] Gitコミット・プッシュ
-    - [ ] `git add .`
-    - [ ] `git commit -m "feat: complete Epic 1 - project foundation and core structure"`
-    - [ ] `git push origin main`
+- [x] **1.8 Epic 1 完了確認（MUST）**
+  - [x] `make ci` 実行
+    - [x] `make test` - すべてのテストがパス
+    - [x] `make lint` - リンターエラーを修正
+    - [x] `make modernize` - 最新化の問題を修正
+    - [x] `make fmt` - フォーマット適用
+  - [x] すべてのチェックがパスするまで修正を繰り返す
+  - [x] Gitコミット・プッシュ
+    - [x] `git add .`
+    - [x] `git commit -m "feat: complete Epic 1 - project foundation and core structure"`
+    - [x] `git push origin main`
 
 ---
 
