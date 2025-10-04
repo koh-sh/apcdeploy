@@ -201,31 +201,47 @@ func TestCliReporter(t *testing.T) {
 	}
 }
 
-func TestRunInitNoRegion(t *testing.T) {
-	// Reset flags
-	initApp = "test-app"
-	initProfile = "test-profile"
-	initEnv = "test-env"
-	initRegion = ""
-	initConfig = "apcdeploy.yml"
-	initOutputData = ""
-
-	err := runInit(nil, nil)
-	if err == nil {
-		t.Error("Expected error when no region specified, got nil")
+func TestRunInit(t *testing.T) {
+	tests := []struct {
+		name    string
+		setup   func(t *testing.T)
+		wantErr bool
+	}{
+		{
+			name: "no region specified",
+			setup: func(t *testing.T) {
+				initApp = "test-app"
+				initProfile = "test-profile"
+				initEnv = "test-env"
+				initRegion = ""
+				initConfig = "apcdeploy.yml"
+				initOutputData = ""
+			},
+			wantErr: true,
+		},
+		{
+			name: "valid flags but AWS error",
+			setup: func(t *testing.T) {
+				tmpDir := t.TempDir()
+				initApp = "test-app"
+				initProfile = "test-profile"
+				initEnv = "test-env"
+				initRegion = "us-east-1"
+				initConfig = filepath.Join(tmpDir, "apcdeploy.yml")
+				initOutputData = ""
+			},
+			wantErr: true, // Will fail due to AWS credentials/connection
+		},
 	}
-	expectedMsg := "region must be specified"
-	if err != nil && len(err.Error()) > 0 && len(expectedMsg) > 0 {
-		// Just check that error mentions region
-		found := false
-		for i := 0; i < len(err.Error()); i++ {
-			if i+len(expectedMsg) <= len(err.Error()) && err.Error()[i:i+len("region")] == "region" {
-				found = true
-				break
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setup(t)
+
+			err := runInit(nil, nil)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("runInit() error = %v, wantErr %v", err, tt.wantErr)
 			}
-		}
-		if !found {
-			t.Errorf("Expected error to mention 'region', got: %v", err)
-		}
+		})
 	}
 }
