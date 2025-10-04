@@ -39,6 +39,9 @@ func (i *Initializer) Run(ctx context.Context, opts *Options) (*Result, error) {
 		return nil, err
 	}
 
+	// Fetch latest deployment strategy
+	i.fetchDeploymentStrategy(ctx, result)
+
 	// Determine data file name
 	i.determineDataFileName(opts, result)
 
@@ -113,6 +116,31 @@ func (i *Initializer) fetchConfigVersion(ctx context.Context, result *Result) er
 	return nil
 }
 
+// fetchDeploymentStrategy fetches the deployment strategy from the latest deployment
+func (i *Initializer) fetchDeploymentStrategy(ctx context.Context, result *Result) {
+	i.reporter.Progress("Fetching latest deployment strategy...")
+
+	// Try to get the latest deployment
+	latestDeployment, err := awsInternal.GetLatestDeployment(ctx, i.awsClient, result.AppID, result.EnvID, result.ProfileID)
+	if err != nil || latestDeployment == nil {
+		// If no deployment found or error, use default strategy
+		i.reporter.Warning("No previous deployments found - using default deployment strategy")
+		result.DeploymentStrategy = "AppConfig.AllAtOnce"
+		return
+	}
+
+	// Get deployment details to retrieve the strategy
+	deploymentDetails, err := awsInternal.GetDeploymentDetails(ctx, i.awsClient, result.AppID, result.EnvID, latestDeployment.DeploymentNumber)
+	if err != nil {
+		i.reporter.Warning("Could not retrieve deployment strategy - using default")
+		result.DeploymentStrategy = "AppConfig.AllAtOnce"
+		return
+	}
+
+	result.DeploymentStrategy = deploymentDetails.DeploymentStrategyID
+	i.reporter.Success(fmt.Sprintf("Using deployment strategy from latest deployment: %s", result.DeploymentStrategy))
+}
+
 // determineDataFileName determines the appropriate data file name
 func (i *Initializer) determineDataFileName(opts *Options, result *Result) {
 	switch {
@@ -130,7 +158,7 @@ func (i *Initializer) generateFiles(opts *Options, result *Result) error {
 	// Generate apcdeploy.yml
 	i.reporter.Progress(fmt.Sprintf("Generating configuration file: %s", result.ConfigFile))
 
-	if err := config.GenerateConfigFile(result.AppName, result.ProfileName, result.EnvName, result.DataFile, opts.Region, result.ConfigFile); err != nil {
+	if err := config.GenerateConfigFile(result.AppName, result.ProfileName, result.EnvName, result.DataFile, opts.Region, result.DeploymentStrategy, result.ConfigFile); err != nil {
 		return fmt.Errorf("failed to generate config file: %w", err)
 	}
 

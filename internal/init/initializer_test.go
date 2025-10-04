@@ -335,6 +335,13 @@ func TestInitializer_Run(t *testing.T) {
 						ContentType: aws.String("application/json"),
 					}, nil
 				}
+
+				// Mock ListDeployments - return empty (no previous deployments)
+				m.ListDeploymentsFunc = func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
+					return &appconfig.ListDeploymentsOutput{
+						Items: []types.DeploymentSummary{},
+					}, nil
+				}
 			},
 			wantErr: false,
 			validate: func(t *testing.T, result *Result, reporter *reportertest.MockReporter) {
@@ -412,6 +419,12 @@ func TestInitializer_Run(t *testing.T) {
 				m.ListHostedConfigurationVersionsFunc = func(ctx context.Context, params *appconfig.ListHostedConfigurationVersionsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListHostedConfigurationVersionsOutput, error) {
 					return nil, errors.New("no versions")
 				}
+				// Mock ListDeployments - return empty
+				m.ListDeploymentsFunc = func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
+					return &appconfig.ListDeploymentsOutput{
+						Items: []types.DeploymentSummary{},
+					}, nil
+				}
 			},
 			wantErr:     true,
 			errContains: "failed to generate config file",
@@ -464,6 +477,12 @@ func TestInitializer_Run(t *testing.T) {
 				// Mock no versions
 				m.ListHostedConfigurationVersionsFunc = func(ctx context.Context, params *appconfig.ListHostedConfigurationVersionsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListHostedConfigurationVersionsOutput, error) {
 					return nil, errors.New("no configuration versions found")
+				}
+				// Mock ListDeployments - return empty
+				m.ListDeploymentsFunc = func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
+					return &appconfig.ListDeploymentsOutput{
+						Items: []types.DeploymentSummary{},
+					}, nil
 				}
 			},
 			wantErr: false,

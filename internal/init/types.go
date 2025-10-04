@@ -16,14 +16,15 @@ type Options struct {
 
 // Result contains the result of initialization
 type Result struct {
-	AppID       string
-	AppName     string
-	ProfileID   string
-	ProfileName string
-	ProfileType string
-	EnvID       string
-	EnvName     string
-	VersionInfo *awsInternal.ConfigVersionInfo
-	ConfigFile  string
-	DataFile    string
+	AppID              string
+	AppName            string
+	ProfileID          string
+	ProfileName        string
+	ProfileType        string
+	EnvID              string
+	EnvName            string
+	VersionInfo        *awsInternal.ConfigVersionInfo
+	ConfigFile         string
+	DataFile           string
+	DeploymentStrategy string
 }

@@ -12,25 +12,27 @@ func TestGenerateConfigFile(t *testing.T) {
 	tempDir := t.TempDir()
 
 	tests := []struct {
-		name           string
-		app            string
-		profile        string
-		env            string
-		dataFile       string
-		region         string
-		outputPath     string
-		wantErr        bool
-		validateConfig func(*testing.T, *Config)
+		name               string
+		app                string
+		profile            string
+		env                string
+		dataFile           string
+		region             string
+		deploymentStrategy string
+		outputPath         string
+		wantErr            bool
+		validateConfig     func(*testing.T, *Config)
 	}{
 		{
-			name:       "generate basic config",
-			app:        "test-app",
-			profile:    "test-profile",
-			env:        "test-env",
-			dataFile:   "data.json",
-			region:     "us-east-1",
-			outputPath: filepath.Join(tempDir, "apcdeploy.yml"),
-			wantErr:    false,
+			name:               "generate basic config with default strategy",
+			app:                "test-app",
+			profile:            "test-profile",
+			env:                "test-env",
+			dataFile:           "data.json",
+			region:             "us-east-1",
+			deploymentStrategy: "",
+			outputPath:         filepath.Join(tempDir, "apcdeploy.yml"),
+			wantErr:            false,
 			validateConfig: func(t *testing.T, cfg *Config) {
 				if cfg.Application != "test-app" {
 					t.Errorf("expected application %q, got %q", "test-app", cfg.Application)
@@ -53,14 +55,31 @@ func TestGenerateConfigFile(t *testing.T) {
 			},
 		},
 		{
-			name:       "generate with custom data file",
-			app:        "my-app",
-			profile:    "my-profile",
-			env:        "production",
-			dataFile:   "config.yaml",
-			region:     "ap-northeast-1",
-			outputPath: filepath.Join(tempDir, "custom.yml"),
-			wantErr:    false,
+			name:               "generate with custom deployment strategy",
+			app:                "test-app",
+			profile:            "test-profile",
+			env:                "test-env",
+			dataFile:           "data.json",
+			region:             "us-east-1",
+			deploymentStrategy: "AppConfig.Linear50PercentEvery30Seconds",
+			outputPath:         filepath.Join(tempDir, "apcdeploy-custom.yml"),
+			wantErr:            false,
+			validateConfig: func(t *testing.T, cfg *Config) {
+				if cfg.DeploymentStrategy != "AppConfig.Linear50PercentEvery30Seconds" {
+					t.Errorf("expected deployment_strategy %q, got %q", "AppConfig.Linear50PercentEvery30Seconds", cfg.DeploymentStrategy)
+				}
+			},
+		},
+		{
+			name:               "generate with custom data file",
+			app:                "my-app",
+			profile:            "my-profile",
+			env:                "production",
+			dataFile:           "config.yaml",
+			region:             "ap-northeast-1",
+			deploymentStrategy: "",
+			outputPath:         filepath.Join(tempDir, "custom.yml"),
+			wantErr:            false,
 			validateConfig: func(t *testing.T, cfg *Config) {
 				if cfg.DataFile != "config.yaml" {
 					t.Errorf("expected data file %q, got %q", "config.yaml", cfg.DataFile)
@@ -71,7 +90,7 @@ func TestGenerateConfigFile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := GenerateConfigFile(tt.app, tt.profile, tt.env, tt.dataFile, tt.region, tt.outputPath)
+			err := GenerateConfigFile(tt.app, tt.profile, tt.env, tt.dataFile, tt.region, tt.deploymentStrategy, tt.outputPath)
 
 			if tt.wantErr && err == nil {
 				t.Error("expected error but got none")
@@ -115,7 +134,7 @@ func TestGenerateConfigFileOverwrite(t *testing.T) {
 	}
 
 	// Try to generate - should fail without force flag
-	err := GenerateConfigFile("app", "profile", "env", "data.json", "us-east-1", configPath)
+	err := GenerateConfigFile("app", "profile", "env", "data.json", "us-east-1", "", configPath)
 	if err == nil {
 		t.Error("expected error when overwriting existing file, but got none")
 	}
