@@ -26,7 +26,8 @@ func newDiffCmd() *cobra.Command {
 
 This command compares your local configuration file with the latest deployed version
 and displays the differences in unified diff format.`,
-		RunE: runDiff,
+		RunE:         runDiff,
+		SilenceUsage: true, // Don't show usage on runtime errors
 	}
 
 	cmd.Flags().StringVarP(&diffConfigFile, "config", "c", "apcdeploy.yml", "Path to configuration file")

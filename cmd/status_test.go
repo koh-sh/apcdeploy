@@ -193,3 +193,12 @@ func TestStatusCommandFlags(t *testing.T) {
 		})
 	}
 }
+
+func TestStatusCommandSilenceUsage(t *testing.T) {
+	cmd := newStatusCmd()
+
+	// SilenceUsage should be true to prevent usage display on runtime errors
+	if !cmd.SilenceUsage {
+		t.Error("status command should have SilenceUsage set to true")
+	}
+}

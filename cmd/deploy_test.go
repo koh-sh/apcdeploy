@@ -137,3 +137,12 @@ func TestDeployTimeoutValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestDeployCommandSilenceUsage(t *testing.T) {
+	cmd := newDeployCmd()
+
+	// SilenceUsage should be true to prevent usage display on runtime errors
+	if !cmd.SilenceUsage {
+		t.Error("deploy command should have SilenceUsage set to true")
+	}
+}

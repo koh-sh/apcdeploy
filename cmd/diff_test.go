@@ -112,3 +112,12 @@ func TestRunDiffInvalidConfig(t *testing.T) {
 		t.Error("Expected error for nonexistent config, got nil")
 	}
 }
+
+func TestDiffCommandSilenceUsage(t *testing.T) {
+	cmd := newDiffCmd()
+
+	// SilenceUsage should be true to prevent usage display on runtime errors
+	if !cmd.SilenceUsage {
+		t.Error("diff command should have SilenceUsage set to true")
+	}
+}

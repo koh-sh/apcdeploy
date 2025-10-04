@@ -51,6 +51,15 @@ func TestInitCommand(t *testing.T) {
 	}
 }
 
+func TestInitCommandSilenceUsage(t *testing.T) {
+	cmd := newInitCmd()
+
+	// SilenceUsage should be true to prevent usage display on runtime errors
+	if !cmd.SilenceUsage {
+		t.Error("init command should have SilenceUsage set to true")
+	}
+}
+
 func TestInitCommandRequiredFlags(t *testing.T) {
 	tests := []struct {
 		name    string

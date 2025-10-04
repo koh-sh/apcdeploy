@@ -29,7 +29,8 @@ func newInitCmd() *cobra.Command {
 		Short: "Initialize apcdeploy configuration from existing AppConfig resources",
 		Long: `Initialize apcdeploy configuration by fetching an existing AWS AppConfig
 configuration and generating apcdeploy.yml and data files.`,
-		RunE: runInit,
+		RunE:         runInit,
+		SilenceUsage: true, // Don't show usage on runtime errors (e.g., file exists)
 	}
 
 	cmd.Flags().StringVar(&initApp, "app", "", "Application name (required)")

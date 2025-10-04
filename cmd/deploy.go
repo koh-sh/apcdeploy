@@ -31,7 +31,8 @@ This command will:
 3. Create a new hosted configuration version
 4. Start a deployment to the specified environment
 5. Optionally wait for the deployment to complete`,
-		RunE: runDeploy,
+		RunE:         runDeploy,
+		SilenceUsage: true, // Don't show usage on runtime errors
 	}
 
 	cmd.Flags().StringVarP(&deployConfigFile, "config", "c", "apcdeploy.yml", "Path to configuration file")

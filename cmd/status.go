@@ -27,7 +27,8 @@ func newStatusCmd() *cobra.Command {
 
 This command displays information about the latest deployment or a specific deployment
 identified by deployment number.`,
-		RunE: runStatus,
+		RunE:         runStatus,
+		SilenceUsage: true, // Don't show usage on runtime errors
 	}
 
 	cmd.Flags().StringVarP(&statusConfigFile, "config", "c", "apcdeploy.yml", "Path to configuration file")
