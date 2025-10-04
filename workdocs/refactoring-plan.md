@@ -321,8 +321,8 @@ func showNextSteps(result *initPkg.Result) {
 - [x] `make cov` でカバレッジを確認、`cmd/init.go`のカバレッジを確認
 - [x] 既存のinit関連テストが全て通ることを確認
 - [x] このドキュメントのPhase 4チェックリストを全て更新
-- [ ] 変更をコミット: `git add . && git commit -m "refactor: clean up init command with helper functions"`
-- [ ] リモートにプッシュ: `git push`
+- [x] 変更をコミット: `git add . && git commit -m "refactor: clean up init command with helper functions"`
+- [x] リモートにプッシュ: `git push`
 
 **影響範囲**: `cmd/init.go`, `cmd/init_test.go`
 
