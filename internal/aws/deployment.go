@@ -224,3 +224,58 @@ func GetHostedConfigurationVersion(ctx context.Context, client *Client, applicat
 
 	return output.Content, nil
 }
+
+// DeploymentDetails contains detailed information about a deployment
+type DeploymentDetails struct {
+	DeploymentNumber       int32
+	ConfigurationProfileID string
+	ConfigurationVersion   string
+	DeploymentStrategyID   string
+	State                  types.DeploymentState
+	Description            string
+	StartedAt              *time.Time
+	CompletedAt            *time.Time
+	PercentageComplete     float32
+	GrowthFactor           float32
+	FinalBakeTimeInMinutes int32
+}
+
+// GetDeploymentDetails retrieves detailed information about a specific deployment
+func GetDeploymentDetails(ctx context.Context, client *Client, applicationID, environmentID string, deploymentNumber int32) (*DeploymentDetails, error) {
+	input := &appconfig.GetDeploymentInput{
+		ApplicationId:    aws.String(applicationID),
+		EnvironmentId:    aws.String(environmentID),
+		DeploymentNumber: &deploymentNumber,
+	}
+
+	output, err := client.AppConfig.GetDeployment(ctx, input)
+	if err != nil {
+		return nil, WrapAWSError(err, "failed to get deployment details")
+	}
+
+	var percentageComplete float32
+	if output.PercentageComplete != nil {
+		percentageComplete = *output.PercentageComplete
+	}
+
+	var growthFactor float32
+	if output.GrowthFactor != nil {
+		growthFactor = *output.GrowthFactor
+	}
+
+	details := &DeploymentDetails{
+		DeploymentNumber:       output.DeploymentNumber,
+		ConfigurationProfileID: aws.ToString(output.ConfigurationProfileId),
+		ConfigurationVersion:   aws.ToString(output.ConfigurationVersion),
+		DeploymentStrategyID:   aws.ToString(output.DeploymentStrategyId),
+		State:                  output.State,
+		Description:            aws.ToString(output.Description),
+		StartedAt:              output.StartedAt,
+		CompletedAt:            output.CompletedAt,
+		PercentageComplete:     percentageComplete,
+		GrowthFactor:           growthFactor,
+		FinalBakeTimeInMinutes: output.FinalBakeTimeInMinutes,
+	}
+
+	return details, nil
+}
