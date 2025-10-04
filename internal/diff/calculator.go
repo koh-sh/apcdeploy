@@ -39,10 +39,13 @@ func calculate(remoteContent, localContent, fileName string) (*Result, error) {
 		return nil, fmt.Errorf("failed to normalize local content: %w", err)
 	}
 
-	// Generate unified diff
+	// Generate line-based unified diff
 	dmp := diffmatchpatch.New()
-	diffs := dmp.DiffMain(normalizedRemote, normalizedLocal, false)
-	unifiedDiff := dmp.DiffPrettyText(diffs)
+
+	// Convert texts to line-based diffs
+	lineText1, lineText2, lineArray := dmp.DiffLinesToChars(normalizedRemote, normalizedLocal)
+	diffs := dmp.DiffMain(lineText1, lineText2, false)
+	diffs = dmp.DiffCharsToLines(diffs, lineArray)
 
 	// Check if there are any changes
 	hasChanges := false
@@ -52,6 +55,9 @@ func calculate(remoteContent, localContent, fileName string) (*Result, error) {
 			break
 		}
 	}
+
+	// Generate unified diff format
+	unifiedDiff := formatDiffs(diffs)
 
 	return &Result{
 		RemoteContent: normalizedRemote,
@@ -114,4 +120,36 @@ func normalizeText(content string) string {
 	// Ensure single trailing newline
 	content = strings.TrimRight(content, "\n") + "\n"
 	return content
+}
+
+// formatDiffs converts line-based diffs to simple diff format
+func formatDiffs(diffs []diffmatchpatch.Diff) string {
+	var result strings.Builder
+
+	for _, diff := range diffs {
+		lines := strings.SplitSeq(diff.Text, "\n")
+		for line := range lines {
+			// Skip empty lines
+			if line == "" {
+				continue
+			}
+
+			switch diff.Type {
+			case diffmatchpatch.DiffInsert:
+				result.WriteString("+")
+				result.WriteString(line)
+				result.WriteString("\n")
+			case diffmatchpatch.DiffDelete:
+				result.WriteString("-")
+				result.WriteString(line)
+				result.WriteString("\n")
+			case diffmatchpatch.DiffEqual:
+				result.WriteString(" ")
+				result.WriteString(line)
+				result.WriteString("\n")
+			}
+		}
+	}
+
+	return result.String()
 }
