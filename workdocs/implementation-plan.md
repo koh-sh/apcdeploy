@@ -191,10 +191,12 @@ apcdeploy/
     - [x] `make modernize` - 最新化の問題を修正
     - [x] `make fmt` - フォーマット適用
   - [x] すべてのチェックがパスするまで修正を繰り返す
+  - [x] 実装計画のチェックリストを更新
   - [x] Gitコミット・プッシュ
     - [x] `git add .`
     - [x] `git commit -m "feat: complete Epic 1 - project foundation and core structure"`
     - [x] `git push origin main`
+    - [x] チェックリスト更新をコミット・プッシュ
 
 ---
 
@@ -330,10 +332,12 @@ AWS APIのモックを使用してテストファーストで実装します。
     - [ ] `make modernize` - 最新化の問題を修正
     - [ ] `make fmt` - フォーマット適用
   - [ ] すべてのチェックがパスするまで修正を繰り返す
+  - [ ] 実装計画のチェックリストを更新
   - [ ] Gitコミット・プッシュ
     - [ ] `git add .`
     - [ ] `git commit -m "feat: complete Epic 2 - AWS integration and resource resolution"`
     - [ ] `git push origin main`
+    - [ ] チェックリスト更新をコミット・プッシュ
 
 ---
 
@@ -421,10 +425,12 @@ AWS APIのモックを使用してテストファーストで実装します。
     - [ ] `make modernize` - 最新化の問題を修正
     - [ ] `make fmt` - フォーマット適用
   - [ ] すべてのチェックがパスするまで修正を繰り返す
+  - [ ] 実装計画のチェックリストを更新
   - [ ] Gitコミット・プッシュ
     - [ ] `git add .`
     - [ ] `git commit -m "feat: complete Epic 3 - init command implementation"`
     - [ ] `git push origin main`
+    - [ ] チェックリスト更新をコミット・プッシュ
 
 ---
 
@@ -542,10 +548,12 @@ AWS APIのモックを使用してテストファーストで実装します。
     - [ ] `make modernize` - 最新化の問題を修正
     - [ ] `make fmt` - フォーマット適用
   - [ ] すべてのチェックがパスするまで修正を繰り返す
+  - [ ] 実装計画のチェックリストを更新
   - [ ] Gitコミット・プッシュ
     - [ ] `git add .`
     - [ ] `git commit -m "feat: complete Epic 4 - deploy command implementation"`
     - [ ] `git push origin main`
+    - [ ] チェックリスト更新をコミット・プッシュ
 
 ---
 
@@ -630,10 +638,12 @@ AWS APIのモックを使用してテストファーストで実装します。
     - [ ] `make modernize` - 最新化の問題を修正
     - [ ] `make fmt` - フォーマット適用
   - [ ] すべてのチェックがパスするまで修正を繰り返す
+  - [ ] 実装計画のチェックリストを更新
   - [ ] Gitコミット・プッシュ
     - [ ] `git add .`
     - [ ] `git commit -m "feat: complete Epic 5 - diff command implementation"`
     - [ ] `git push origin main`
+    - [ ] チェックリスト更新をコミット・プッシュ
 
 ---
 
@@ -716,10 +726,12 @@ AWS APIのモックを使用してテストファーストで実装します。
     - [ ] `make modernize` - 最新化の問題を修正
     - [ ] `make fmt` - フォーマット適用
   - [ ] すべてのチェックがパスするまで修正を繰り返す
+  - [ ] 実装計画のチェックリストを更新
   - [ ] Gitコミット・プッシュ
     - [ ] `git add .`
     - [ ] `git commit -m "feat: complete Epic 6 - status command implementation"`
     - [ ] `git push origin main`
+    - [ ] チェックリスト更新をコミット・プッシュ
 
 ---
 
@@ -828,10 +840,12 @@ AWS APIのモックを使用してテストファーストで実装します。
     - [ ] `make fmt` - フォーマット適用
   - [ ] すべてのチェックがパスするまで修正を繰り返す
   - [ ] 最終確認: すべてのコマンド（init/deploy/diff/status）が動作する
+  - [ ] 実装計画のチェックリストを更新
   - [ ] Gitコミット・プッシュ
     - [ ] `git add .`
     - [ ] `git commit -m "feat: complete Epic 7 - documentation and final testing"`
     - [ ] `git push origin main`
+    - [ ] チェックリスト更新をコミット・プッシュ
 
 ---
 
