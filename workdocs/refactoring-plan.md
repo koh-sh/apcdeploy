@@ -331,8 +331,8 @@ func showNextSteps(result *initPkg.Result) {
 ### Phase 5: 定数の整理（優先度: 低）
 
 #### Task 5.1: 定数の集約
-- [ ] `internal/config/constants.go` を作成
-- [ ] 定数を集約
+- [x] `internal/config/constants.go` を作成
+- [x] 定数を集約
   ```go
   package config
 
@@ -350,19 +350,19 @@ func showNextSteps(result *initPkg.Result) {
       ContentTypeText = "text/plain"
   )
   ```
-- [ ] 各ファイルで定数を使用するように更新
+- [x] 各ファイルで定数を使用するように更新
 
 **影響範囲**: `internal/config/`, `internal/deploy/`
 
 ---
 
 #### Task 5.2: Phase 5 完了チェック（必須）
-- [ ] `make ci` を実行してパスすることを確認
-- [ ] `make cov` でカバレッジを確認
-- [ ] 定数の移行が正しく行われたことを確認
-- [ ] このドキュメントのPhase 5チェックリストを全て更新
-- [ ] 変更をコミット: `git add . && git commit -m "refactor: consolidate constants"`
-- [ ] リモートにプッシュ: `git push`
+- [x] `make ci` を実行してパスすることを確認
+- [x] `make cov` でカバレッジを確認
+- [x] 定数の移行が正しく行われたことを確認
+- [x] このドキュメントのPhase 5チェックリストを全て更新
+- [x] 変更をコミット: `git add . && git commit -m "refactor: consolidate constants"`
+- [x] リモートにプッシュ: `git push`
 
 ---
 
@@ -370,11 +370,11 @@ func showNextSteps(result *initPkg.Result) {
 
 以下の条件を全て満たした時点で完了とする：
 
-- [ ] 全てのチェックリストが完了
-- [ ] `go test ./...` が全て成功
-- [ ] カバレッジが90%以上を維持
-- [ ] `go vet ./...` でエラーなし
-- [ ] ビルドが成功
-- [ ] ドキュメントが更新済み
+- [x] 全てのチェックリストが完了
+- [x] `go test ./...` が全て成功
+- [x] カバレッジが90%以上を維持
+- [x] `go vet ./...` でエラーなし
+- [x] ビルドが成功
+- [x] ドキュメントが更新済み
 
 ---

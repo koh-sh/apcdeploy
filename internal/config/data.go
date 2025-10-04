@@ -11,7 +11,8 @@ import (
 
 const (
 	// MaxDataFileSize is the maximum size for configuration data (2MB)
-	MaxDataFileSize = 2 * 1024 * 1024
+	// Deprecated: Use MaxConfigSize instead
+	MaxDataFileSize = MaxConfigSize
 )
 
 // LoadDataFile loads a configuration data file
@@ -35,28 +36,28 @@ func DetermineContentType(path string) string {
 	ext := filepath.Ext(path)
 	switch ext {
 	case ".json":
-		return "application/json"
+		return ContentTypeJSON
 	case ".yaml", ".yml":
-		return "application/x-yaml"
+		return ContentTypeYAML
 	default:
-		return "text/plain"
+		return ContentTypeText
 	}
 }
 
 // ValidateDataFile validates the syntax of a configuration data file
 func ValidateDataFile(data []byte, contentType string) error {
 	switch contentType {
-	case "application/json":
+	case ContentTypeJSON:
 		var js any
 		if err := json.Unmarshal(data, &js); err != nil {
 			return fmt.Errorf("invalid JSON: %w", err)
 		}
-	case "application/x-yaml":
+	case ContentTypeYAML:
 		var y any
 		if err := yaml.Unmarshal(data, &y); err != nil {
 			return fmt.Errorf("invalid YAML: %w", err)
 		}
-	case "text/plain":
+	case ContentTypeText:
 		// Text files are always valid
 		return nil
 	default:

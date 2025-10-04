@@ -60,24 +60,23 @@ func LoadConfiguration(configPath string) (*config.Config, []byte, error) {
 // ValidateLocalData validates the configuration data locally
 func (d *Deployer) ValidateLocalData(data []byte, contentType string) error {
 	// Check size (2MB limit)
-	const maxSize = 2 * 1024 * 1024
-	if len(data) > maxSize {
-		return fmt.Errorf("configuration data size %d bytes exceeds maximum allowed size of %d bytes (2MB)", len(data), maxSize)
+	if len(data) > config.MaxConfigSize {
+		return fmt.Errorf("configuration data size %d bytes exceeds maximum allowed size of %d bytes (2MB)", len(data), config.MaxConfigSize)
 	}
 
 	// Validate syntax based on content type
 	switch contentType {
-	case "application/json":
+	case config.ContentTypeJSON:
 		var js any
 		if err := json.Unmarshal(data, &js); err != nil {
 			return fmt.Errorf("invalid JSON syntax: %w", err)
 		}
-	case "application/x-yaml":
+	case config.ContentTypeYAML:
 		var ym any
 		if err := yaml.Unmarshal(data, &ym); err != nil {
 			return fmt.Errorf("invalid YAML syntax: %w", err)
 		}
-	case "text/plain":
+	case config.ContentTypeText:
 		// Text content doesn't need syntax validation
 	default:
 		return fmt.Errorf("unsupported content type: %s", contentType)
@@ -90,21 +89,21 @@ func (d *Deployer) ValidateLocalData(data []byte, contentType string) error {
 func (d *Deployer) DetermineContentType(profileType, dataPath string) (string, error) {
 	// Feature Flags always use JSON
 	if profileType == "AWS.AppConfig.FeatureFlags" {
-		return "application/json", nil
+		return config.ContentTypeJSON, nil
 	}
 
 	// For Freeform, determine from file extension
 	ext := strings.ToLower(filepath.Ext(dataPath))
 	switch ext {
 	case ".json":
-		return "application/json", nil
+		return config.ContentTypeJSON, nil
 	case ".yaml", ".yml":
-		return "application/x-yaml", nil
+		return config.ContentTypeYAML, nil
 	case ".txt":
-		return "text/plain", nil
+		return config.ContentTypeText, nil
 	default:
 		// Default to text/plain for unknown extensions
-		return "text/plain", nil
+		return config.ContentTypeText, nil
 	}
 }
 

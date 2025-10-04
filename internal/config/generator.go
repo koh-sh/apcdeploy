@@ -48,11 +48,11 @@ func DetermineDataFileName(contentType string) string {
 	}
 
 	switch ct {
-	case "application/json":
+	case ContentTypeJSON:
 		return "data.json"
-	case "application/x-yaml", "application/yaml":
+	case ContentTypeYAML, "application/yaml":
 		return "data.yaml"
-	case "text/plain":
+	case ContentTypeText:
 		return "data.txt"
 	default:
 		// Default to JSON for unknown types
@@ -73,7 +73,7 @@ func WriteDataFile(content []byte, contentType, outputPath string) error {
 
 	// Format based on content type
 	switch ct {
-	case "application/json":
+	case ContentTypeJSON:
 		// Format JSON with indentation
 		dataToWrite, err = FormatJSON(content)
 		if err != nil {
