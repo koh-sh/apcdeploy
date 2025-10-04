@@ -147,3 +147,80 @@ func (c *Client) WaitForDeployment(
 		}
 	}
 }
+
+// DeploymentInfo contains information about a deployment
+type DeploymentInfo struct {
+	DeploymentNumber     int32
+	ConfigurationVersion string
+	State                types.DeploymentState
+	Description          string
+}
+
+// GetLatestDeployment retrieves the latest deployment for the specified configuration profile
+func GetLatestDeployment(ctx context.Context, client *Client, applicationID, environmentID, profileID string) (*DeploymentInfo, error) {
+	input := &appconfig.ListDeploymentsInput{
+		ApplicationId: aws.String(applicationID),
+		EnvironmentId: aws.String(environmentID),
+	}
+
+	output, err := client.AppConfig.ListDeployments(ctx, input)
+	if err != nil {
+		return nil, WrapAWSError(err, "failed to list deployments")
+	}
+
+	// Find the latest deployment for this configuration profile
+	// We need to get full deployment details to access ConfigurationProfileId
+	var latestDeployment *DeploymentInfo
+	for i := range output.Items {
+		summary := &output.Items[i]
+
+		// Get full deployment details
+		getInput := &appconfig.GetDeploymentInput{
+			ApplicationId:    aws.String(applicationID),
+			EnvironmentId:    aws.String(environmentID),
+			DeploymentNumber: &summary.DeploymentNumber,
+		}
+
+		deployment, err := client.AppConfig.GetDeployment(ctx, getInput)
+		if err != nil {
+			continue // Skip this deployment if we can't get details
+		}
+
+		// Check if this is for the target configuration profile
+		if aws.ToString(deployment.ConfigurationProfileId) == profileID {
+			if latestDeployment == nil || summary.DeploymentNumber > latestDeployment.DeploymentNumber {
+				latestDeployment = &DeploymentInfo{
+					DeploymentNumber:     summary.DeploymentNumber,
+					ConfigurationVersion: aws.ToString(deployment.ConfigurationVersion),
+					State:                deployment.State,
+					Description:          aws.ToString(deployment.Description),
+				}
+			}
+		}
+	}
+
+	return latestDeployment, nil
+}
+
+// GetHostedConfigurationVersion retrieves the content of a specific hosted configuration version
+func GetHostedConfigurationVersion(ctx context.Context, client *Client, applicationID, profileID, versionNumber string) ([]byte, error) {
+	input := &appconfig.GetHostedConfigurationVersionInput{
+		ApplicationId:          aws.String(applicationID),
+		ConfigurationProfileId: aws.String(profileID),
+		VersionNumber:          aws.Int32(0), // Will be replaced with parsed version
+	}
+
+	// Parse version number
+	var version int32
+	if _, err := fmt.Sscanf(versionNumber, "%d", &version); err != nil {
+		return nil, fmt.Errorf("invalid version number: %s", versionNumber)
+	}
+	input.VersionNumber = aws.Int32(version)
+
+	output, err := client.AppConfig.GetHostedConfigurationVersion(ctx, input)
+	if err != nil {
+		return nil, WrapAWSError(err, "failed to get hosted configuration version")
+	}
+
+	return output.Content, nil
+}
