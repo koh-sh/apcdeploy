@@ -7,6 +7,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	diffConfigFile string
+	diffRegion     string
+)
+
 // DiffCommand returns the diff command
 func DiffCommand() *cobra.Command {
 	return newDiffCmd()
@@ -23,7 +28,8 @@ and displays the differences in unified diff format.`,
 		RunE: runDiff,
 	}
 
-	// Note: --config and --region flags are defined globally in root.go
+	cmd.Flags().StringVarP(&diffConfigFile, "config", "c", "apcdeploy.yml", "Path to configuration file")
+	cmd.Flags().StringVar(&diffRegion, "region", "", "AWS region (overrides config file)")
 
 	return cmd
 }
@@ -31,21 +37,10 @@ and displays the differences in unified diff format.`,
 func runDiff(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
-	// Get flags
-	configFile, err := cmd.Flags().GetString("config")
-	if err != nil {
-		return err
-	}
-
-	region, err := cmd.Flags().GetString("region")
-	if err != nil {
-		return err
-	}
-
 	// Create options
 	opts := &diff.Options{
-		ConfigFile: configFile,
-		Region:     region,
+		ConfigFile: diffConfigFile,
+		Region:     diffRegion,
 	}
 
 	// Create reporter

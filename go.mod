@@ -8,6 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/appconfig v1.42.6
 	github.com/aws/smithy-go v1.23.0
 	github.com/goccy/go-yaml v1.18.0
+	github.com/sergi/go-diff v1.4.0
 	github.com/spf13/cobra v1.10.1
 )
 
@@ -179,7 +180,6 @@ require (
 	github.com/sashamelentyev/interfacebloat v1.1.0 // indirect
 	github.com/sashamelentyev/usestdlibvars v1.29.0 // indirect
 	github.com/securego/gosec/v2 v2.22.8 // indirect
-	github.com/sergi/go-diff v1.4.0 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/sivchari/containedctx v1.0.3 // indirect
 	github.com/sonatard/noctx v0.4.0 // indirect

@@ -336,3 +336,205 @@ func aws_stringPtr(s string) *string {
 func aws_floatPtr(f float32) *float32 {
 	return &f
 }
+
+func TestGetLatestDeployment(t *testing.T) {
+	tests := []struct {
+		name              string
+		deployments       []types.DeploymentSummary
+		getDeploymentFunc func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error)
+		profileID         string
+		wantDeployment    *DeploymentInfo
+		wantErr           bool
+	}{
+		{
+			name:        "no deployments",
+			deployments: []types.DeploymentSummary{},
+			getDeploymentFunc: func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
+				return nil, nil
+			},
+			profileID:      "profile-123",
+			wantDeployment: nil,
+			wantErr:        false,
+		},
+		{
+			name: "single matching deployment",
+			deployments: []types.DeploymentSummary{
+				{DeploymentNumber: 1},
+			},
+			getDeploymentFunc: func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
+				return &appconfig.GetDeploymentOutput{
+					DeploymentNumber:       1,
+					ConfigurationProfileId: aws_stringPtr("profile-123"),
+					ConfigurationVersion:   aws_stringPtr("5"),
+					State:                  types.DeploymentStateComplete,
+					Description:            aws_stringPtr("test deployment"),
+				}, nil
+			},
+			profileID: "profile-123",
+			wantDeployment: &DeploymentInfo{
+				DeploymentNumber:     1,
+				ConfigurationVersion: "5",
+				State:                types.DeploymentStateComplete,
+				Description:          "test deployment",
+			},
+			wantErr: false,
+		},
+		{
+			name: "multiple deployments returns latest",
+			deployments: []types.DeploymentSummary{
+				{DeploymentNumber: 1},
+				{DeploymentNumber: 3},
+				{DeploymentNumber: 2},
+			},
+			getDeploymentFunc: func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
+				deployNum := *params.DeploymentNumber
+				return &appconfig.GetDeploymentOutput{
+					DeploymentNumber:       deployNum,
+					ConfigurationProfileId: aws_stringPtr("profile-123"),
+					ConfigurationVersion:   aws_stringPtr("5"),
+					State:                  types.DeploymentStateComplete,
+				}, nil
+			},
+			profileID: "profile-123",
+			wantDeployment: &DeploymentInfo{
+				DeploymentNumber:     3,
+				ConfigurationVersion: "5",
+				State:                types.DeploymentStateComplete,
+				Description:          "",
+			},
+			wantErr: false,
+		},
+		{
+			name: "ignores non-matching profile",
+			deployments: []types.DeploymentSummary{
+				{DeploymentNumber: 1},
+				{DeploymentNumber: 2},
+			},
+			getDeploymentFunc: func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
+				deployNum := *params.DeploymentNumber
+				profileID := "other-profile"
+				if deployNum == 2 {
+					profileID = "profile-123"
+				}
+				return &appconfig.GetDeploymentOutput{
+					DeploymentNumber:       deployNum,
+					ConfigurationProfileId: aws_stringPtr(profileID),
+					ConfigurationVersion:   aws_stringPtr("5"),
+					State:                  types.DeploymentStateComplete,
+				}, nil
+			},
+			profileID: "profile-123",
+			wantDeployment: &DeploymentInfo{
+				DeploymentNumber:     2,
+				ConfigurationVersion: "5",
+				State:                types.DeploymentStateComplete,
+				Description:          "",
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockClient := &mock.MockAppConfigClient{
+				ListDeploymentsFunc: func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
+					return &appconfig.ListDeploymentsOutput{
+						Items: tt.deployments,
+					}, nil
+				},
+				GetDeploymentFunc: tt.getDeploymentFunc,
+			}
+
+			client := &Client{AppConfig: mockClient}
+			deployment, err := GetLatestDeployment(context.Background(), client, "app-123", "env-123", tt.profileID)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetLatestDeployment() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if tt.wantDeployment == nil {
+				if deployment != nil {
+					t.Errorf("GetLatestDeployment() = %v, want nil", deployment)
+				}
+				return
+			}
+
+			if deployment == nil {
+				t.Error("GetLatestDeployment() = nil, want deployment")
+				return
+			}
+
+			if deployment.DeploymentNumber != tt.wantDeployment.DeploymentNumber {
+				t.Errorf("DeploymentNumber = %v, want %v", deployment.DeploymentNumber, tt.wantDeployment.DeploymentNumber)
+			}
+			if deployment.ConfigurationVersion != tt.wantDeployment.ConfigurationVersion {
+				t.Errorf("ConfigurationVersion = %v, want %v", deployment.ConfigurationVersion, tt.wantDeployment.ConfigurationVersion)
+			}
+			if deployment.State != tt.wantDeployment.State {
+				t.Errorf("State = %v, want %v", deployment.State, tt.wantDeployment.State)
+			}
+		})
+	}
+}
+
+func TestGetHostedConfigurationVersion(t *testing.T) {
+	tests := []struct {
+		name          string
+		versionNumber string
+		mockFunc      func(ctx context.Context, params *appconfig.GetHostedConfigurationVersionInput, optFns ...func(*appconfig.Options)) (*appconfig.GetHostedConfigurationVersionOutput, error)
+		wantContent   []byte
+		wantErr       bool
+	}{
+		{
+			name:          "successful retrieval",
+			versionNumber: "5",
+			mockFunc: func(ctx context.Context, params *appconfig.GetHostedConfigurationVersionInput, optFns ...func(*appconfig.Options)) (*appconfig.GetHostedConfigurationVersionOutput, error) {
+				return &appconfig.GetHostedConfigurationVersionOutput{
+					Content:     []byte(`{"key": "value"}`),
+					ContentType: aws_stringPtr("application/json"),
+				}, nil
+			},
+			wantContent: []byte(`{"key": "value"}`),
+			wantErr:     false,
+		},
+		{
+			name:          "invalid version number format",
+			versionNumber: "invalid",
+			mockFunc: func(ctx context.Context, params *appconfig.GetHostedConfigurationVersionInput, optFns ...func(*appconfig.Options)) (*appconfig.GetHostedConfigurationVersionOutput, error) {
+				return nil, errors.New("should not be called")
+			},
+			wantContent: nil,
+			wantErr:     true,
+		},
+		{
+			name:          "API error",
+			versionNumber: "5",
+			mockFunc: func(ctx context.Context, params *appconfig.GetHostedConfigurationVersionInput, optFns ...func(*appconfig.Options)) (*appconfig.GetHostedConfigurationVersionOutput, error) {
+				return nil, errors.New("API error")
+			},
+			wantContent: nil,
+			wantErr:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockClient := &mock.MockAppConfigClient{
+				GetHostedConfigurationVersionFunc: tt.mockFunc,
+			}
+
+			client := &Client{AppConfig: mockClient}
+			content, err := GetHostedConfigurationVersion(context.Background(), client, "app-123", "profile-123", tt.versionNumber)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetHostedConfigurationVersion() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if !tt.wantErr && string(content) != string(tt.wantContent) {
+				t.Errorf("GetHostedConfigurationVersion() content = %s, want %s", content, tt.wantContent)
+			}
+		})
+	}
+}

@@ -2,6 +2,7 @@ package deploy
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -651,4 +652,103 @@ func TestWaitForDeploymentWithMock(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestIsValidationError(t *testing.T) {
+	cfg := &config.Config{
+		Application:          "test-app",
+		ConfigurationProfile: "test-profile",
+		Environment:          "test-env",
+		DeploymentStrategy:   "AppConfig.AllAtOnce",
+		DataFile:             "data.json",
+		Region:               "us-east-1",
+	}
+
+	mockClient := &mock.MockAppConfigClient{}
+	awsClient := &awsInternal.Client{AppConfig: mockClient}
+	deployer := NewWithClient(cfg, awsClient)
+
+	tests := []struct {
+		name    string
+		err     error
+		wantErr bool
+	}{
+		{
+			name:    "nil error",
+			err:     nil,
+			wantErr: false,
+		},
+		{
+			name:    "non-validation error",
+			err:     errors.New("generic error"),
+			wantErr: false,
+		},
+		{
+			name:    "BadRequestException",
+			err:     &types.BadRequestException{Message: aws.String("validation failed")},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := deployer.IsValidationError(tt.err)
+			if result != tt.wantErr {
+				t.Errorf("IsValidationError() = %v, want %v", result, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestFormatValidationError(t *testing.T) {
+	cfg := &config.Config{
+		Application:          "test-app",
+		ConfigurationProfile: "test-profile",
+		Environment:          "test-env",
+		DeploymentStrategy:   "AppConfig.AllAtOnce",
+		DataFile:             "data.json",
+		Region:               "us-east-1",
+	}
+
+	mockClient := &mock.MockAppConfigClient{}
+	awsClient := &awsInternal.Client{AppConfig: mockClient}
+	deployer := NewWithClient(cfg, awsClient)
+
+	tests := []struct {
+		name         string
+		err          error
+		wantContains []string
+	}{
+		{
+			name: "BadRequestException with message",
+			err:  &types.BadRequestException{Message: aws.String("JSON schema validation failed")},
+			wantContains: []string{
+				"Configuration validation failed",
+				"JSON schema validation failed",
+			},
+		},
+		{
+			name: "generic error",
+			err:  errors.New("some error"),
+			wantContains: []string{
+				"Configuration validation failed",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := deployer.FormatValidationError(tt.err)
+			for _, want := range tt.wantContains {
+				if !contains(result, want) {
+					t.Errorf("FormatValidationError() result does not contain %q\nGot: %s", want, result)
+				}
+			}
+		})
+	}
+}
+
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
+		(len(s) > 0 && (s[:len(substr)] == substr || contains(s[1:], substr))))
 }
