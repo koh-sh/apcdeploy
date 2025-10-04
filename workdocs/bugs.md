@@ -39,7 +39,7 @@
 ### 優先度 mid
 
 - [x] deploy中のwarningが目立たないので見逃してしまう。Fetching latest deploymentの表記から一行あけたい
-- [ ] featureflagの時は _updatedAt,_createdAt を差分表示しないようにしたい
+- [x] featureflagの時は _updatedAt,_createdAt を差分表示しないようにしたい
 
 ## deploy
 
