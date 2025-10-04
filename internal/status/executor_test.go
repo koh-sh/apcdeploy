@@ -378,6 +378,16 @@ func TestGetDeploymentByIDSuccess(t *testing.T) {
 				GrowthFactor:           aws.Float32(100),
 			}, nil
 		},
+		ListDeploymentStrategiesFunc: func(ctx context.Context, params *appconfig.ListDeploymentStrategiesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentStrategiesOutput, error) {
+			return &appconfig.ListDeploymentStrategiesOutput{
+				Items: []types.DeploymentStrategy{
+					{
+						Id:   aws.String("strategy-123"),
+						Name: aws.String("TestStrategy"),
+					},
+				},
+			}, nil
+		},
 	}
 
 	reporter := &reportertest.MockReporter{}
@@ -445,6 +455,16 @@ func TestGetLatestDeploymentSuccess(t *testing.T) {
 				CompletedAt:            &now,
 				PercentageComplete:     aws.Float32(100),
 				GrowthFactor:           aws.Float32(100),
+			}, nil
+		},
+		ListDeploymentStrategiesFunc: func(ctx context.Context, params *appconfig.ListDeploymentStrategiesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentStrategiesOutput, error) {
+			return &appconfig.ListDeploymentStrategiesOutput{
+				Items: []types.DeploymentStrategy{
+					{
+						Id:   aws.String("strategy-123"),
+						Name: aws.String("TestStrategy"),
+					},
+				},
 			}, nil
 		},
 	}

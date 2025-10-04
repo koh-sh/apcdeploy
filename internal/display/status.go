@@ -26,8 +26,14 @@ func ShowDeploymentStatus(deployment *aws.DeploymentDetails, cfg *config.Config,
 	fmt.Printf("  Status:        %s\n", formatDeploymentState(deployment.State))
 	fmt.Printf("  Version:       %s\n", deployment.ConfigurationVersion)
 
-	if deployment.Description != "" {
+	// Show description only for non-rolled-back deployments
+	if deployment.State != types.DeploymentStateRolledBack && deployment.Description != "" {
 		fmt.Printf("  Description:   %s\n", deployment.Description)
+	}
+
+	// Show deployment strategy
+	if deployment.DeploymentStrategyName != "" {
+		fmt.Printf("  Strategy:      %s\n", deployment.DeploymentStrategyName)
 	}
 
 	// Timing information
@@ -79,7 +85,12 @@ func ShowDeploymentStatus(deployment *aws.DeploymentDetails, cfg *config.Config,
 	if deployment.State == types.DeploymentStateRolledBack {
 		fmt.Println()
 		fmt.Println(Error("  Deployment was rolled back"))
-		fmt.Println("  Check CloudWatch Alarms for details")
+
+		// Try to find rollback reason from event log
+		rollbackReason := getRollbackReason(deployment.EventLog)
+		if rollbackReason != "" {
+			fmt.Printf("  Reason:        %s\n", rollbackReason)
+		}
 	}
 
 	fmt.Println()
@@ -144,4 +155,20 @@ func formatCurrentPhase(deployment *aws.DeploymentDetails) string {
 		return "Initial rollout phase"
 	}
 	return "Starting deployment"
+}
+
+// getRollbackReason extracts the rollback reason from deployment event log
+func getRollbackReason(eventLog []types.DeploymentEvent) string {
+	// Look for rollback events in reverse order (most recent first)
+	for i := len(eventLog) - 1; i >= 0; i-- {
+		event := eventLog[i]
+		// Check for rollback-related events
+		if event.EventType == types.DeploymentEventTypeRollbackStarted ||
+			event.EventType == types.DeploymentEventTypeRollbackCompleted {
+			if event.Description != nil && *event.Description != "" {
+				return *event.Description
+			}
+		}
+	}
+	return ""
 }

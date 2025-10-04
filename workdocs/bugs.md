@@ -19,7 +19,6 @@
 ### 優先度 low
 
 - [x] ファイルがすでに存在してエラーになった際に--force オプションについて言及しているがヘルプ表示には --force オプションについて表記されていない
-- [ ] 設定ファイルがすでにあるかは先にチェックしたい。現状はappやenvの解決をした後のエラー表示される
 
 ## status
 
@@ -39,7 +38,6 @@
 
 ### 優先度 mid
 
-- [ ] 既存のパラメータ修正の際に+0 additions, -0 deletionsとなっている。1 add 1 delete とするか、modified のような表記が欲しい
 - [ ] deploy中のwarningが目立たないので見逃してしまう。Fetching latest deploymentの表記から一行あけたい
 - [ ] featureflagの時は _updatedAt,_createdAt を差分表示しないようにしたい
 

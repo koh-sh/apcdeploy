@@ -127,13 +127,21 @@ func TestShowDeploymentStatus(t *testing.T) {
 			},
 		},
 		{
-			name: "rolled back deployment",
+			name: "rolled back deployment with reason",
 			deployment: &aws.DeploymentDetails{
-				DeploymentNumber:     4,
-				State:                types.DeploymentStateRolledBack,
-				ConfigurationVersion: "v4.0.0",
-				StartedAt:            ptrTime(time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC)),
-				CompletedAt:          ptrTime(time.Date(2024, 1, 1, 10, 2, 0, 0, time.UTC)),
+				DeploymentNumber:       4,
+				State:                  types.DeploymentStateRolledBack,
+				ConfigurationVersion:   "v4.0.0",
+				Description:            "Deploying new configuration",
+				DeploymentStrategyName: "AppConfig.Linear50PercentEvery30Seconds",
+				StartedAt:              ptrTime(time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC)),
+				CompletedAt:            ptrTime(time.Date(2024, 1, 1, 10, 2, 0, 0, time.UTC)),
+				EventLog: []types.DeploymentEvent{
+					{
+						EventType:   types.DeploymentEventTypeRollbackStarted,
+						Description: ptrString("Rollback initiated by CloudWatch Alarm: arn:aws:cloudwatch:us-east-1:123456789012:alarm:HighErrorRate"),
+					},
+				},
 			},
 			cfg: &config.Config{
 				Application: "test-app",
@@ -146,7 +154,8 @@ func TestShowDeploymentStatus(t *testing.T) {
 				"Deployment Status",
 				"ROLLED_BACK",
 				"Deployment was rolled back",
-				"Check CloudWatch Alarms",
+				"Rollback initiated by CloudWatch Alarm",
+				"Strategy:      AppConfig.Linear50PercentEvery30Seconds",
 			},
 		},
 	}
@@ -160,6 +169,13 @@ func TestShowDeploymentStatus(t *testing.T) {
 			for _, want := range tt.wantText {
 				if !strings.Contains(output, want) {
 					t.Errorf("ShowDeploymentStatus() output missing %q\nGot:\n%s", want, output)
+				}
+			}
+
+			// For rolled back deployment, verify Description is NOT shown
+			if tt.deployment.State == types.DeploymentStateRolledBack && tt.deployment.Description != "" {
+				if strings.Contains(output, "Description:") {
+					t.Errorf("ShowDeploymentStatus() should not show Description for ROLLED_BACK deployment\nGot:\n%s", output)
 				}
 			}
 		})
@@ -387,4 +403,89 @@ func TestSeparator(t *testing.T) {
 
 func ptrTime(t time.Time) *time.Time {
 	return &t
+}
+
+func ptrString(s string) *string {
+	return &s
+}
+
+func TestGetRollbackReason(t *testing.T) {
+	tests := []struct {
+		name     string
+		eventLog []types.DeploymentEvent
+		want     string
+	}{
+		{
+			name: "rollback with CloudWatch alarm",
+			eventLog: []types.DeploymentEvent{
+				{
+					EventType:   types.DeploymentEventTypeRollbackStarted,
+					Description: ptrString("Rollback initiated by CloudWatch Alarm: arn:aws:cloudwatch:us-east-1:123456789012:alarm:HighErrorRate"),
+				},
+			},
+			want: "Rollback initiated by CloudWatch Alarm: arn:aws:cloudwatch:us-east-1:123456789012:alarm:HighErrorRate",
+		},
+		{
+			name: "rollback completed event",
+			eventLog: []types.DeploymentEvent{
+				{
+					EventType:   types.DeploymentEventTypeRollbackCompleted,
+					Description: ptrString("Rollback completed successfully"),
+				},
+			},
+			want: "Rollback completed successfully",
+		},
+		{
+			name: "no rollback events",
+			eventLog: []types.DeploymentEvent{
+				{
+					EventType:   types.DeploymentEventTypeDeploymentStarted,
+					Description: ptrString("Deployment started"),
+				},
+			},
+			want: "",
+		},
+		{
+			name:     "empty event log",
+			eventLog: []types.DeploymentEvent{},
+			want:     "",
+		},
+		{
+			name: "rollback event without description",
+			eventLog: []types.DeploymentEvent{
+				{
+					EventType:   types.DeploymentEventTypeRollbackStarted,
+					Description: nil,
+				},
+			},
+			want: "",
+		},
+		{
+			name: "multiple events, get most recent rollback",
+			eventLog: []types.DeploymentEvent{
+				{
+					EventType:   types.DeploymentEventTypeDeploymentStarted,
+					Description: ptrString("Deployment started"),
+				},
+				{
+					EventType:   types.DeploymentEventTypeRollbackStarted,
+					Description: ptrString("First rollback"),
+				},
+				{
+					EventType:   types.DeploymentEventTypeRollbackStarted,
+					Description: ptrString("Second rollback"),
+				},
+			},
+			want: "Second rollback",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := getRollbackReason(tt.eventLog)
+			if got != tt.want {
+				t.Errorf("getRollbackReason() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }

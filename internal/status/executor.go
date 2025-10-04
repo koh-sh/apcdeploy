@@ -113,6 +113,15 @@ func (e *Executor) getDeploymentByID(ctx context.Context, client *aws.Client, re
 		return nil, fmt.Errorf("deployment #%d is not for configuration profile %s", deploymentNumber, resources.Profile.Name)
 	}
 
+	// Resolve deployment strategy name
+	resolver := aws.NewResolver(client)
+	strategyName, err := resolver.ResolveDeploymentStrategyIDToName(ctx, deployment.DeploymentStrategyID)
+	if err != nil {
+		// If we can't resolve the name, just use the ID
+		strategyName = deployment.DeploymentStrategyID
+	}
+	deployment.DeploymentStrategyName = strategyName
+
 	return deployment, nil
 }
 
@@ -132,6 +141,15 @@ func (e *Executor) getLatestDeployment(ctx context.Context, client *aws.Client, 
 	if err != nil {
 		return nil, err
 	}
+
+	// Resolve deployment strategy name
+	resolver := aws.NewResolver(client)
+	strategyName, err := resolver.ResolveDeploymentStrategyIDToName(ctx, details.DeploymentStrategyID)
+	if err != nil {
+		// If we can't resolve the name, just use the ID
+		strategyName = details.DeploymentStrategyID
+	}
+	details.DeploymentStrategyName = strategyName
 
 	return details, nil
 }

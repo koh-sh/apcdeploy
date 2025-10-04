@@ -232,8 +232,10 @@ type DeploymentDetails struct {
 	ConfigurationProfileID string
 	ConfigurationVersion   string
 	DeploymentStrategyID   string
+	DeploymentStrategyName string
 	State                  types.DeploymentState
 	Description            string
+	EventLog               []types.DeploymentEvent
 	StartedAt              *time.Time
 	CompletedAt            *time.Time
 	PercentageComplete     float32
@@ -271,6 +273,7 @@ func GetDeploymentDetails(ctx context.Context, client *Client, applicationID, en
 		DeploymentStrategyID:   aws.ToString(output.DeploymentStrategyId),
 		State:                  output.State,
 		Description:            aws.ToString(output.Description),
+		EventLog:               output.EventLog,
 		StartedAt:              output.StartedAt,
 		CompletedAt:            output.CompletedAt,
 		PercentageComplete:     percentageComplete,
