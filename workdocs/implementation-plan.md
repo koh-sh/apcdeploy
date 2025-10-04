@@ -210,92 +210,89 @@ AWS APIのモックを使用してテストファーストで実装します。
 
 ### タスクチェックリスト
 
-- [ ] **2.1 AWS SDK初期化（TDD）**
-  - [ ] `internal/aws/client_test.go` 作成
-    - [ ] AWS Config読み込みテスト
-    - [ ] 環境変数からの設定読み込みテスト
-    - [ ] リージョン設定テスト
-    - [ ] 認証失敗エラーテスト
-  - [ ] `internal/aws/client.go` 実装
-    - [ ] AWS Config読み込み（認証情報、リージョン）
-    - [ ] AppConfig クライアント初期化
-    - [ ] リトライポリシー設定
-  - [ ] 環境変数サポート実装
-    - [ ] `AWS_REGION`
-    - [ ] `AWS_PROFILE`
-  - [ ] エラーハンドリング実装
-  - [ ] リファクタリング
+- [x] **2.1 AWS SDK初期化（TDD）**
+  - [x] `internal/aws/client_test.go` 作成
+    - [x] AWS Config読み込みテスト
+    - [x] 環境変数からの設定読み込みテスト
+    - [x] リージョン設定テスト
+    - [x] 認証失敗エラーテスト
+  - [x] `internal/aws/client.go` 実装
+    - [x] AWS Config読み込み（認証情報、リージョン）
+    - [x] AppConfig クライアント初期化
+    - [x] リトライポリシー設定
+  - [x] エラーハンドリング実装
+  - [x] リファクタリング
 
-- [ ] **2.2 AWS APIモック基盤**
-  - [ ] `internal/aws/mock/` ディレクトリ作成
-  - [ ] `internal/aws/mock/appconfig.go` - モックインターフェース定義
-  - [ ] テスト用モック実装
-    - [ ] ListApplications モック
-    - [ ] ListConfigurationProfiles モック
-    - [ ] ListEnvironments モック
-    - [ ] ListDeploymentStrategies モック
-    - [ ] GetConfigurationProfile モック
+- [x] **2.2 AWS APIモック基盤**
+  - [x] `internal/aws/mock/` ディレクトリ作成
+  - [x] `internal/aws/mock/appconfig.go` - モックインターフェース定義
+  - [x] テスト用モック実装
+    - [x] ListApplications モック
+    - [x] ListConfigurationProfiles モック
+    - [x] ListEnvironments モック
+    - [x] ListDeploymentStrategies モック
+    - [x] GetConfigurationProfile モック
 
-- [ ] **2.3 Application解決（TDD）**
-  - [ ] `internal/aws/resolver_test.go` 作成
-    - [ ] Application名前検索テスト（成功ケース）
-    - [ ] Application不存在エラーテスト
-    - [ ] 複数マッチエラーテスト
-    - [ ] API権限エラーテスト
-  - [ ] テストフィクスチャ作成
-  - [ ] `internal/aws/resolver.go` 実装
-    - [ ] `ListApplications` API呼び出し
-    - [ ] 名前による検索
-    - [ ] Application ID取得
-  - [ ] エラーハンドリング実装
-    - [ ] Application不存在エラー
-    - [ ] 複数マッチエラー
-    - [ ] 利用可能なApplication一覧表示
-  - [ ] リファクタリング
+- [x] **2.3 Application解決（TDD）**
+  - [x] `internal/aws/resolver_test.go` 作成
+    - [x] Application名前検索テスト（成功ケース）
+    - [x] Application不存在エラーテスト
+    - [x] 複数マッチエラーテスト
+    - [x] API権限エラーテスト
+  - [x] テストフィクスチャ作成
+  - [x] `internal/aws/resolver.go` 実装
+    - [x] `ListApplications` API呼び出し
+    - [x] 名前による検索
+    - [x] Application ID取得
+  - [x] エラーハンドリング実装
+    - [x] Application不存在エラー
+    - [x] 複数マッチエラー
+    - [x] 利用可能なApplication一覧表示
+  - [x] リファクタリング
 
-- [ ] **2.4 Configuration Profile解決（TDD）**
-  - [ ] `resolver_test.go` にProfile解決テスト追加
-    - [ ] Profile名前検索テスト
-    - [ ] Profile情報取得テスト
-    - [ ] Type判定テスト（Feature Flags / Freeform）
-    - [ ] Profile不存在エラーテスト
-    - [ ] 複数マッチエラーテスト
-  - [ ] `resolver.go` に実装
-    - [ ] `ListConfigurationProfiles` API呼び出し
-    - [ ] 名前による検索
-    - [ ] Profile ID取得
-    - [ ] `GetConfigurationProfile` で詳細取得
-      - [ ] Type（Feature Flags / Freeform）
-      - [ ] LocationUri
-      - [ ] Validators
-  - [ ] エラーハンドリング実装
-  - [ ] リファクタリング
+- [x] **2.4 Configuration Profile解決（TDD）**
+  - [x] `resolver_test.go` にProfile解決テスト追加
+    - [x] Profile名前検索テスト
+    - [x] Profile情報取得テスト
+    - [x] Type判定テスト（Feature Flags / Freeform）
+    - [x] Profile不存在エラーテスト
+    - [x] 複数マッチエラーテスト
+  - [x] `resolver.go` に実装
+    - [x] `ListConfigurationProfiles` API呼び出し
+    - [x] 名前による検索
+    - [x] Profile ID取得
+    - [x] `GetConfigurationProfile` で詳細取得
+      - [x] Type（Feature Flags / Freeform）
+      - [x] LocationUri
+      - [x] Validators
+  - [x] エラーハンドリング実装
+  - [x] リファクタリング
 
-- [ ] **2.5 Environment解決（TDD）**
-  - [ ] `resolver_test.go` にEnvironment解決テスト追加
-    - [ ] Environment名前検索テスト
-    - [ ] Environment不存在エラーテスト
-    - [ ] 複数マッチエラーテスト
-  - [ ] `resolver.go` に実装
-    - [ ] `ListEnvironments` API呼び出し
-    - [ ] 名前による検索
-    - [ ] Environment ID取得
-  - [ ] エラーハンドリング実装
-  - [ ] リファクタリング
+- [x] **2.5 Environment解決（TDD）**
+  - [x] `resolver_test.go` にEnvironment解決テスト追加
+    - [x] Environment名前検索テスト
+    - [x] Environment不存在エラーテスト
+    - [x] 複数マッチエラーテスト
+  - [x] `resolver.go` に実装
+    - [x] `ListEnvironments` API呼び出し
+    - [x] 名前による検索
+    - [x] Environment ID取得
+  - [x] エラーハンドリング実装
+  - [x] リファクタリング
 
-- [ ] **2.6 Deployment Strategy解決（TDD）**
-  - [ ] `resolver_test.go` にStrategy解決テスト追加
-    - [ ] 名前検索テスト（完全一致、大文字小文字区別）
-    - [ ] デフォルト戦略テスト（`AppConfig.AllAtOnce`）
-    - [ ] Strategy不存在エラーテスト
-  - [ ] `resolver.go` に実装
-    - [ ] `ListDeploymentStrategies` API呼び出し
-    - [ ] 名前による検索
-    - [ ] Strategy ID取得
-    - [ ] デフォルト戦略サポート
-  - [ ] エラーハンドリング実装
-    - [ ] 利用可能な戦略一覧表示
-  - [ ] リファクタリング
+- [x] **2.6 Deployment Strategy解決（TDD）**
+  - [x] `resolver_test.go` にStrategy解決テスト追加
+    - [x] 名前検索テスト（完全一致、大文字小文字区別）
+    - [x] デフォルト戦略テスト（`AppConfig.AllAtOnce`）
+    - [x] Strategy不存在エラーテスト
+  - [x] `resolver.go` に実装
+    - [x] `ListDeploymentStrategies` API呼び出し
+    - [x] 名前による検索
+    - [x] Strategy ID取得
+    - [x] デフォルト戦略サポート
+  - [x] エラーハンドリング実装
+    - [x] 利用可能な戦略一覧表示
+  - [x] リファクタリング
 
 - [ ] **2.7 エラーハンドリング基盤（TDD）**
   - [ ] `internal/aws/errors_test.go` 作成
@@ -313,31 +310,31 @@ AWS APIのモックを使用してテストファーストで実装します。
     - [ ] 一時的なネットワークエラー対応
   - [ ] リファクタリング
 
-- [ ] **2.8 リソース解決の統合（TDD）**
-  - [ ] `resolver_test.go` に統合テスト追加
-    - [ ] 全リソース一括解決テスト
-    - [ ] 部分的失敗ケーステスト
-  - [ ] `resolver.go` に統合関数実装
-    - [ ] 全リソースを一括解決
-    - [ ] 並行処理による高速化（goroutineとerrgroup使用）
-  - [ ] 解決結果の構造体定義
-    - [ ] `ResolvedResources` 構造体
-    - [ ] 各リソースのIDと詳細情報
-  - [ ] リファクタリング
+- [x] **2.8 リソース解決の統合（TDD）**
+  - [x] `resolver_test.go` に統合テスト追加
+    - [x] 全リソース一括解決テスト
+    - [x] 部分的失敗ケーステスト
+  - [x] `resolver.go` に統合関数実装
+    - [x] 全リソースを一括解決
+    - [x] 並行処理による高速化（goroutineとerrgroup使用）
+  - [x] 解決結果の構造体定義
+    - [x] `ResolvedResources` 構造体
+    - [x] 各リソースのIDと詳細情報
+  - [x] リファクタリング
 
-- [ ] **2.9 Epic 2 完了確認（MUST）**
-  - [ ] `make ci` 実行
-    - [ ] `make test` - すべてのテストがパス
-    - [ ] `make lint` - リンターエラーを修正
-    - [ ] `make modernize` - 最新化の問題を修正
-    - [ ] `make fmt` - フォーマット適用
-  - [ ] すべてのチェックがパスするまで修正を繰り返す
-  - [ ] 実装計画のチェックリストを更新
-  - [ ] Gitコミット・プッシュ
-    - [ ] `git add .`
-    - [ ] `git commit -m "feat: complete Epic 2 - AWS integration and resource resolution"`
-    - [ ] `git push origin main`
-    - [ ] チェックリスト更新をコミット・プッシュ
+- [x] **2.9 Epic 2 完了確認（MUST）**
+  - [x] `make ci` 実行
+    - [x] `make test` - すべてのテストがパス
+    - [x] `make lint` - リンターエラーを修正
+    - [x] `make modernize` - 最新化の問題を修正
+    - [x] `make fmt` - フォーマット適用
+  - [x] すべてのチェックがパスするまで修正を繰り返す
+  - [x] 実装計画のチェックリストを更新
+  - [x] Gitコミット・プッシュ
+    - [x] `git add .`
+    - [x] `git commit -m "feat: complete Epic 2 - AWS integration and resource resolution"`
+    - [x] `git push origin main`
+    - [x] チェックリスト更新をコミット・プッシュ
 
 ---
 
