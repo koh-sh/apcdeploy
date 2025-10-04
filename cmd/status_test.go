@@ -71,7 +71,7 @@ func TestRunStatus(t *testing.T) {
 			name: "invalid config file",
 			setupFiles: func(t *testing.T, dir string) string {
 				configPath := filepath.Join(dir, "invalid.yml")
-				err := os.WriteFile(configPath, []byte("invalid: yaml: content:\n  - bad"), 0644)
+				err := os.WriteFile(configPath, []byte("invalid: yaml: content:\n  - bad"), 0o644)
 				if err != nil {
 					t.Fatalf("Failed to create test file: %v", err)
 				}
@@ -89,7 +89,7 @@ environment: test-env
 configuration_profile: test-profile
 deployment_strategy: test-strategy
 `
-				err := os.WriteFile(configPath, []byte(content), 0644)
+				err := os.WriteFile(configPath, []byte(content), 0o644)
 				if err != nil {
 					t.Fatalf("Failed to create test file: %v", err)
 				}

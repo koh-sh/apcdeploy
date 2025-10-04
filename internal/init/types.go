@@ -27,10 +27,3 @@ type Result struct {
 	ConfigFile  string
 	DataFile    string
 }
-
-// ProgressReporter is an interface for reporting progress
-type ProgressReporter interface {
-	Progress(message string)
-	Success(message string)
-	Warning(message string)
-}

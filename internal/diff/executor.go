@@ -6,27 +6,28 @@ import (
 
 	"github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/config"
+	"github.com/koh-sh/apcdeploy/internal/reporter"
 )
 
 // Executor handles the diff operation orchestration
 type Executor struct {
-	reporter      ProgressReporter
+	reporter      reporter.ProgressReporter
 	clientFactory func(context.Context, string) (*aws.Client, error)
 }
 
 // NewExecutor creates a new diff executor
-func NewExecutor(reporter ProgressReporter) *Executor {
+func NewExecutor(rep reporter.ProgressReporter) *Executor {
 	return &Executor{
-		reporter:      reporter,
+		reporter:      rep,
 		clientFactory: aws.NewClient,
 	}
 }
 
 // NewExecutorWithFactory creates a new diff executor with a custom client factory
 // This is useful for testing with mock clients
-func NewExecutorWithFactory(reporter ProgressReporter, factory func(context.Context, string) (*aws.Client, error)) *Executor {
+func NewExecutorWithFactory(rep reporter.ProgressReporter, factory func(context.Context, string) (*aws.Client, error)) *Executor {
 	return &Executor{
-		reporter:      reporter,
+		reporter:      rep,
 		clientFactory: factory,
 	}
 }

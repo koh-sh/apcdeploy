@@ -6,27 +6,28 @@ import (
 
 	"github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/config"
+	"github.com/koh-sh/apcdeploy/internal/reporter"
 )
 
 // Executor handles the deployment orchestration
 type Executor struct {
-	reporter        ProgressReporter
+	reporter        reporter.ProgressReporter
 	deployerFactory func(context.Context, *config.Config) (*Deployer, error)
 }
 
 // NewExecutor creates a new deployment executor
-func NewExecutor(reporter ProgressReporter) *Executor {
+func NewExecutor(rep reporter.ProgressReporter) *Executor {
 	return &Executor{
-		reporter:        reporter,
+		reporter:        rep,
 		deployerFactory: New,
 	}
 }
 
 // NewExecutorWithFactory creates a new deployment executor with a custom deployer factory
 // This is useful for testing with mock deployers
-func NewExecutorWithFactory(reporter ProgressReporter, factory func(context.Context, *config.Config) (*Deployer, error)) *Executor {
+func NewExecutorWithFactory(rep reporter.ProgressReporter, factory func(context.Context, *config.Config) (*Deployer, error)) *Executor {
 	return &Executor{
-		reporter:        reporter,
+		reporter:        rep,
 		deployerFactory: factory,
 	}
 }

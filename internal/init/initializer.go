@@ -7,19 +7,20 @@ import (
 
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/config"
+	"github.com/koh-sh/apcdeploy/internal/reporter"
 )
 
 // Initializer handles the initialization process
 type Initializer struct {
 	awsClient *awsInternal.Client
-	reporter  ProgressReporter
+	reporter  reporter.ProgressReporter
 }
 
 // New creates a new Initializer
-func New(awsClient *awsInternal.Client, reporter ProgressReporter) *Initializer {
+func New(awsClient *awsInternal.Client, rep reporter.ProgressReporter) *Initializer {
 	return &Initializer{
 		awsClient: awsClient,
-		reporter:  reporter,
+		reporter:  rep,
 	}
 }
 

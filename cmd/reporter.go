@@ -4,10 +4,14 @@ import (
 	"fmt"
 
 	"github.com/koh-sh/apcdeploy/internal/display"
+	"github.com/koh-sh/apcdeploy/internal/reporter"
 )
 
-// cliReporter implements the ProgressReporter interface for CLI output
+// cliReporter implements the reporter.ProgressReporter interface for CLI output
 type cliReporter struct{}
+
+// Ensure cliReporter implements the interface
+var _ reporter.ProgressReporter = (*cliReporter)(nil)
 
 func (r *cliReporter) Progress(message string) {
 	fmt.Println(display.Progress(message))

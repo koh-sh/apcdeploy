@@ -23,9 +23,9 @@
 ### Phase 1: 共通インターフェースの統合（優先度: 高）
 
 #### Task 1.1: 共通Reporterパッケージの作成
-- [ ] `internal/reporter/reporter.go` を作成
-- [ ] `ProgressReporter` インターフェースを定義
-- [ ] パッケージドキュメントを追加
+- [x] `internal/reporter/reporter.go` を作成
+- [x] `ProgressReporter` インターフェースを定義
+- [x] パッケージドキュメントを追加
 
 **成果物**:
 ```go
@@ -45,10 +45,10 @@ type ProgressReporter interface {
 ---
 
 #### Task 1.2: 既存パッケージのReporterインターフェース削除
-- [ ] `internal/deploy/reporter.go` の削除
-- [ ] `internal/diff/reporter.go` の削除
-- [ ] `internal/status/reporter.go` の削除
-- [ ] `internal/init/types.go` から `ProgressReporter` インターフェース削除
+- [x] `internal/deploy/reporter.go` の削除
+- [x] `internal/diff/reporter.go` の削除
+- [x] `internal/status/reporter.go` の削除
+- [x] `internal/init/types.go` から `ProgressReporter` インターフェース削除
 
 **注意事項**: インターフェース定義のみ削除、他の型定義は保持
 
@@ -57,11 +57,11 @@ type ProgressReporter interface {
 ---
 
 #### Task 1.3: 各パッケージでの共通Reporterインポート
-- [ ] `internal/deploy/executor.go` のimportを更新
-- [ ] `internal/diff/executor.go` のimportを更新
-- [ ] `internal/status/executor.go` のimportを更新
-- [ ] `internal/init/initializer.go` のimportを更新
-- [ ] `internal/init/types.go` のimportを更新
+- [x] `internal/deploy/executor.go` のimportを更新
+- [x] `internal/diff/executor.go` のimportを更新
+- [x] `internal/status/executor.go` のimportを更新
+- [x] `internal/init/initializer.go` のimportを更新
+- [x] `internal/init/types.go` のimportを更新
 
 **変更例**:
 ```go
@@ -78,19 +78,19 @@ import (
 ---
 
 #### Task 1.4: cmdパッケージのReporter実装を更新
-- [ ] `cmd/reporter.go` のimportを更新
-- [ ] インターフェース参照を `reporter.ProgressReporter` に変更
+- [x] `cmd/reporter.go` のimportを更新
+- [x] インターフェース参照を `reporter.ProgressReporter` に変更
 
 **影響範囲**: 1ファイル
 
 ---
 
 #### Task 1.5: Phase 1 完了チェック（必須）
-- [ ] `make ci` を実行してパスすることを確認
-- [ ] `make cov` でカバレッジを確認、低い箇所があれば改善
-- [ ] このドキュメントのPhase 1チェックリストを全て更新
-- [ ] 変更をコミット: `git add . && git commit -m "refactor: consolidate ProgressReporter interface into common package"`
-- [ ] リモートにプッシュ: `git push`
+- [x] `make ci` を実行してパスすることを確認
+- [x] `make cov` でカバレッジを確認、低い箇所があれば改善
+- [x] このドキュメントのPhase 1チェックリストを全て更新
+- [x] 変更をコミット: `git add . && git commit -m "refactor: consolidate ProgressReporter interface into common package"`
+- [x] リモートにプッシュ: `git push`
 
 ---
 
