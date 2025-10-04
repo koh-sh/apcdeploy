@@ -24,8 +24,8 @@ type Result struct {
 	FileName string
 }
 
-// Calculate computes the diff between remote and local configuration
-func Calculate(remoteContent, localContent, fileName string) (*Result, error) {
+// calculate computes the diff between remote and local configuration
+func calculate(remoteContent, localContent, fileName string) (*Result, error) {
 	// Normalize content based on file extension
 	ext := strings.ToLower(filepath.Ext(fileName))
 

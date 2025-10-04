@@ -31,8 +31,8 @@ func LoadDataFile(path string) ([]byte, error) {
 	return data, nil
 }
 
-// DetermineContentType determines the content type based on file extension
-func DetermineContentType(path string) string {
+// determineContentType determines the content type based on file extension
+func determineContentType(path string) string {
 	ext := filepath.Ext(path)
 	switch ext {
 	case ".json":
@@ -44,8 +44,8 @@ func DetermineContentType(path string) string {
 	}
 }
 
-// ValidateDataFile validates the syntax of a configuration data file
-func ValidateDataFile(data []byte, contentType string) error {
+// validateDataFile validates the syntax of a configuration data file
+func validateDataFile(data []byte, contentType string) error {
 	switch contentType {
 	case ContentTypeJSON:
 		var js any

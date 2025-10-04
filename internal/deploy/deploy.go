@@ -40,8 +40,8 @@ func NewWithClient(cfg *config.Config, awsClient *aws.Client) *Deployer {
 	}
 }
 
-// LoadConfiguration loads the configuration file and data file
-func LoadConfiguration(configPath string) (*config.Config, []byte, error) {
+// loadConfiguration loads the configuration file and data file
+func loadConfiguration(configPath string) (*config.Config, []byte, error) {
 	// Load the config file
 	cfg, err := config.LoadConfig(configPath)
 	if err != nil {

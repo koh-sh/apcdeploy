@@ -90,7 +90,7 @@ func TestCalculate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := Calculate(tt.remoteContent, tt.localContent, tt.fileName)
+			result, err := calculate(tt.remoteContent, tt.localContent, tt.fileName)
 
 			if tt.wantErr {
 				if err == nil {
@@ -340,7 +340,7 @@ func TestCalculateResult(t *testing.T) {
 	localContent := `{"key": "new"}`
 	fileName := "config.json"
 
-	result, err := Calculate(remoteContent, localContent, fileName)
+	result, err := calculate(remoteContent, localContent, fileName)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

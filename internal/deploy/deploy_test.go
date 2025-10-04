@@ -63,9 +63,9 @@ region: us-east-1
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg, dataContent, err := LoadConfiguration(tt.configPath)
+			cfg, dataContent, err := loadConfiguration(tt.configPath)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("LoadConfiguration() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("loadConfiguration() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !tt.wantErr {
@@ -108,9 +108,9 @@ region: us-east-1
 		t.Fatalf("Failed to write data file: %v", err)
 	}
 
-	cfg, dataContent, err := LoadConfiguration(configPath)
+	cfg, dataContent, err := loadConfiguration(configPath)
 	if err != nil {
-		t.Fatalf("LoadConfiguration() error = %v", err)
+		t.Fatalf("loadConfiguration() error = %v", err)
 	}
 
 	if string(dataContent) != expectedContent {

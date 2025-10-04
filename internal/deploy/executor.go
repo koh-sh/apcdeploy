@@ -41,7 +41,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 
 	// Step 1: Load configuration
 	e.reporter.Progress("Loading configuration...")
-	cfg, dataContent, err := LoadConfiguration(opts.ConfigFile)
+	cfg, dataContent, err := loadConfiguration(opts.ConfigFile)
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}

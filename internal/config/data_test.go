@@ -82,9 +82,9 @@ func TestDetermineContentType(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			contentType := DetermineContentType(tt.path)
+			contentType := determineContentType(tt.path)
 			if contentType != tt.expectedType {
-				t.Errorf("DetermineContentType() = %s, want %s", contentType, tt.expectedType)
+				t.Errorf("determineContentType() = %s, want %s", contentType, tt.expectedType)
 			}
 		})
 	}
@@ -136,9 +136,9 @@ func TestValidateDataFile(t *testing.T) {
 				t.Fatalf("LoadDataFile() error = %v", err)
 			}
 
-			err = ValidateDataFile(data, tt.contentType)
+			err = validateDataFile(data, tt.contentType)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("ValidateDataFile() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("validateDataFile() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}

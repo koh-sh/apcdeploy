@@ -97,13 +97,13 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	}
 
 	// Step 9: Calculate diff
-	diffResult, err := Calculate(string(remoteData), string(localData), cfg.DataFile)
+	diffResult, err := calculate(string(remoteData), string(localData), cfg.DataFile)
 	if err != nil {
 		return fmt.Errorf("failed to calculate diff: %w", err)
 	}
 
 	// Step 10: Display diff
-	Display(diffResult, cfg, resources, deployment)
+	display(diffResult, cfg, resources, deployment)
 
 	return nil
 }

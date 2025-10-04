@@ -9,16 +9,16 @@ import (
 	"github.com/aws/smithy-go"
 )
 
-// WrapAWSError wraps an AWS API error with additional context
-func WrapAWSError(err error, operation string) error {
+// wrapAWSError wraps an AWS API error with additional context
+func wrapAWSError(err error, operation string) error {
 	if err == nil {
 		return nil
 	}
 	return fmt.Errorf("%s failed: %w", operation, err)
 }
 
-// IsAccessDeniedError checks if the error is an access denied error
-func IsAccessDeniedError(err error) bool {
+// isAccessDeniedError checks if the error is an access denied error
+func isAccessDeniedError(err error) bool {
 	if err == nil {
 		return false
 	}
@@ -34,8 +34,8 @@ func IsAccessDeniedError(err error) bool {
 	return false
 }
 
-// IsResourceNotFoundError checks if the error is a resource not found error
-func IsResourceNotFoundError(err error) bool {
+// isResourceNotFoundError checks if the error is a resource not found error
+func isResourceNotFoundError(err error) bool {
 	if err == nil {
 		return false
 	}
@@ -55,8 +55,8 @@ func IsResourceNotFoundError(err error) bool {
 	return false
 }
 
-// IsThrottlingError checks if the error is a throttling error
-func IsThrottlingError(err error) bool {
+// isThrottlingError checks if the error is a throttling error
+func isThrottlingError(err error) bool {
 	if err == nil {
 		return false
 	}
@@ -73,8 +73,8 @@ func IsThrottlingError(err error) bool {
 	return false
 }
 
-// FormatAccessDeniedError formats an access denied error with helpful information
-func FormatAccessDeniedError(operation string) string {
+// formatAccessDeniedError formats an access denied error with helpful information
+func formatAccessDeniedError(operation string) string {
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf("Access denied for operation: %s\n\n", operation))
@@ -145,17 +145,17 @@ func formatUserFriendlyError(err error, operation string) string {
 	}
 
 	// Check for access denied
-	if IsAccessDeniedError(err) {
-		return FormatAccessDeniedError(operation)
+	if isAccessDeniedError(err) {
+		return formatAccessDeniedError(operation)
 	}
 
 	// Check for resource not found
-	if IsResourceNotFoundError(err) {
+	if isResourceNotFoundError(err) {
 		return fmt.Sprintf("Resource not found during %s operation. Please verify the resource exists and you have access to it.", operation)
 	}
 
 	// Check for throttling
-	if IsThrottlingError(err) {
+	if isThrottlingError(err) {
 		return "Rate limit exceeded. Please wait a moment and try again."
 	}
 

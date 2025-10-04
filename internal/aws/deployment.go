@@ -19,7 +19,7 @@ func (c *Client) CheckOngoingDeployment(ctx context.Context, applicationID, envi
 
 	output, err := c.AppConfig.ListDeployments(ctx, input)
 	if err != nil {
-		return false, nil, WrapAWSError(err, "failed to list deployments")
+		return false, nil, wrapAWSError(err, "failed to list deployments")
 	}
 
 	// Check for ongoing deployments (DEPLOYING or BAKING state)
@@ -53,7 +53,7 @@ func (c *Client) CreateHostedConfigurationVersion(
 
 	output, err := c.AppConfig.CreateHostedConfigurationVersion(ctx, input)
 	if err != nil {
-		return 0, WrapAWSError(err, "failed to create hosted configuration version")
+		return 0, wrapAWSError(err, "failed to create hosted configuration version")
 	}
 
 	return output.VersionNumber, nil
@@ -82,7 +82,7 @@ func (c *Client) StartDeployment(
 
 	output, err := c.AppConfig.StartDeployment(ctx, input)
 	if err != nil {
-		return 0, WrapAWSError(err, "failed to start deployment")
+		return 0, wrapAWSError(err, "failed to start deployment")
 	}
 
 	return output.DeploymentNumber, nil
@@ -115,7 +115,7 @@ func (c *Client) WaitForDeployment(
 
 		output, err := c.AppConfig.GetDeployment(ctx, input)
 		if err != nil {
-			return false, WrapAWSError(err, "failed to get deployment status")
+			return false, wrapAWSError(err, "failed to get deployment status")
 		}
 
 		switch output.State {
@@ -165,7 +165,7 @@ func GetLatestDeployment(ctx context.Context, client *Client, applicationID, env
 
 	output, err := client.AppConfig.ListDeployments(ctx, input)
 	if err != nil {
-		return nil, WrapAWSError(err, "failed to list deployments")
+		return nil, wrapAWSError(err, "failed to list deployments")
 	}
 
 	// Find the latest deployment for this configuration profile
@@ -219,7 +219,7 @@ func GetHostedConfigurationVersion(ctx context.Context, client *Client, applicat
 
 	output, err := client.AppConfig.GetHostedConfigurationVersion(ctx, input)
 	if err != nil {
-		return nil, WrapAWSError(err, "failed to get hosted configuration version")
+		return nil, wrapAWSError(err, "failed to get hosted configuration version")
 	}
 
 	return output.Content, nil
@@ -250,7 +250,7 @@ func GetDeploymentDetails(ctx context.Context, client *Client, applicationID, en
 
 	output, err := client.AppConfig.GetDeployment(ctx, input)
 	if err != nil {
-		return nil, WrapAWSError(err, "failed to get deployment details")
+		return nil, wrapAWSError(err, "failed to get deployment details")
 	}
 
 	var percentageComplete float32

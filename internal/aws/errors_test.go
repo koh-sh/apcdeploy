@@ -40,23 +40,23 @@ func TestWrapAWSError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			wrapped := WrapAWSError(tt.err, tt.operation)
+			wrapped := wrapAWSError(tt.err, tt.operation)
 
 			if tt.err == nil {
 				if wrapped != nil {
-					t.Errorf("WrapAWSError() with nil error should return nil, got %v", wrapped)
+					t.Errorf("wrapAWSError() with nil error should return nil, got %v", wrapped)
 				}
 				return
 			}
 
 			if wrapped == nil {
-				t.Error("WrapAWSError() returned nil for non-nil error")
+				t.Error("wrapAWSError() returned nil for non-nil error")
 				return
 			}
 
 			errMsg := wrapped.Error()
 			if !contains(errMsg, tt.wantContain) {
-				t.Errorf("WrapAWSError() error message = %q, want to contain %q", errMsg, tt.wantContain)
+				t.Errorf("wrapAWSError() error message = %q, want to contain %q", errMsg, tt.wantContain)
 			}
 		})
 	}
@@ -114,8 +114,8 @@ func TestIsAccessDeniedError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := IsAccessDeniedError(tt.err); got != tt.want {
-				t.Errorf("IsAccessDeniedError() = %v, want %v", got, tt.want)
+			if got := isAccessDeniedError(tt.err); got != tt.want {
+				t.Errorf("isAccessDeniedError() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -162,8 +162,8 @@ func TestIsResourceNotFoundError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := IsResourceNotFoundError(tt.err); got != tt.want {
-				t.Errorf("IsResourceNotFoundError() = %v, want %v", got, tt.want)
+			if got := isResourceNotFoundError(tt.err); got != tt.want {
+				t.Errorf("isResourceNotFoundError() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -197,11 +197,11 @@ func TestFormatAccessDeniedError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := FormatAccessDeniedError(tt.operation)
+			result := formatAccessDeniedError(tt.operation)
 
 			for _, want := range tt.wantContain {
 				if !contains(result, want) {
-					t.Errorf("FormatAccessDeniedError() = %q, want to contain %q", result, want)
+					t.Errorf("formatAccessDeniedError() = %q, want to contain %q", result, want)
 				}
 			}
 		})
@@ -268,8 +268,8 @@ func TestIsThrottlingError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := IsThrottlingError(tt.err); got != tt.want {
-				t.Errorf("IsThrottlingError() = %v, want %v", got, tt.want)
+			if got := isThrottlingError(tt.err); got != tt.want {
+				t.Errorf("isThrottlingError() = %v, want %v", got, tt.want)
 			}
 		})
 	}

@@ -8,8 +8,8 @@ import (
 	"github.com/koh-sh/apcdeploy/internal/config"
 )
 
-// Display shows the diff result in a user-friendly format
-func Display(result *Result, cfg *config.Config, resources *aws.ResolvedResources, deployment *aws.DeploymentInfo) {
+// display shows the diff result in a user-friendly format
+func display(result *Result, cfg *config.Config, resources *aws.ResolvedResources, deployment *aws.DeploymentInfo) {
 	// Display header
 	fmt.Println("Configuration Diff")
 	fmt.Println("==================")
