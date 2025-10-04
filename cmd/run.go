@@ -12,6 +12,7 @@ var (
 	runConfigFile string
 	runWait       bool
 	runTimeout    int
+	runForce      bool
 )
 
 // RunCommand returns the run command
@@ -38,6 +39,7 @@ This command will:
 	cmd.Flags().StringVarP(&runConfigFile, "config", "c", "apcdeploy.yml", "Path to configuration file")
 	cmd.Flags().BoolVar(&runWait, "wait", false, "Wait for deployment to complete")
 	cmd.Flags().IntVar(&runTimeout, "timeout", 600, "Timeout in seconds for deployment")
+	cmd.Flags().BoolVar(&runForce, "force", false, "Force deployment even when there are no changes")
 
 	return cmd
 }
@@ -50,6 +52,7 @@ func runRun(cmd *cobra.Command, args []string) error {
 		ConfigFile: runConfigFile,
 		Wait:       runWait,
 		Timeout:    runTimeout,
+		Force:      runForce,
 	}
 
 	// Create reporter

@@ -5,4 +5,5 @@ type Options struct {
 	ConfigFile string
 	Wait       bool
 	Timeout    int
+	Force      bool
 }

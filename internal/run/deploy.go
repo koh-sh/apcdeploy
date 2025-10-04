@@ -160,3 +160,123 @@ func (d *Deployer) IsValidationError(err error) bool {
 func (d *Deployer) FormatValidationError(err error) string {
 	return aws.FormatValidationError(err)
 }
+
+// HasConfigurationChanges checks if the local configuration differs from the deployed version
+func (d *Deployer) HasConfigurationChanges(ctx context.Context, resolved *aws.ResolvedResources, localContent []byte, fileName, contentType string) (bool, error) {
+	// Get the latest deployment to find the deployed version number
+	deployment, err := aws.GetLatestDeployment(ctx, d.awsClient, resolved.ApplicationID, resolved.EnvironmentID, resolved.Profile.ID)
+	if err != nil {
+		return false, fmt.Errorf("failed to get latest deployment: %w", err)
+	}
+
+	// If no deployment exists, this is the first deployment - has changes
+	if deployment == nil {
+		return true, nil
+	}
+
+	// Get the deployed configuration version content
+	remoteContent, err := aws.GetHostedConfigurationVersion(ctx, d.awsClient, resolved.ApplicationID, resolved.Profile.ID, deployment.ConfigurationVersion)
+	if err != nil {
+		return false, fmt.Errorf("failed to get deployed configuration: %w", err)
+	}
+
+	// Normalize both contents for comparison (handle JSON/YAML formatting differences)
+	ext := filepath.Ext(fileName)
+	normalizedRemote, err := normalizeContentForComparison(string(remoteContent), ext, resolved.Profile.Type)
+	if err != nil {
+		return false, fmt.Errorf("failed to normalize remote content: %w", err)
+	}
+
+	normalizedLocal, err := normalizeContentForComparison(string(localContent), ext, resolved.Profile.Type)
+	if err != nil {
+		return false, fmt.Errorf("failed to normalize local content: %w", err)
+	}
+
+	// Compare normalized contents
+	return normalizedRemote != normalizedLocal, nil
+}
+
+// normalizeContentForComparison normalizes content for comparison
+// This reuses the logic from the diff package to handle JSON/YAML formatting
+func normalizeContentForComparison(content, ext, profileType string) (string, error) {
+	switch ext {
+	case ".json":
+		return normalizeJSON(content, profileType)
+	case ".yaml", ".yml":
+		return normalizeYAML(content)
+	default:
+		// For text files, just ensure consistent line endings
+		return normalizeText(content), nil
+	}
+}
+
+// normalizeJSON normalizes JSON content by parsing and re-formatting with sorted keys
+// For FeatureFlags profile type, it removes _updatedAt and _createdAt fields recursively
+func normalizeJSON(content string, profileType string) (string, error) {
+	var data any
+	if err := json.Unmarshal([]byte(content), &data); err != nil {
+		return "", fmt.Errorf("invalid JSON: %w", err)
+	}
+
+	// For FeatureFlags, remove _updatedAt and _createdAt fields recursively
+	if profileType == "AWS.AppConfig.FeatureFlags" {
+		data = removeTimestampFieldsRecursive(data)
+	}
+
+	// Re-marshal with indentation for consistent formatting
+	normalized, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("failed to format JSON: %w", err)
+	}
+
+	return string(normalized), nil
+}
+
+// removeTimestampFieldsRecursive recursively removes _updatedAt and _createdAt from all maps in the object
+func removeTimestampFieldsRecursive(obj any) any {
+	switch v := obj.(type) {
+	case map[string]any:
+		// Remove timestamp fields from this map
+		delete(v, "_updatedAt")
+		delete(v, "_createdAt")
+		// Recursively process all values in the map
+		for key, value := range v {
+			v[key] = removeTimestampFieldsRecursive(value)
+		}
+		return v
+	case []any:
+		// Recursively process all elements in the array
+		for i, value := range v {
+			v[i] = removeTimestampFieldsRecursive(value)
+		}
+		return v
+	default:
+		// Return primitive values as-is
+		return v
+	}
+}
+
+// normalizeYAML normalizes YAML content by parsing and re-formatting
+func normalizeYAML(content string) (string, error) {
+	var data any
+	if err := yaml.Unmarshal([]byte(content), &data); err != nil {
+		return "", fmt.Errorf("invalid YAML: %w", err)
+	}
+
+	// Re-marshal with consistent formatting
+	normalized, err := yaml.Marshal(data)
+	if err != nil {
+		return "", fmt.Errorf("failed to format YAML: %w", err)
+	}
+
+	return string(normalized), nil
+}
+
+// normalizeText normalizes text content by ensuring consistent line endings
+func normalizeText(content string) string {
+	// Convert CRLF to LF
+	content = strings.ReplaceAll(content, "\r\n", "\n")
+	// Ensure single trailing newline
+	content = strings.TrimRight(content, "\n") + "\n"
+	return content
+}

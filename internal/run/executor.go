@@ -90,6 +90,21 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	}
 	e.reporter.Success("Configuration data validated")
 
+	// Step 6.5: Check for differences (unless --force is specified)
+	if !opts.Force {
+		e.reporter.Progress("Checking for configuration changes...")
+		hasChanges, err := deployer.HasConfigurationChanges(ctx, resolved, dataContent, cfg.DataFile, contentType)
+		if err != nil {
+			return fmt.Errorf("failed to check for changes: %w", err)
+		}
+
+		if !hasChanges {
+			e.reporter.Success("No changes detected - skipping deployment")
+			return nil
+		}
+		e.reporter.Success("Changes detected - proceeding with deployment")
+	}
+
 	// Step 7: Create hosted configuration version
 	e.reporter.Progress("Creating configuration version...")
 	versionNumber, err := deployer.CreateVersion(ctx, resolved, dataContent, contentType)
