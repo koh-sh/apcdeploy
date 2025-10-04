@@ -12,27 +12,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/appconfig/types"
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/aws/mock"
+	reportertest "github.com/koh-sh/apcdeploy/internal/reporter/testing"
 )
 
-// mockReporter is a test implementation of ProgressReporter
-type mockReporter struct {
-	messages []string
-}
-
-func (m *mockReporter) Progress(message string) {
-	m.messages = append(m.messages, "progress: "+message)
-}
-
-func (m *mockReporter) Success(message string) {
-	m.messages = append(m.messages, "success: "+message)
-}
-
-func (m *mockReporter) Warning(message string) {
-	m.messages = append(m.messages, "warning: "+message)
-}
-
 func TestNewExecutor(t *testing.T) {
-	reporter := &mockReporter{}
+	reporter := &reportertest.MockReporter{}
 	executor := NewExecutor(reporter)
 
 	if executor == nil {
@@ -45,7 +29,7 @@ func TestNewExecutor(t *testing.T) {
 }
 
 func TestExecutorLoadConfigurationError(t *testing.T) {
-	reporter := &mockReporter{}
+	reporter := &reportertest.MockReporter{}
 	executor := NewExecutor(reporter)
 
 	opts := &Options{
@@ -156,7 +140,7 @@ region: us-east-1
 		}, nil
 	}
 
-	reporter := &mockReporter{}
+	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, clientFactory)
 
 	opts := &Options{
@@ -171,7 +155,7 @@ region: us-east-1
 
 	// Verify warning about no deployment
 	hasWarning := false
-	for _, msg := range reporter.messages {
+	for _, msg := range reporter.Messages {
 		if strings.Contains(msg, "No deployment found") {
 			hasWarning = true
 			break
@@ -264,7 +248,7 @@ region: us-east-1
 		}, nil
 	}
 
-	reporter := &mockReporter{}
+	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, clientFactory)
 
 	opts := &Options{
@@ -279,7 +263,7 @@ region: us-east-1
 
 	// Verify warning about deployment in progress
 	hasWarning := false
-	for _, msg := range reporter.messages {
+	for _, msg := range reporter.Messages {
 		if strings.Contains(msg, "currently DEPLOYING") || strings.Contains(msg, "currently") {
 			hasWarning = true
 			break
@@ -322,7 +306,7 @@ region: us-west-2
 		return nil, os.ErrInvalid
 	}
 
-	reporter := &mockReporter{}
+	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, clientFactory)
 
 	// Test with region override

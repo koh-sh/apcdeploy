@@ -14,27 +14,11 @@ import (
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/aws/mock"
 	"github.com/koh-sh/apcdeploy/internal/config"
+	reportertest "github.com/koh-sh/apcdeploy/internal/reporter/testing"
 )
 
-// mockReporter is a test implementation of ProgressReporter
-type mockReporter struct {
-	messages []string
-}
-
-func (m *mockReporter) Progress(message string) {
-	m.messages = append(m.messages, "progress: "+message)
-}
-
-func (m *mockReporter) Success(message string) {
-	m.messages = append(m.messages, "success: "+message)
-}
-
-func (m *mockReporter) Warning(message string) {
-	m.messages = append(m.messages, "warning: "+message)
-}
-
 func TestNewExecutor(t *testing.T) {
-	reporter := &mockReporter{}
+	reporter := &reportertest.MockReporter{}
 	executor := NewExecutor(reporter)
 
 	if executor == nil {
@@ -73,7 +57,7 @@ func TestExecutorValidateTimeout(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			reporter := &mockReporter{}
+			reporter := &reportertest.MockReporter{}
 			executor := NewExecutor(reporter)
 
 			opts := &Options{
@@ -102,7 +86,7 @@ func TestExecutorValidateTimeout(t *testing.T) {
 }
 
 func TestExecutorLoadConfigurationError(t *testing.T) {
-	reporter := &mockReporter{}
+	reporter := &reportertest.MockReporter{}
 	executor := NewExecutor(reporter)
 
 	opts := &Options{
@@ -122,12 +106,12 @@ func TestExecutorLoadConfigurationError(t *testing.T) {
 	}
 
 	// Verify reporter was called for progress
-	if len(reporter.messages) == 0 {
+	if len(reporter.Messages) == 0 {
 		t.Error("expected reporter to have received messages")
 	}
 
-	if !strings.Contains(reporter.messages[0], "Loading configuration") {
-		t.Errorf("expected first message to be about loading configuration, got: %v", reporter.messages[0])
+	if !strings.Contains(reporter.Messages[0], "Loading configuration") {
+		t.Errorf("expected first message to be about loading configuration, got: %v", reporter.Messages[0])
 	}
 }
 
@@ -239,7 +223,7 @@ region: us-east-1
 		return NewWithClient(cfg, awsClient), nil
 	}
 
-	reporter := &mockReporter{}
+	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, deployerFactory)
 
 	opts := &Options{
@@ -272,14 +256,14 @@ region: us-east-1
 
 	for _, expected := range expectedMessages {
 		found := false
-		for _, msg := range reporter.messages {
+		for _, msg := range reporter.Messages {
 			if strings.Contains(msg, expected) {
 				found = true
 				break
 			}
 		}
 		if !found {
-			t.Errorf("expected message containing %q not found in: %v", expected, reporter.messages)
+			t.Errorf("expected message containing %q not found in: %v", expected, reporter.Messages)
 		}
 	}
 }
@@ -379,7 +363,7 @@ region: us-east-1
 				}), nil
 			}
 
-			reporter := &mockReporter{}
+			reporter := &reportertest.MockReporter{}
 			executor := NewExecutorWithFactory(reporter, deployerFactory)
 
 			opts := &Options{
@@ -395,7 +379,7 @@ region: us-east-1
 
 			// Verify deployment completed message
 			hasCompletedMsg := false
-			for _, msg := range reporter.messages {
+			for _, msg := range reporter.Messages {
 				if strings.Contains(msg, "Deployment completed successfully") {
 					hasCompletedMsg = true
 					break
@@ -476,7 +460,7 @@ region: us-east-1
 		}), nil
 	}
 
-	reporter := &mockReporter{}
+	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, deployerFactory)
 
 	opts := &Options{

@@ -11,26 +11,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/appconfig/types"
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/aws/mock"
+	reportertest "github.com/koh-sh/apcdeploy/internal/reporter/testing"
 )
-
-// mockReporter is a mock implementation of ProgressReporter for testing
-type mockReporter struct {
-	progressMessages []string
-	successMessages  []string
-	warningMessages  []string
-}
-
-func (m *mockReporter) Progress(message string) {
-	m.progressMessages = append(m.progressMessages, message)
-}
-
-func (m *mockReporter) Success(message string) {
-	m.successMessages = append(m.successMessages, message)
-}
-
-func (m *mockReporter) Warning(message string) {
-	m.warningMessages = append(m.warningMessages, message)
-}
 
 func TestInitializer_ResolveResources(t *testing.T) {
 	tests := []struct {
@@ -122,7 +104,7 @@ func TestInitializer_ResolveResources(t *testing.T) {
 			tt.mockSetup(mockClient)
 
 			awsClient := &awsInternal.Client{AppConfig: mockClient}
-			reporter := &mockReporter{}
+			reporter := &reportertest.MockReporter{}
 			initializer := New(awsClient, reporter)
 
 			result, err := initializer.resolveResources(context.Background(), tt.opts)
@@ -151,7 +133,7 @@ func TestInitializer_FetchConfigVersion(t *testing.T) {
 		name        string
 		mockSetup   func(*mock.MockAppConfigClient)
 		wantWarning bool
-		validate    func(*testing.T, *Result, *mockReporter)
+		validate    func(*testing.T, *Result, *reportertest.MockReporter)
 	}{
 		{
 			name: "version found",
@@ -171,7 +153,7 @@ func TestInitializer_FetchConfigVersion(t *testing.T) {
 				}
 			},
 			wantWarning: false,
-			validate: func(t *testing.T, result *Result, reporter *mockReporter) {
+			validate: func(t *testing.T, result *Result, reporter *reportertest.MockReporter) {
 				if result.VersionInfo == nil {
 					t.Error("expected VersionInfo to be set")
 				}
@@ -188,11 +170,18 @@ func TestInitializer_FetchConfigVersion(t *testing.T) {
 				}
 			},
 			wantWarning: true,
-			validate: func(t *testing.T, result *Result, reporter *mockReporter) {
+			validate: func(t *testing.T, result *Result, reporter *reportertest.MockReporter) {
 				if result.VersionInfo != nil {
 					t.Error("expected VersionInfo to be nil")
 				}
-				if len(reporter.warningMessages) == 0 {
+				hasWarning := false
+				for _, msg := range reporter.Messages {
+					if len(msg) > 8 && msg[:8] == "warning:" {
+						hasWarning = true
+						break
+					}
+				}
+				if !hasWarning {
 					t.Error("expected warning message")
 				}
 			},
@@ -205,7 +194,7 @@ func TestInitializer_FetchConfigVersion(t *testing.T) {
 			tt.mockSetup(mockClient)
 
 			awsClient := &awsInternal.Client{AppConfig: mockClient}
-			reporter := &mockReporter{}
+			reporter := &reportertest.MockReporter{}
 			initializer := New(awsClient, reporter)
 
 			result := &Result{
@@ -260,7 +249,7 @@ func TestInitializer_DetermineDataFileName(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &mock.MockAppConfigClient{}
 			awsClient := &awsInternal.Client{AppConfig: mockClient}
-			reporter := &mockReporter{}
+			reporter := &reportertest.MockReporter{}
 			initializer := New(awsClient, reporter)
 
 			result := &Result{
@@ -283,7 +272,7 @@ func TestInitializer_Run(t *testing.T) {
 		mockSetup   func(*mock.MockAppConfigClient)
 		wantErr     bool
 		errContains string
-		validate    func(*testing.T, *Result, *mockReporter)
+		validate    func(*testing.T, *Result, *reportertest.MockReporter)
 	}{
 		{
 			name: "successful complete flow",
@@ -348,14 +337,21 @@ func TestInitializer_Run(t *testing.T) {
 				}
 			},
 			wantErr: false,
-			validate: func(t *testing.T, result *Result, reporter *mockReporter) {
+			validate: func(t *testing.T, result *Result, reporter *reportertest.MockReporter) {
 				if result.AppID != "app-123" {
 					t.Errorf("expected AppID 'app-123', got %q", result.AppID)
 				}
 				if result.DataFile != "data.json" {
 					t.Errorf("expected DataFile 'data.json', got %q", result.DataFile)
 				}
-				if len(reporter.progressMessages) == 0 {
+				hasProgress := false
+				for _, msg := range reporter.Messages {
+					if len(msg) > 9 && msg[:9] == "progress:" {
+						hasProgress = true
+						break
+					}
+				}
+				if !hasProgress {
 					t.Error("expected progress messages")
 				}
 			},
@@ -411,11 +407,18 @@ func TestInitializer_Run(t *testing.T) {
 				}
 			},
 			wantErr: false,
-			validate: func(t *testing.T, result *Result, reporter *mockReporter) {
+			validate: func(t *testing.T, result *Result, reporter *reportertest.MockReporter) {
 				if result.VersionInfo != nil {
 					t.Error("expected VersionInfo to be nil")
 				}
-				if len(reporter.warningMessages) == 0 {
+				hasWarning := false
+				for _, msg := range reporter.Messages {
+					if len(msg) > 8 && msg[:8] == "warning:" {
+						hasWarning = true
+						break
+					}
+				}
+				if !hasWarning {
 					t.Error("expected warning message about no versions")
 				}
 			},
@@ -432,7 +435,7 @@ func TestInitializer_Run(t *testing.T) {
 			tt.mockSetup(mockClient)
 
 			awsClient := &awsInternal.Client{AppConfig: mockClient}
-			reporter := &mockReporter{}
+			reporter := &reportertest.MockReporter{}
 			initializer := New(awsClient, reporter)
 
 			result, err := initializer.Run(context.Background(), tt.opts)
@@ -511,7 +514,7 @@ func TestInitializer_GenerateFiles(t *testing.T) {
 
 			mockClient := &mock.MockAppConfigClient{}
 			awsClient := &awsInternal.Client{AppConfig: mockClient}
-			reporter := &mockReporter{}
+			reporter := &reportertest.MockReporter{}
 			initializer := New(awsClient, reporter)
 
 			err := initializer.generateFiles(tt.opts, tt.result)

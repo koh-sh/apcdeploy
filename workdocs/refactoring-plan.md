@@ -97,9 +97,9 @@ import (
 ### Phase 2: テスト用モックの共通化（優先度: 高）
 
 #### Task 2.1: 共通テストヘルパーパッケージの作成
-- [ ] `internal/reporter/testing/mock.go` を作成
-- [ ] `MockReporter` 構造体を実装
-- [ ] テストヘルパー関数を追加（必要に応じて）
+- [x] `internal/reporter/testing/mock.go` を作成
+- [x] `MockReporter` 構造体を実装
+- [x] テストヘルパー関数を追加（必要に応じて）
 
 **成果物**:
 ```go
@@ -146,10 +146,10 @@ func (m *MockReporter) Clear() {
 ---
 
 #### Task 2.2: テストファイルからmockReporter削除とimport更新
-- [ ] `internal/deploy/executor_test.go` のmockReporter削除、import追加
-- [ ] `internal/diff/executor_test.go` のmockReporter削除、import追加
-- [ ] `internal/status/executor_test.go` のmockReporter削除、import追加
-- [ ] `cmd/init_test.go` のmockReporter削除、import追加
+- [x] `internal/deploy/executor_test.go` のmockReporter削除、import追加
+- [x] `internal/diff/executor_test.go` のmockReporter削除、import追加
+- [x] `internal/status/executor_test.go` のmockReporter削除、import追加
+- [x] `internal/init/initializer_test.go` のmockReporter削除、import追加
 
 **変更例**:
 ```go
@@ -167,11 +167,11 @@ reporter := &reportertest.MockReporter{}
 ---
 
 #### Task 2.3: Phase 2 完了チェック（必須）
-- [ ] `make ci` を実行してパスすることを確認
-- [ ] `make cov` でカバレッジを確認、低い箇所があれば改善
-- [ ] このドキュメントのPhase 2チェックリストを全て更新
-- [ ] 変更をコミット: `git add . && git commit -m "refactor: consolidate test mock reporter into common testing package"`
-- [ ] リモートにプッシュ: `git push`
+- [x] `make ci` を実行してパスすることを確認
+- [x] `make cov` でカバレッジを確認、低い箇所があれば改善
+- [x] このドキュメントのPhase 2チェックリストを全て更新
+- [x] 変更をコミット: `git add . && git commit -m "refactor: consolidate test mock reporter into common testing package"`
+- [x] リモートにプッシュ: `git push`
 
 ---
 

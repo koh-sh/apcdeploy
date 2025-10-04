@@ -14,27 +14,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/appconfig/types"
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/aws/mock"
+	reportertest "github.com/koh-sh/apcdeploy/internal/reporter/testing"
 )
 
-// mockReporter is a test implementation of ProgressReporter
-type mockReporter struct {
-	messages []string
-}
-
-func (m *mockReporter) Progress(message string) {
-	m.messages = append(m.messages, "progress: "+message)
-}
-
-func (m *mockReporter) Success(message string) {
-	m.messages = append(m.messages, "success: "+message)
-}
-
-func (m *mockReporter) Warning(message string) {
-	m.messages = append(m.messages, "warning: "+message)
-}
-
 func TestNewExecutor(t *testing.T) {
-	reporter := &mockReporter{}
+	reporter := &reportertest.MockReporter{}
 	executor := NewExecutor(reporter)
 
 	if executor == nil {
@@ -47,7 +31,7 @@ func TestNewExecutor(t *testing.T) {
 }
 
 func TestExecutorLoadConfigurationError(t *testing.T) {
-	reporter := &mockReporter{}
+	reporter := &reportertest.MockReporter{}
 	executor := NewExecutor(reporter)
 
 	opts := &Options{
@@ -151,7 +135,7 @@ region: us-east-1
 		},
 	}
 
-	reporter := &mockReporter{}
+	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, func(ctx context.Context, region string) (*awsInternal.Client, error) {
 		return &awsInternal.Client{
 			AppConfig: mockClient,
@@ -169,7 +153,7 @@ region: us-east-1
 
 	// Check that warning was reported
 	foundWarning := false
-	for _, msg := range reporter.messages {
+	for _, msg := range reporter.Messages {
 		if strings.Contains(msg, "warning") && strings.Contains(msg, "No deployments found") {
 			foundWarning = true
 			break
@@ -287,7 +271,7 @@ region: us-east-1
 		},
 	}
 
-	reporter := &mockReporter{}
+	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, func(ctx context.Context, region string) (*awsInternal.Client, error) {
 		return &awsInternal.Client{
 			AppConfig: mockClient,
@@ -305,7 +289,7 @@ region: us-east-1
 }
 
 func TestGetDeploymentByIDInvalidID(t *testing.T) {
-	reporter := &mockReporter{}
+	reporter := &reportertest.MockReporter{}
 	executor := NewExecutor(reporter)
 
 	_, err := executor.getDeploymentByID(
@@ -344,7 +328,7 @@ func TestGetDeploymentByIDWrongProfile(t *testing.T) {
 		},
 	}
 
-	reporter := &mockReporter{}
+	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, func(ctx context.Context, region string) (*awsInternal.Client, error) {
 		return &awsInternal.Client{
 			AppConfig: mockClient,
@@ -396,7 +380,7 @@ func TestGetDeploymentByIDSuccess(t *testing.T) {
 		},
 	}
 
-	reporter := &mockReporter{}
+	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, func(ctx context.Context, region string) (*awsInternal.Client, error) {
 		return &awsInternal.Client{
 			AppConfig: mockClient,
@@ -465,7 +449,7 @@ func TestGetLatestDeploymentSuccess(t *testing.T) {
 		},
 	}
 
-	reporter := &mockReporter{}
+	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, func(ctx context.Context, region string) (*awsInternal.Client, error) {
 		return &awsInternal.Client{
 			AppConfig: mockClient,
@@ -595,7 +579,7 @@ region: us-east-1
 		},
 	}
 
-	reporter := &mockReporter{}
+	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, func(ctx context.Context, region string) (*awsInternal.Client, error) {
 		return &awsInternal.Client{
 			AppConfig: mockClient,
@@ -614,7 +598,7 @@ region: us-east-1
 
 	// Verify that the correct deployment ID was fetched
 	foundProgress := false
-	for _, msg := range reporter.messages {
+	for _, msg := range reporter.Messages {
 		if strings.Contains(msg, "Fetching deployment #3") {
 			foundProgress = true
 			break
@@ -652,7 +636,7 @@ region: us-east-1
 		t.Fatalf("Failed to write data: %v", err)
 	}
 
-	reporter := &mockReporter{}
+	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, func(ctx context.Context, region string) (*awsInternal.Client, error) {
 		return nil, fmt.Errorf("AWS client initialization failed")
 	})
@@ -705,7 +689,7 @@ region: us-east-1
 		},
 	}
 
-	reporter := &mockReporter{}
+	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, func(ctx context.Context, region string) (*awsInternal.Client, error) {
 		return &awsInternal.Client{
 			AppConfig: mockClient,
@@ -733,7 +717,7 @@ func TestGetDeploymentByIDGetDetailsError(t *testing.T) {
 		},
 	}
 
-	reporter := &mockReporter{}
+	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, func(ctx context.Context, region string) (*awsInternal.Client, error) {
 		return &awsInternal.Client{
 			AppConfig: mockClient,
@@ -768,7 +752,7 @@ func TestGetLatestDeploymentListError(t *testing.T) {
 		},
 	}
 
-	reporter := &mockReporter{}
+	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, func(ctx context.Context, region string) (*awsInternal.Client, error) {
 		return &awsInternal.Client{
 			AppConfig: mockClient,
@@ -826,7 +810,7 @@ func TestGetLatestDeploymentNoMatchingProfile(t *testing.T) {
 		},
 	}
 
-	reporter := &mockReporter{}
+	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, func(ctx context.Context, region string) (*awsInternal.Client, error) {
 		return &awsInternal.Client{
 			AppConfig: mockClient,
@@ -963,7 +947,7 @@ region: us-west-2
 		},
 	}
 
-	reporter := &mockReporter{}
+	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, func(ctx context.Context, region string) (*awsInternal.Client, error) {
 		usedRegion = region
 		return &awsInternal.Client{
