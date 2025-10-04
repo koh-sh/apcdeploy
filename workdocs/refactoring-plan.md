@@ -308,7 +308,7 @@ func showNextSteps(result *initPkg.Result) {
     fmt.Println("  1. Review the generated configuration files")
     fmt.Println("  2. Modify the data file as needed")
     fmt.Println("  3. Run 'apcdeploy diff' to preview changes")
-    fmt.Println("  4. Run 'apcdeploy deploy' to deploy your configuration")
+    fmt.Println("  4. Run 'apcdeploy run' to deploy your configuration")
 }
 ```
 

@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-func TestDeployCommand(t *testing.T) {
+func TestRunCommand(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    []string
@@ -35,11 +35,11 @@ func TestDeployCommand(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Reset global flags for each test
-			deployConfigFile = "apcdeploy.yml"
-			deployWait = false
-			deployTimeout = 600
+			runConfigFile = "apcdeploy.yml"
+			runWait = false
+			runTimeout = 600
 
-			cmd := newDeployCmd()
+			cmd := newRunCmd()
 			cmd.SetArgs(tt.args)
 
 			err := cmd.ParseFlags(tt.args)
@@ -50,12 +50,12 @@ func TestDeployCommand(t *testing.T) {
 	}
 }
 
-func TestDeployCommandFlags(t *testing.T) {
-	deployConfigFile = "apcdeploy.yml"
-	deployWait = false
-	deployTimeout = 600
+func TestRunCommandFlags(t *testing.T) {
+	runConfigFile = "apcdeploy.yml"
+	runWait = false
+	runTimeout = 600
 
-	cmd := newDeployCmd()
+	cmd := newRunCmd()
 
 	tests := []struct {
 		name         string
@@ -89,12 +89,12 @@ func TestDeployCommandFlags(t *testing.T) {
 	}
 }
 
-func TestDeployCommandWaitFlag(t *testing.T) {
-	deployConfigFile = "apcdeploy.yml"
-	deployWait = false
-	deployTimeout = 600
+func TestRunCommandWaitFlag(t *testing.T) {
+	runConfigFile = "apcdeploy.yml"
+	runWait = false
+	runTimeout = 600
 
-	cmd := newDeployCmd()
+	cmd := newRunCmd()
 
 	flag := cmd.Flags().Lookup("wait")
 	if flag == nil {
@@ -107,7 +107,7 @@ func TestDeployCommandWaitFlag(t *testing.T) {
 	}
 }
 
-func TestDeployTimeoutValidation(t *testing.T) {
+func TestRunTimeoutValidation(t *testing.T) {
 	tests := []struct {
 		name    string
 		timeout int
@@ -124,8 +124,8 @@ func TestDeployTimeoutValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			deployTimeout = tt.timeout
-			err := runDeploy(nil, nil)
+			runTimeout = tt.timeout
+			err := runRun(nil, nil)
 
 			if tt.wantErr {
 				if err == nil {
@@ -138,11 +138,11 @@ func TestDeployTimeoutValidation(t *testing.T) {
 	}
 }
 
-func TestDeployCommandSilenceUsage(t *testing.T) {
-	cmd := newDeployCmd()
+func TestRunCommandSilenceUsage(t *testing.T) {
+	cmd := newRunCmd()
 
 	// SilenceUsage should be true to prevent usage display on runtime errors
 	if !cmd.SilenceUsage {
-		t.Error("deploy command should have SilenceUsage set to true")
+		t.Error("run command should have SilenceUsage set to true")
 	}
 }

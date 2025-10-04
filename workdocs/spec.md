@@ -64,7 +64,7 @@ apcdeploy init --app <APP_NAME> --profile <PROFILE_NAME> --env <ENV_NAME>
 apcdeploy diff --config apconfig.yml
 
 # デプロイ実行
-apcdeploy deploy --config apconfig.yml
+apcdeploy run --config apconfig.yml
 
 # デプロイ状況確認
 apcdeploy status --config apconfig.yml
@@ -406,7 +406,7 @@ Latest Version: 42
 Next steps:
   1. Edit config.json as needed
   2. Run: apcdeploy diff
-  3. Run: apcdeploy deploy
+  3. Run: apcdeploy run
 ```
 
 ### 6.2 diff コマンド
@@ -508,7 +508,7 @@ Local file: config.json (1.2 KB)
 
 **基本構文**:
 ```bash
-apcdeploy deploy [OPTIONS]
+apcdeploy run [OPTIONS]
 ```
 
 **オプション**:
@@ -521,13 +521,13 @@ apcdeploy deploy [OPTIONS]
 **実行例**:
 ```bash
 # デフォルト設定ファイルを使用
-apcdeploy deploy
+apcdeploy run
 
 # 設定ファイルを指定
-apcdeploy deploy --config production.yml
+apcdeploy run --config production.yml
 
 # デプロイ開始後すぐに終了
-apcdeploy deploy --no-wait
+apcdeploy run --no-wait
 ```
 
 **処理フロー**:
@@ -675,7 +675,7 @@ Configuration: MyApp / MyProfile / Production
 
 No deployments found for this environment.
 
-Use 'apcdeploy deploy' to create the first deployment.
+Use 'apcdeploy run' to create the first deployment.
 ```
 
 ---
@@ -837,7 +837,7 @@ vim config.json
 apcdeploy diff
 
 # 3. デプロイ
-apcdeploy deploy
+apcdeploy run
 
 # 4. 状況確認
 apcdeploy status
@@ -868,7 +868,7 @@ jobs:
         run: apcdeploy diff
       
       - name: Deploy
-        run: apcdeploy deploy
+        run: apcdeploy run
 ```
 
 ### 9.4 複数環境の管理
@@ -885,9 +885,9 @@ apcdeploy init --app MyApp --profile MyProfile --env Production \
   --config prod.yml --output-data config.prod.json
 
 # 環境ごとにデプロイ
-apcdeploy deploy --config dev.yml
-apcdeploy deploy --config stg.yml
-apcdeploy deploy --config prod.yml
+apcdeploy run --config dev.yml
+apcdeploy run --config stg.yml
+apcdeploy run --config prod.yml
 ```
 
 ---

@@ -60,4 +60,4 @@
 ### 優先度 low
 
 - [x] Timeout in seconds for deployment (default: 300) (default 300) のdefaultの表示が重複
-- [ ] サブコマンド名を deploy 別の単語にしたい。実際に実行するときに apcdeploy deploy となるので違和感。候補 run/apply/exec
+- [x] サブコマンド名を deploy 別の単語にしたい。実際に実行するときに apcdeploy deploy となるので違和感。候補 run/apply/exec

@@ -1,4 +1,4 @@
-package deploy
+package run
 
 // Options contains the configuration options for deployment
 type Options struct {

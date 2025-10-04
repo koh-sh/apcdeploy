@@ -34,7 +34,7 @@ It provides commands to initialize, deploy, diff, and check the status of config
 
 	// Add subcommands
 	rootCmd.AddCommand(InitCommand())
-	rootCmd.AddCommand(DeployCommand())
+	rootCmd.AddCommand(RunCommand())
 	rootCmd.AddCommand(DiffCommand())
 	rootCmd.AddCommand(StatusCommand())
 
