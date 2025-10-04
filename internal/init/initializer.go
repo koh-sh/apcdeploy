@@ -137,7 +137,17 @@ func (i *Initializer) fetchDeploymentStrategy(ctx context.Context, result *Resul
 		return
 	}
 
-	result.DeploymentStrategy = deploymentDetails.DeploymentStrategyID
+	// Resolve the deployment strategy ID to its name
+	resolver := awsInternal.NewResolver(i.awsClient)
+	strategyName, err := resolver.ResolveDeploymentStrategyIDToName(ctx, deploymentDetails.DeploymentStrategyID)
+	if err != nil {
+		// If we can't resolve, use the ID as is (fallback)
+		i.reporter.Warning(fmt.Sprintf("Could not resolve deployment strategy name: %v", err))
+		result.DeploymentStrategy = deploymentDetails.DeploymentStrategyID
+	} else {
+		result.DeploymentStrategy = strategyName
+	}
+
 	i.reporter.Success(fmt.Sprintf("Using deployment strategy from latest deployment: %s", result.DeploymentStrategy))
 }
 

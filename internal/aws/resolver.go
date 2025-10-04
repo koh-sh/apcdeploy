@@ -126,6 +126,35 @@ func (r *Resolver) ResolveDeploymentStrategy(ctx context.Context, strategyName s
 	)
 }
 
+// ResolveDeploymentStrategyIDToName resolves a deployment strategy ID to its name
+// If the ID starts with "AppConfig.", it's a predefined strategy and returns it as is
+// Otherwise, looks up the custom strategy name from the AWS API
+func (r *Resolver) ResolveDeploymentStrategyIDToName(ctx context.Context, strategyID string) (string, error) {
+	// If it's a predefined strategy (starts with "AppConfig."), return as is
+	if len(strategyID) > 10 && strategyID[:10] == "AppConfig." {
+		return strategyID, nil
+	}
+
+	output, err := r.client.ListDeploymentStrategies(ctx, &appconfig.ListDeploymentStrategiesInput{})
+	if err != nil {
+		return "", fmt.Errorf("failed to list deployment strategies: %w", err)
+	}
+
+	// Find the strategy with matching ID
+	for _, strategy := range output.Items {
+		if strategy.Id != nil && *strategy.Id == strategyID {
+			if strategy.Name != nil {
+				return *strategy.Name, nil
+			}
+			// If no name, return the ID
+			return strategyID, nil
+		}
+	}
+
+	// If not found, return the ID as is
+	return strategyID, nil
+}
+
 // ResolvedResources contains all resolved AWS resource IDs and details
 type ResolvedResources struct {
 	ApplicationID        string

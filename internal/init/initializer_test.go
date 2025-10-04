@@ -214,6 +214,132 @@ func TestInitializer_FetchConfigVersion(t *testing.T) {
 	}
 }
 
+func TestInitializer_FetchDeploymentStrategy(t *testing.T) {
+	tests := []struct {
+		name          string
+		mockSetup     func(*mock.MockAppConfigClient)
+		wantStrategy  string
+		checkMessages func(*testing.T, *reportertest.MockReporter)
+	}{
+		{
+			name: "custom deployment strategy resolved to name",
+			mockSetup: func(m *mock.MockAppConfigClient) {
+				// Mock ListDeployments - return a deployment with custom strategy
+				m.ListDeploymentsFunc = func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
+					return &appconfig.ListDeploymentsOutput{
+						Items: []types.DeploymentSummary{
+							{DeploymentNumber: 1, State: types.DeploymentStateComplete},
+						},
+					}, nil
+				}
+				// Mock GetDeployment - return deployment with custom strategy ID
+				m.GetDeploymentFunc = func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
+					return &appconfig.GetDeploymentOutput{
+						DeploymentNumber:       1,
+						ConfigurationProfileId: aws.String("prof-456"),
+						ConfigurationVersion:   aws.String("1"),
+						DeploymentStrategyId:   aws.String("abc123def"), // Custom strategy ID
+						State:                  types.DeploymentStateComplete,
+					}, nil
+				}
+				// Mock ListDeploymentStrategies - return custom strategy
+				m.ListDeploymentStrategiesFunc = func(ctx context.Context, params *appconfig.ListDeploymentStrategiesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentStrategiesOutput, error) {
+					return &appconfig.ListDeploymentStrategiesOutput{
+						Items: []types.DeploymentStrategy{
+							{Id: aws.String("abc123def"), Name: aws.String("MyCustomStrategy")},
+						},
+					}, nil
+				}
+			},
+			wantStrategy: "MyCustomStrategy",
+			checkMessages: func(t *testing.T, reporter *reportertest.MockReporter) {
+				hasSuccess := false
+				for _, msg := range reporter.Messages {
+					if len(msg) > 8 && msg[:8] == "success:" {
+						hasSuccess = true
+						break
+					}
+				}
+				if !hasSuccess {
+					t.Error("expected success message")
+				}
+			},
+		},
+		{
+			name: "predefined deployment strategy",
+			mockSetup: func(m *mock.MockAppConfigClient) {
+				m.ListDeploymentsFunc = func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
+					return &appconfig.ListDeploymentsOutput{
+						Items: []types.DeploymentSummary{
+							{DeploymentNumber: 1, State: types.DeploymentStateComplete},
+						},
+					}, nil
+				}
+				m.GetDeploymentFunc = func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
+					return &appconfig.GetDeploymentOutput{
+						DeploymentNumber:       1,
+						ConfigurationProfileId: aws.String("prof-456"),
+						ConfigurationVersion:   aws.String("1"),
+						DeploymentStrategyId:   aws.String("AppConfig.AllAtOnce"),
+						State:                  types.DeploymentStateComplete,
+					}, nil
+				}
+			},
+			wantStrategy: "AppConfig.AllAtOnce",
+		},
+		{
+			name: "no previous deployments",
+			mockSetup: func(m *mock.MockAppConfigClient) {
+				m.ListDeploymentsFunc = func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
+					return &appconfig.ListDeploymentsOutput{
+						Items: []types.DeploymentSummary{},
+					}, nil
+				}
+			},
+			wantStrategy: "AppConfig.AllAtOnce",
+			checkMessages: func(t *testing.T, reporter *reportertest.MockReporter) {
+				hasWarning := false
+				for _, msg := range reporter.Messages {
+					if len(msg) > 8 && msg[:8] == "warning:" {
+						hasWarning = true
+						break
+					}
+				}
+				if !hasWarning {
+					t.Error("expected warning message")
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockClient := &mock.MockAppConfigClient{}
+			tt.mockSetup(mockClient)
+
+			awsClient := &awsInternal.Client{AppConfig: mockClient}
+			reporter := &reportertest.MockReporter{}
+			initializer := New(awsClient, reporter)
+
+			result := &Result{
+				AppID:     "app-123",
+				ProfileID: "prof-456",
+				EnvID:     "env-789",
+			}
+
+			initializer.fetchDeploymentStrategy(context.Background(), result)
+
+			if result.DeploymentStrategy != tt.wantStrategy {
+				t.Errorf("expected DeploymentStrategy %q, got %q", tt.wantStrategy, result.DeploymentStrategy)
+			}
+
+			if tt.checkMessages != nil {
+				tt.checkMessages(t, reporter)
+			}
+		})
+	}
+}
+
 func TestInitializer_DetermineDataFileName(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -342,6 +468,13 @@ func TestInitializer_Run(t *testing.T) {
 						Items: []types.DeploymentSummary{},
 					}, nil
 				}
+
+				// Mock ListDeploymentStrategies - not needed but for completeness
+				m.ListDeploymentStrategiesFunc = func(ctx context.Context, params *appconfig.ListDeploymentStrategiesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentStrategiesOutput, error) {
+					return &appconfig.ListDeploymentStrategiesOutput{
+						Items: []types.DeploymentStrategy{},
+					}, nil
+				}
 			},
 			wantErr: false,
 			validate: func(t *testing.T, result *Result, reporter *reportertest.MockReporter) {
@@ -425,6 +558,13 @@ func TestInitializer_Run(t *testing.T) {
 						Items: []types.DeploymentSummary{},
 					}, nil
 				}
+
+				// Mock ListDeploymentStrategies
+				m.ListDeploymentStrategiesFunc = func(ctx context.Context, params *appconfig.ListDeploymentStrategiesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentStrategiesOutput, error) {
+					return &appconfig.ListDeploymentStrategiesOutput{
+						Items: []types.DeploymentStrategy{},
+					}, nil
+				}
 			},
 			wantErr:     true,
 			errContains: "failed to generate config file",
@@ -482,6 +622,13 @@ func TestInitializer_Run(t *testing.T) {
 				m.ListDeploymentsFunc = func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
 					return &appconfig.ListDeploymentsOutput{
 						Items: []types.DeploymentSummary{},
+					}, nil
+				}
+
+				// Mock ListDeploymentStrategies
+				m.ListDeploymentStrategiesFunc = func(ctx context.Context, params *appconfig.ListDeploymentStrategiesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentStrategiesOutput, error) {
+					return &appconfig.ListDeploymentStrategiesOutput{
+						Items: []types.DeploymentStrategy{},
 					}, nil
 				}
 			},

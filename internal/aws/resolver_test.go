@@ -482,6 +482,115 @@ func TestResolveDeploymentStrategy(t *testing.T) {
 	}
 }
 
+func TestResolveDeploymentStrategyIDToName(t *testing.T) {
+	tests := []struct {
+		name           string
+		strategyID     string
+		mockStrategies []types.DeploymentStrategy
+		mockErr        error
+		wantName       string
+		wantErr        bool
+		errContains    string
+	}{
+		{
+			name:       "predefined strategy - AllAtOnce",
+			strategyID: "AppConfig.AllAtOnce",
+			wantName:   "AppConfig.AllAtOnce",
+			wantErr:    false,
+		},
+		{
+			name:       "predefined strategy - Linear50PercentEvery30Seconds",
+			strategyID: "AppConfig.Linear50PercentEvery30Seconds",
+			wantName:   "AppConfig.Linear50PercentEvery30Seconds",
+			wantErr:    false,
+		},
+		{
+			name:       "custom strategy found",
+			strategyID: "abc123def",
+			mockStrategies: []types.DeploymentStrategy{
+				{
+					Id:   aws.String("abc123def"),
+					Name: aws.String("MyCustomStrategy"),
+				},
+			},
+			wantName: "MyCustomStrategy",
+			wantErr:  false,
+		},
+		{
+			name:       "custom strategy not found - return ID",
+			strategyID: "xyz789",
+			mockStrategies: []types.DeploymentStrategy{
+				{
+					Id:   aws.String("abc123def"),
+					Name: aws.String("MyCustomStrategy"),
+				},
+			},
+			wantName: "xyz789",
+			wantErr:  false,
+		},
+		{
+			name:       "custom strategy with no name - return ID",
+			strategyID: "abc123def",
+			mockStrategies: []types.DeploymentStrategy{
+				{
+					Id:   aws.String("abc123def"),
+					Name: nil,
+				},
+			},
+			wantName: "abc123def",
+			wantErr:  false,
+		},
+		{
+			name:        "API error",
+			strategyID:  "abc123def",
+			mockErr:     errors.New("API error"),
+			wantErr:     true,
+			errContains: "failed to list deployment strategies",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockClient := &mock.MockAppConfigClient{
+				ListDeploymentStrategiesFunc: func(ctx context.Context, params *appconfig.ListDeploymentStrategiesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentStrategiesOutput, error) {
+					if tt.mockErr != nil {
+						return nil, tt.mockErr
+					}
+					return &appconfig.ListDeploymentStrategiesOutput{
+						Items: tt.mockStrategies,
+					}, nil
+				},
+			}
+
+			resolver := &Resolver{
+				client: mockClient,
+			}
+
+			ctx := context.Background()
+			strategyName, err := resolver.ResolveDeploymentStrategyIDToName(ctx, tt.strategyID)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Error("expected error, got nil")
+				}
+				if tt.errContains != "" && !contains(err.Error(), tt.errContains) {
+					t.Errorf("error = %v, want to contain %v", err, tt.errContains)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+				return
+			}
+
+			if strategyName != tt.wantName {
+				t.Errorf("strategyName = %v, want %v", strategyName, tt.wantName)
+			}
+		})
+	}
+}
+
 func TestResolveAll(t *testing.T) {
 	tests := []struct {
 		name            string

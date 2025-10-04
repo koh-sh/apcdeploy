@@ -7,6 +7,7 @@
 - [x] initで作成された設定のdeployment_strategyが "" になって名前が設定されていない
 - [x] 生成されたファイルにregionが記載されていない。initだけ明示的にregionの指定が必要だが、それ以外のコマンドは設定ファイルからregionを読み込む
 - [x] initで作成された設定の deployment_strategyが直近使用されたデプロイ戦略ではなく固定でAppConfig.AllAtOnceになっている
+- [x] deployment_strategyが自分で作成したものの場合、名前解決が行われずIDがそのまま設定ファイルに記述されてしまう
 
 ### 優先度 mid
 
