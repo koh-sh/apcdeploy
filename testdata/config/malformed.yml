@@ -1,0 +1,4 @@
+application: TestApp
+  invalid_indentation: true
+configuration_profile: [
+  unclosed_bracket

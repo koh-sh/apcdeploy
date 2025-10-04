@@ -1,4 +1,4 @@
-.PHONY: test fmt cov tidy lint modernize modernize-fix ci
+.PHONY: test fmt cov tidy lint modernize modernize-fix ci tool-install
 
 COVFILE = coverage.out
 COVHTML = cover.html
@@ -29,3 +29,8 @@ modernize:
 modernize-fix:
 	go run golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@latest -fix ./...
 
+tool-install:
+	go get -tool mvdan.cc/gofumpt
+	go get -tool github.com/golangci/golangci-lint/v2/cmd/golangci-lint
+	go get -tool github.com/mfridman/tparse
+	go get -tool github.com/spf13/cobra-cli

@@ -1,0 +1,5 @@
+application: TestApp
+configuration_profile: TestProfile
+environment: Production
+data_file: data.json
+# deployment_strategy not specified - should use default

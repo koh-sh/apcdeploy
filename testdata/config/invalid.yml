@@ -1,0 +1,3 @@
+application: TestApp
+# missing required fields
+region: us-east-1
