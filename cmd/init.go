@@ -4,9 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/cli"
-	"github.com/koh-sh/apcdeploy/internal/display"
 	initPkg "github.com/koh-sh/apcdeploy/internal/init"
 	"github.com/spf13/cobra"
 )
@@ -74,7 +72,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	showNextSteps(result)
+	cli.ShowInitNextSteps(result)
 	return nil
 }
 
@@ -82,27 +80,5 @@ func createInitializer(ctx context.Context) (*initPkg.Initializer, error) {
 	if initializerFactory != nil {
 		return initializerFactory(ctx, initRegion)
 	}
-	return createDefaultInitializer(ctx)
-}
-
-func createDefaultInitializer(ctx context.Context) (*initPkg.Initializer, error) {
-	awsClient, err := awsInternal.NewClient(ctx, initRegion)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize AWS client: %w", err)
-	}
-
-	reporter := cli.NewReporter()
-	return initPkg.New(awsClient, reporter), nil
-}
-
-func showNextSteps(result *initPkg.Result) {
-	fmt.Println("\n" + display.Success("Initialization complete!"))
-	fmt.Println("\nNext steps:")
-	fmt.Println("  1. Review the generated configuration files")
-	fmt.Println("  2. Modify the data file as needed")
-	fmt.Println("  3. Run 'apcdeploy diff' to preview changes")
-	fmt.Println("  4. Run 'apcdeploy deploy' to deploy your configuration")
-
-	// Suppress unused variable warning
-	_ = result
+	return cli.CreateInitializer(ctx, initRegion)
 }
