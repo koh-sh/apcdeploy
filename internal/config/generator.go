@@ -71,6 +71,11 @@ func DetermineDataFileName(contentType string) string {
 // WriteDataFile writes configuration data to a file with appropriate formatting
 // For FeatureFlags profile type, it removes _updatedAt and _createdAt fields
 func WriteDataFile(content []byte, contentType, outputPath, profileType string) error {
+	// Check if file already exists
+	if _, err := os.Stat(outputPath); err == nil {
+		return fmt.Errorf("data file already exists at %s (use --force to overwrite)", outputPath)
+	}
+
 	// Normalize content type
 	ct := strings.ToLower(strings.TrimSpace(contentType))
 	if idx := strings.Index(ct, ";"); idx != -1 {

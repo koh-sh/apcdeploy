@@ -381,6 +381,38 @@ func TestWriteDataFileFeatureFlags(t *testing.T) {
 	}
 }
 
+func TestWriteDataFileOverwrite(t *testing.T) {
+	tempDir := t.TempDir()
+	dataPath := filepath.Join(tempDir, "data.json")
+
+	// Create initial file
+	initialContent := []byte(`{"existing":"data"}`)
+	if err := os.WriteFile(dataPath, initialContent, 0o644); err != nil {
+		t.Fatalf("failed to create initial file: %v", err)
+	}
+
+	// Try to write data file - should fail without force flag
+	newContent := []byte(`{"new":"data"}`)
+	err := WriteDataFile(newContent, "application/json", dataPath, "")
+	if err == nil {
+		t.Error("expected error when overwriting existing data file, but got none")
+	}
+
+	// Verify the error message mentions --force option
+	if err != nil && !strings.Contains(err.Error(), "--force") {
+		t.Errorf("error message should mention --force option, got: %v", err)
+	}
+
+	// Verify original file was not modified
+	data, err := os.ReadFile(dataPath)
+	if err != nil {
+		t.Fatalf("failed to read file: %v", err)
+	}
+	if string(data) != string(initialContent) {
+		t.Error("original file should not be modified when overwrite is not allowed")
+	}
+}
+
 func Test_formatJSON(t *testing.T) {
 	tests := []struct {
 		name    string
