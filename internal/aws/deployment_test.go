@@ -255,18 +255,18 @@ func TestWaitForDeployment(t *testing.T) {
 		wantComplete  bool
 	}{
 		{
-			name:          "deployment completes successfully",
+			name:          "deployment completes immediately",
 			deploymentNum: 1,
-			mockStates:    []types.DeploymentState{types.DeploymentStateDeploying, types.DeploymentStateComplete},
-			timeout:       15 * time.Second,
+			mockStates:    []types.DeploymentState{types.DeploymentStateComplete},
+			timeout:       10 * time.Second,
 			wantErr:       false,
 			wantComplete:  true,
 		},
 		{
-			name:          "deployment is rolled back",
+			name:          "deployment is rolled back immediately",
 			deploymentNum: 2,
-			mockStates:    []types.DeploymentState{types.DeploymentStateDeploying, types.DeploymentStateRolledBack},
-			timeout:       5 * time.Second,
+			mockStates:    []types.DeploymentState{types.DeploymentStateRolledBack},
+			timeout:       10 * time.Second,
 			wantErr:       true,
 			wantComplete:  false,
 		},
@@ -277,6 +277,14 @@ func TestWaitForDeployment(t *testing.T) {
 			timeout:       1 * time.Second,
 			wantErr:       true,
 			wantComplete:  false,
+		},
+		{
+			name:          "deployment completes after one poll (5s wait)",
+			deploymentNum: 4,
+			mockStates:    []types.DeploymentState{types.DeploymentStateDeploying, types.DeploymentStateComplete},
+			timeout:       10 * time.Second,
+			wantErr:       false,
+			wantComplete:  true,
 		},
 	}
 
@@ -301,7 +309,10 @@ func TestWaitForDeployment(t *testing.T) {
 				},
 			}
 
-			client := &Client{AppConfig: mockClient}
+			client := &Client{
+				AppConfig:       mockClient,
+				PollingInterval: 100 * time.Millisecond, // Fast polling for tests
+			}
 			err := client.WaitForDeployment(
 				context.Background(),
 				"app-123",

@@ -1,8 +1,17 @@
 package cmd
 
 import (
+	"context"
+	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/appconfig"
+	"github.com/aws/aws-sdk-go-v2/service/appconfig/types"
+	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
+	"github.com/koh-sh/apcdeploy/internal/aws/mock"
+	initPkg "github.com/koh-sh/apcdeploy/internal/init"
 )
 
 func TestInitCommand(t *testing.T) {
@@ -41,11 +50,6 @@ func TestInitCommand(t *testing.T) {
 			args:    []string{"--app", "test-app", "--profile", "test-profile", "--env", "test-env", "--config", "custom.yml"},
 			wantErr: true, // Expects region error
 			errMsg:  "failed to initialize AWS client: region must be specified either via --region flag or AWS_REGION/AWS_DEFAULT_REGION environment variable",
-		},
-		{
-			name:    "with optional region flag",
-			args:    []string{"--app", "test-app", "--profile", "test-profile", "--env", "test-env", "--region", "us-west-2"},
-			wantErr: true, // Will try to call AWS but fail on missing resources
 		},
 		{
 			name:    "with optional output-data flag without region",
@@ -138,99 +142,6 @@ func TestInitCommandIntegration(t *testing.T) {
 	// This is expected behavior in a test environment
 }
 
-func TestRunInitErrorPaths(t *testing.T) {
-	tests := []struct {
-		name        string
-		args        []string
-		errContains string
-	}{
-		{
-			name: "AWS client initialization fails without region",
-			args: []string{
-				"--app", "test-app",
-				"--profile", "test-profile",
-				"--env", "test-env",
-			},
-			errContains: "failed to initialize AWS client",
-		},
-		{
-			name: "AWS client initialization fails with invalid region",
-			args: []string{
-				"--app", "test-app",
-				"--profile", "test-profile",
-				"--env", "test-env",
-				"--region", "invalid-region-123",
-			},
-			errContains: "failed to resolve application",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cmd := newInitCommand()
-			cmd.SetArgs(tt.args)
-
-			err := cmd.Execute()
-
-			if err == nil {
-				t.Fatal("expected error, got nil")
-			}
-
-			if tt.errContains != "" && !contains(err.Error(), tt.errContains) {
-				t.Errorf("error = %v, want to contain %v", err, tt.errContains)
-			}
-		})
-	}
-}
-
-func TestRunInitWithRegion(t *testing.T) {
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, "apcdeploy.yml")
-
-	cmd := newInitCommand()
-	cmd.SetArgs([]string{
-		"--app", "test-app",
-		"--profile", "test-profile",
-		"--env", "test-env",
-		"--region", "us-east-1",
-		"--config", configPath,
-	})
-
-	err := cmd.Execute()
-
-	// This will fail at AWS resource resolution since we don't have real resources
-	if err == nil {
-		t.Error("expected error, got nil")
-	}
-
-	// Should fail at resource resolution, not at client initialization
-	if contains(err.Error(), "region must be specified") {
-		t.Errorf("should not fail at region validation, got error: %v", err)
-	}
-}
-
-func TestRunInitWithCustomOutputData(t *testing.T) {
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, "apcdeploy.yml")
-
-	cmd := newInitCommand()
-	cmd.SetArgs([]string{
-		"--app", "test-app",
-		"--profile", "test-profile",
-		"--env", "test-env",
-		"--region", "us-east-1",
-		"--config", configPath,
-		"--output-data", "custom-data.json",
-	})
-
-	err := cmd.Execute()
-
-	// This will fail at AWS resource resolution
-	if err == nil {
-		t.Error("expected error, got nil")
-	}
-}
-
 func TestCliReporter(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -268,6 +179,75 @@ func TestCliReporter(t *testing.T) {
 				reporter.Warning(tt.message)
 			}
 		})
+	}
+}
+
+func TestInitCommandWithMock(t *testing.T) {
+	// Save original factory and restore after test
+	originalFactory := initializerFactory
+	defer func() { initializerFactory = originalFactory }()
+
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "apcdeploy.yml")
+
+	// Create mock AWS client
+	mockClient := &mock.MockAppConfigClient{
+		ListApplicationsFunc: func(ctx context.Context, params *appconfig.ListApplicationsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListApplicationsOutput, error) {
+			return &appconfig.ListApplicationsOutput{
+				Items: []types.Application{{Id: aws.String("app-123"), Name: aws.String("test-app")}},
+			}, nil
+		},
+		ListConfigurationProfilesFunc: func(ctx context.Context, params *appconfig.ListConfigurationProfilesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListConfigurationProfilesOutput, error) {
+			return &appconfig.ListConfigurationProfilesOutput{
+				Items: []types.ConfigurationProfileSummary{{Id: aws.String("profile-123"), Name: aws.String("test-profile"), Type: aws.String("AWS.Freeform")}},
+			}, nil
+		},
+		GetConfigurationProfileFunc: func(ctx context.Context, params *appconfig.GetConfigurationProfileInput, optFns ...func(*appconfig.Options)) (*appconfig.GetConfigurationProfileOutput, error) {
+			return &appconfig.GetConfigurationProfileOutput{Id: aws.String("profile-123"), Type: aws.String("AWS.Freeform")}, nil
+		},
+		ListEnvironmentsFunc: func(ctx context.Context, params *appconfig.ListEnvironmentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListEnvironmentsOutput, error) {
+			return &appconfig.ListEnvironmentsOutput{
+				Items: []types.Environment{{Id: aws.String("env-123"), Name: aws.String("test-env")}},
+			}, nil
+		},
+		ListHostedConfigurationVersionsFunc: func(ctx context.Context, params *appconfig.ListHostedConfigurationVersionsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListHostedConfigurationVersionsOutput, error) {
+			return &appconfig.ListHostedConfigurationVersionsOutput{
+				Items: []types.HostedConfigurationVersionSummary{
+					{VersionNumber: 1},
+				},
+			}, nil
+		},
+		GetHostedConfigurationVersionFunc: func(ctx context.Context, params *appconfig.GetHostedConfigurationVersionInput, optFns ...func(*appconfig.Options)) (*appconfig.GetHostedConfigurationVersionOutput, error) {
+			return &appconfig.GetHostedConfigurationVersionOutput{
+				Content:     []byte(`{"test": "data"}`),
+				ContentType: aws.String("application/json"),
+			}, nil
+		},
+	}
+
+	// Set factory to return mock-based initializer
+	initializerFactory = func(ctx context.Context, region string) (*initPkg.Initializer, error) {
+		awsClient := &awsInternal.Client{AppConfig: mockClient}
+		return initPkg.New(awsClient, &cliReporter{}), nil
+	}
+
+	cmd := newInitCommand()
+	cmd.SetArgs([]string{
+		"--app", "test-app",
+		"--profile", "test-profile",
+		"--env", "test-env",
+		"--region", "us-east-1",
+		"--config", configPath,
+	})
+
+	err := cmd.Execute()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify config file was created
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		t.Error("expected config file to be created")
 	}
 }
 

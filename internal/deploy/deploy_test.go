@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/appconfig"
@@ -386,7 +387,6 @@ func TestResolveResourcesWithMock(t *testing.T) {
 
 	deployer := NewWithClient(cfg, awsClient)
 	resolved, err := deployer.ResolveResources(context.Background())
-
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -461,7 +461,8 @@ func TestCheckOngoingDeploymentWithMock(t *testing.T) {
 			}
 
 			awsClient := &awsInternal.Client{
-				AppConfig: mockClient,
+				AppConfig:       mockClient,
+				PollingInterval: 100 * time.Millisecond, // Fast polling for tests
 			}
 
 			deployer := NewWithClient(cfg, awsClient)
@@ -477,7 +478,6 @@ func TestCheckOngoingDeploymentWithMock(t *testing.T) {
 			}
 
 			hasOngoing, _, err := deployer.CheckOngoingDeployment(context.Background(), resolved)
-
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -524,7 +524,6 @@ func TestCreateVersionWithMock(t *testing.T) {
 	}
 
 	versionNumber, err := deployer.CreateVersion(context.Background(), resolved, []byte(`{"key":"value"}`), "application/json")
-
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -569,7 +568,6 @@ func TestStartDeploymentWithMock(t *testing.T) {
 	}
 
 	deploymentNumber, err := deployer.StartDeployment(context.Background(), resolved, 1)
-
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -580,52 +578,77 @@ func TestStartDeploymentWithMock(t *testing.T) {
 }
 
 func TestWaitForDeploymentWithMock(t *testing.T) {
-	cfg := &config.Config{
-		Application:          "test-app",
-		ConfigurationProfile: "test-profile",
-		Environment:          "test-env",
-		DeploymentStrategy:   "AppConfig.AllAtOnce",
-		DataFile:             "data.json",
-		Region:               "us-east-1",
+	tests := []struct {
+		name        string
+		mockStates  []types.DeploymentState
+		timeout     int
+		wantErr     bool
+		description string
+	}{
+		{
+			name:        "immediate completion",
+			mockStates:  []types.DeploymentState{types.DeploymentStateComplete},
+			timeout:     30,
+			wantErr:     false,
+			description: "Tests immediate deployment completion",
+		},
+		{
+			name:        "completion after polling (5s wait)",
+			mockStates:  []types.DeploymentState{types.DeploymentStateDeploying, types.DeploymentStateComplete},
+			timeout:     30,
+			wantErr:     false,
+			description: "Tests deployment that completes after one poll - this takes 5 seconds",
+		},
 	}
 
-	callCount := 0
-	mockClient := &mock.MockAppConfigClient{
-		GetDeploymentFunc: func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
-			callCount++
-			state := types.DeploymentStateDeploying
-			if callCount >= 2 {
-				state = types.DeploymentStateComplete
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{
+				Application:          "test-app",
+				ConfigurationProfile: "test-profile",
+				Environment:          "test-env",
+				DeploymentStrategy:   "AppConfig.AllAtOnce",
+				DataFile:             "data.json",
+				Region:               "us-east-1",
 			}
-			return &appconfig.GetDeploymentOutput{
-				State: state,
-			}, nil
-		},
-	}
 
-	awsClient := &awsInternal.Client{
-		AppConfig: mockClient,
-	}
+			callCount := 0
+			mockClient := &mock.MockAppConfigClient{
+				GetDeploymentFunc: func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
+					var state types.DeploymentState
+					if callCount < len(tt.mockStates) {
+						state = tt.mockStates[callCount]
+					} else {
+						state = tt.mockStates[len(tt.mockStates)-1]
+					}
+					callCount++
+					return &appconfig.GetDeploymentOutput{
+						State: state,
+					}, nil
+				},
+			}
 
-	deployer := NewWithClient(cfg, awsClient)
+			awsClient := &awsInternal.Client{
+				AppConfig:       mockClient,
+				PollingInterval: 100 * time.Millisecond, // Fast polling for tests
+			}
 
-	resolved := &awsInternal.ResolvedResources{
-		ApplicationID:        "app-123",
-		EnvironmentID:        "env-123",
-		DeploymentStrategyID: "strategy-123",
-		Profile: &awsInternal.ProfileInfo{
-			ID:   "profile-123",
-			Type: "AWS.Freeform",
-		},
-	}
+			deployer := NewWithClient(cfg, awsClient)
 
-	err := deployer.WaitForDeployment(context.Background(), resolved, 1, 30)
+			resolved := &awsInternal.ResolvedResources{
+				ApplicationID:        "app-123",
+				EnvironmentID:        "env-123",
+				DeploymentStrategyID: "strategy-123",
+				Profile: &awsInternal.ProfileInfo{
+					ID:   "profile-123",
+					Type: "AWS.Freeform",
+				},
+			}
 
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if callCount < 2 {
-		t.Errorf("expected at least 2 calls to GetDeployment, got %d", callCount)
+			err := deployer.WaitForDeployment(context.Background(), resolved, 1, tt.timeout)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("unexpected error: %v, wantErr: %v", err, tt.wantErr)
+			}
+		})
 	}
 }

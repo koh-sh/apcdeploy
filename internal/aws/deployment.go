@@ -98,35 +98,51 @@ func (c *Client) WaitForDeployment(
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	ticker := time.NewTicker(5 * time.Second)
+	// Use configured polling interval, default to 5s if not set
+	pollingInterval := c.PollingInterval
+	if pollingInterval == 0 {
+		pollingInterval = 5 * time.Second
+	}
+	ticker := time.NewTicker(pollingInterval)
 	defer ticker.Stop()
 
+	checkDeployment := func() (bool, error) {
+		input := &appconfig.GetDeploymentInput{
+			ApplicationId:    aws.String(applicationID),
+			EnvironmentId:    aws.String(environmentID),
+			DeploymentNumber: &deploymentNumber,
+		}
+
+		output, err := c.AppConfig.GetDeployment(ctx, input)
+		if err != nil {
+			return false, WrapAWSError(err, "failed to get deployment status")
+		}
+
+		switch output.State {
+		case types.DeploymentStateComplete:
+			return true, nil
+		case types.DeploymentStateRolledBack:
+			return false, fmt.Errorf("deployment was rolled back")
+		case types.DeploymentStateDeploying, types.DeploymentStateBaking:
+			return false, nil
+		default:
+			return false, fmt.Errorf("unexpected deployment state: %s", output.State)
+		}
+	}
+
+	// Check immediately first
+	if complete, err := checkDeployment(); err != nil || complete {
+		return err
+	}
+
+	// Then check periodically
 	for {
 		select {
 		case <-ctx.Done():
 			return fmt.Errorf("deployment timed out after %v", timeout)
 		case <-ticker.C:
-			input := &appconfig.GetDeploymentInput{
-				ApplicationId:    aws.String(applicationID),
-				EnvironmentId:    aws.String(environmentID),
-				DeploymentNumber: &deploymentNumber,
-			}
-
-			output, err := c.AppConfig.GetDeployment(ctx, input)
-			if err != nil {
-				return WrapAWSError(err, "failed to get deployment status")
-			}
-
-			switch output.State {
-			case types.DeploymentStateComplete:
-				return nil
-			case types.DeploymentStateRolledBack:
-				return fmt.Errorf("deployment was rolled back")
-			case types.DeploymentStateDeploying, types.DeploymentStateBaking:
-				// Continue waiting
-				continue
-			default:
-				return fmt.Errorf("unexpected deployment state: %s", output.State)
+			if complete, err := checkDeployment(); err != nil || complete {
+				return err
 			}
 		}
 	}

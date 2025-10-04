@@ -17,6 +17,9 @@ var (
 	initRegion     string
 	initConfig     string
 	initOutputData string
+
+	// initializerFactory allows dependency injection for testing
+	initializerFactory func(context.Context, string) (*initPkg.Initializer, error)
 )
 
 // newInitCommand creates a new init command
@@ -51,10 +54,24 @@ func InitCommand() *cobra.Command {
 func runInit(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
-	// Initialize AWS client
-	awsClient, err := awsInternal.NewClient(ctx, initRegion)
+	// Create initializer (using factory if set, otherwise default implementation)
+	var initializer *initPkg.Initializer
+	var err error
+
+	if initializerFactory != nil {
+		initializer, err = initializerFactory(ctx, initRegion)
+	} else {
+		// Default implementation: create AWS client and initializer
+		awsClient, clientErr := awsInternal.NewClient(ctx, initRegion)
+		if clientErr != nil {
+			return fmt.Errorf("failed to initialize AWS client: %w", clientErr)
+		}
+		reporter := &cliReporter{}
+		initializer = initPkg.New(awsClient, reporter)
+	}
+
 	if err != nil {
-		return fmt.Errorf("failed to initialize AWS client: %w", err)
+		return err
 	}
 
 	// Create options
@@ -67,11 +84,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		OutputData:  initOutputData,
 	}
 
-	// Create reporter
-	reporter := &cliReporter{}
-
 	// Run initialization
-	initializer := initPkg.New(awsClient, reporter)
 	result, err := initializer.Run(ctx, opts)
 	if err != nil {
 		return err

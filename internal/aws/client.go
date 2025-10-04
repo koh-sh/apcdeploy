@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/appconfig"
@@ -12,8 +13,9 @@ import (
 
 // Client wraps the AWS AppConfig client
 type Client struct {
-	AppConfig mock.AppConfigAPI
-	Region    string
+	AppConfig       mock.AppConfigAPI
+	Region          string
+	PollingInterval time.Duration // Interval for polling deployment status (default: 5s)
 }
 
 // NewClient creates a new AWS client with the specified region
@@ -42,7 +44,8 @@ func NewClient(ctx context.Context, region string) (*Client, error) {
 	appconfigClient := appconfig.NewFromConfig(cfg)
 
 	return &Client{
-		AppConfig: appconfigClient,
-		Region:    finalRegion,
+		AppConfig:       appconfigClient,
+		Region:          finalRegion,
+		PollingInterval: 5 * time.Second, // Default polling interval
 	}, nil
 }
