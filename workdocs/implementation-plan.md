@@ -441,14 +441,14 @@ AWS APIのモックを使用してテストファーストで実装します。
 
 ### タスクチェックリスト
 
-- [ ] **4.1 コマンド定義**
-  - [ ] `cmd/deploy.go` 作成
-  - [ ] コマンド登録
-  - [ ] フラグ定義
-    - [ ] `--config, -c` (オプション)
-    - [ ] `--no-wait` (オプション)
-    - [ ] `--timeout` (オプション)
-  - [ ] フラグバリデーション
+- [x] **4.1 コマンド定義**
+  - [x] `cmd/deploy.go` 作成
+  - [x] コマンド登録
+  - [x] フラグ定義
+    - [x] `--config, -c` (オプション)
+    - [x] `--no-wait` (オプション)
+    - [x] `--timeout` (オプション)
+  - [x] フラグバリデーション
 
 - [ ] **4.2 設定読み込み**
   - [ ] apcdeploy.yml 読み込み
@@ -460,11 +460,11 @@ AWS APIのモックを使用してテストファーストで実装します。
   - [ ] リソース情報表示
   - [ ] Profile Typeの取得
 
-- [ ] **4.4 デプロイ中チェック**
-  - [ ] `internal/aws/deployment.go` 作成
-  - [ ] `ListDeployments` API呼び出し
-  - [ ] 進行中のデプロイ検出
-    - [ ] DEPLOYING ステータスのチェック
+- [x] **4.4 デプロイ中チェック**
+  - [x] `internal/aws/deployment.go` 作成
+  - [x] `ListDeployments` API呼び出し
+  - [x] 進行中のデプロイ検出
+    - [x] DEPLOYING ステータスのチェック
   - [ ] デプロイ中の場合、エラー表示して終了
     - [ ] 現在のデプロイ情報表示
     - [ ] デプロイ番号、開始時刻、戦略
@@ -485,40 +485,40 @@ AWS APIのモックを使用してテストファーストで実装します。
     - [ ] YAML: `yaml.Unmarshal`
   - [ ] エラー表示（行番号含む）
 
-- [ ] **4.7 バージョン作成**
-  - [ ] `CreateHostedConfigurationVersion` API呼び出し
-  - [ ] パラメータ設定
-    - [ ] ApplicationId
-    - [ ] ConfigurationProfileId
-    - [ ] Content（設定データ）
-    - [ ] ContentType
-    - [ ] Description（オプション）
-  - [ ] バージョン番号取得
+- [x] **4.7 バージョン作成**
+  - [x] `CreateHostedConfigurationVersion` API呼び出し
+  - [x] パラメータ設定
+    - [x] ApplicationId
+    - [x] ConfigurationProfileId
+    - [x] Content（設定データ）
+    - [x] ContentType
+    - [x] Description（オプション）
+  - [x] バージョン番号取得
   - [ ] AWS側Validatorエラーハンドリング
     - [ ] JSON Schema エラー
     - [ ] Lambda Function エラー
     - [ ] エラーメッセージの整形表示
 
-- [ ] **4.8 デプロイ開始**
-  - [ ] `StartDeployment` API呼び出し
-  - [ ] パラメータ設定
-    - [ ] ApplicationId
-    - [ ] EnvironmentId
-    - [ ] DeploymentStrategyId
-    - [ ] ConfigurationProfileId
-    - [ ] ConfigurationVersion
-    - [ ] Description
-  - [ ] デプロイ番号取得
+- [x] **4.8 デプロイ開始**
+  - [x] `StartDeployment` API呼び出し
+  - [x] パラメータ設定
+    - [x] ApplicationId
+    - [x] EnvironmentId
+    - [x] DeploymentStrategyId
+    - [x] ConfigurationProfileId
+    - [x] ConfigurationVersion
+    - [x] Description
+  - [x] デプロイ番号取得
   - [ ] デプロイ開始メッセージ表示
 
-- [ ] **4.9 デプロイ待機**
+- [x] **4.9 デプロイ待機**
   - [ ] `--wait` フラグによる制御
-  - [ ] ポーリングループ実装
-    - [ ] `GetDeployment` API定期呼び出し
-    - [ ] ステータス確認（DEPLOYING / COMPLETE / ROLLED_BACK）
+  - [x] ポーリングループ実装
+    - [x] `GetDeployment` API定期呼び出し
+    - [x] ステータス確認（DEPLOYING / COMPLETE / ROLLED_BACK）
     - [ ] 進捗表示（パーセンテージ、経過時間）
-  - [ ] タイムアウト処理
-  - [ ] 完了/失敗判定
+  - [x] タイムアウト処理
+  - [x] 完了/失敗判定
 
 - [ ] **4.10 結果表示**
   - [ ] 成功時のサマリー

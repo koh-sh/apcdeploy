@@ -1,0 +1,50 @@
+package cmd
+
+import (
+	"fmt"
+
+	"github.com/spf13/cobra"
+)
+
+var (
+	deployConfigFile string
+	deployNoWait     bool
+	deployTimeout    int
+)
+
+// DeployCommand returns the deploy command
+func DeployCommand() *cobra.Command {
+	return newDeployCmd()
+}
+
+func newDeployCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "deploy",
+		Short: "Deploy configuration to AWS AppConfig",
+		Long: `Deploy configuration data to AWS AppConfig.
+
+This command will:
+1. Load the local configuration file (apcdeploy.yml)
+2. Validate the configuration data
+3. Create a new hosted configuration version
+4. Start a deployment to the specified environment
+5. Optionally wait for the deployment to complete`,
+		RunE: runDeploy,
+	}
+
+	cmd.Flags().StringVarP(&deployConfigFile, "config", "c", "apcdeploy.yml", "Path to configuration file")
+	cmd.Flags().BoolVar(&deployNoWait, "no-wait", false, "Do not wait for deployment to complete")
+	cmd.Flags().IntVar(&deployTimeout, "timeout", 300, "Timeout in seconds for deployment (default: 300)")
+
+	return cmd
+}
+
+func runDeploy(cmd *cobra.Command, args []string) error {
+	// Validate timeout
+	if deployTimeout < 0 {
+		return fmt.Errorf("timeout must be a positive value")
+	}
+
+	// TODO: Implement deployment logic
+	return fmt.Errorf("deploy command not yet implemented")
+}
