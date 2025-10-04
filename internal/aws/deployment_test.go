@@ -432,6 +432,42 @@ func TestGetLatestDeployment(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "ignores ROLLED_BACK deployment and returns last successful",
+			deployments: []types.DeploymentSummary{
+				{DeploymentNumber: 1},
+				{DeploymentNumber: 2},
+				{DeploymentNumber: 3},
+			},
+			getDeploymentFunc: func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
+				deployNum := *params.DeploymentNumber
+				state := types.DeploymentStateComplete
+				configVersion := "5"
+				// Deployment 3 is ROLLED_BACK
+				if deployNum == 3 {
+					state = types.DeploymentStateRolledBack
+					configVersion = "7"
+				}
+				// Deployment 2 is the last successful (COMPLETE)
+				if deployNum == 2 {
+					configVersion = "6"
+				}
+				return &appconfig.GetDeploymentOutput{
+					DeploymentNumber:       deployNum,
+					ConfigurationProfileId: aws_stringPtr("profile-123"),
+					ConfigurationVersion:   aws_stringPtr(configVersion),
+					State:                  state,
+				}, nil
+			},
+			profileID: "profile-123",
+			wantDeployment: &DeploymentInfo{
+				DeploymentNumber:     2,
+				ConfigurationVersion: "6",
+				State:                types.DeploymentStateComplete,
+				Description:          "",
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {

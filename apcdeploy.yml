@@ -1,6 +1,0 @@
-application: my-application
-configuration_profile: my-config-profile
-environment: production
-deployment_strategy: AppConfig.AllAtOnce
-data_file: data.json
-region: ap-northeast-1

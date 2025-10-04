@@ -170,6 +170,7 @@ func GetLatestDeployment(ctx context.Context, client *Client, applicationID, env
 
 	// Find the latest deployment for this configuration profile
 	// We need to get full deployment details to access ConfigurationProfileId
+	// Skip ROLLED_BACK deployments and return the last successful or in-progress deployment
 	var latestDeployment *DeploymentInfo
 	for i := range output.Items {
 		summary := &output.Items[i]
@@ -186,8 +187,8 @@ func GetLatestDeployment(ctx context.Context, client *Client, applicationID, env
 			continue // Skip this deployment if we can't get details
 		}
 
-		// Check if this is for the target configuration profile
-		if aws.ToString(deployment.ConfigurationProfileId) == profileID {
+		// Check if this is for the target configuration profile and is not ROLLED_BACK
+		if aws.ToString(deployment.ConfigurationProfileId) == profileID && deployment.State != types.DeploymentStateRolledBack {
 			if latestDeployment == nil || summary.DeploymentNumber > latestDeployment.DeploymentNumber {
 				latestDeployment = &DeploymentInfo{
 					DeploymentNumber:     summary.DeploymentNumber,
