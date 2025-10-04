@@ -11,8 +11,8 @@
 
 ### 優先度 mid
 
-- [ ] --regionフラグなしかつ、AWS_REGION/AWS_DEFAULT_REGIONも指定されていない場合はクライアントに設定されているデフォルトregionを読みたい
-  - [ ] regionフラグが指定されていればその値、されていなければaws sdkでdefault regionの解決。明示的に AWS_REGIONなどの環境変数を読む処理を動かさずに sdk に任せたい
+- [x] --regionフラグなしかつ、AWS_REGION/AWS_DEFAULT_REGIONも指定されていない場合はクライアントに設定されているデフォルトregionを読みたい
+  - [x] regionフラグが指定されていればその値、されていなければaws sdkでdefault regionの解決。明示的に AWS_REGIONなどの環境変数を読む処理を動かさずに sdk に任せたい
 - [ ] output-dataの方は既存のファイルの有無を確認せず強制上書きしているので、設定ファイルの方と振る舞いが一致していない。設定ファイルと同様に既存のファイルがあったら実行を止めたい
 - [ ] ファイルの上書きができずにエラーになった際は、usageの表示は邪魔
 
