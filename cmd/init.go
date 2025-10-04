@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 
+	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/cli"
 	initPkg "github.com/koh-sh/apcdeploy/internal/init"
 	"github.com/spf13/cobra"
@@ -16,13 +16,14 @@ var (
 	initRegion     string
 	initConfig     string
 	initOutputData string
-
-	// initializerFactory allows dependency injection for testing
-	initializerFactory func(context.Context, string) (*initPkg.Initializer, error)
 )
 
-// newInitCommand creates a new init command
-func newInitCommand() *cobra.Command {
+// InitCommand returns the init command
+func InitCommand() *cobra.Command {
+	return newInitCmd()
+}
+
+func newInitCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Initialize apcdeploy configuration from existing AppConfig resources",
@@ -45,19 +46,16 @@ configuration and generating apcdeploy.yml and data files.`,
 	return cmd
 }
 
-// InitCommand returns the init command to be added to root
-func InitCommand() *cobra.Command {
-	return newInitCommand()
-}
-
 func runInit(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
-	initializer, err := createInitializer(ctx)
+	// Create AWS client
+	awsClient, err := awsInternal.NewClient(ctx, initRegion)
 	if err != nil {
-		return fmt.Errorf("failed to create initializer: %w", err)
+		return err
 	}
 
+	// Create options
 	opts := &initPkg.Options{
 		Application: initApp,
 		Profile:     initProfile,
@@ -67,18 +65,11 @@ func runInit(cmd *cobra.Command, args []string) error {
 		OutputData:  initOutputData,
 	}
 
-	result, err := initializer.Run(ctx, opts)
-	if err != nil {
-		return err
-	}
+	// Create reporter
+	reporter := cli.NewReporter()
 
-	cli.ShowInitNextSteps(result)
-	return nil
-}
-
-func createInitializer(ctx context.Context) (*initPkg.Initializer, error) {
-	if initializerFactory != nil {
-		return initializerFactory(ctx, initRegion)
-	}
-	return cli.CreateInitializer(ctx, initRegion)
+	// Run initialization
+	initializer := initPkg.New(awsClient, reporter)
+	_, err = initializer.Run(ctx, opts)
+	return err
 }

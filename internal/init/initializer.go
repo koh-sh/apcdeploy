@@ -47,6 +47,9 @@ func (i *Initializer) Run(ctx context.Context, opts *Options) (*Result, error) {
 		return nil, err
 	}
 
+	// Show next steps
+	i.showNextSteps()
+
 	return result, nil
 }
 
@@ -146,4 +149,14 @@ func (i *Initializer) generateFiles(opts *Options, result *Result) error {
 	}
 
 	return nil
+}
+
+// showNextSteps displays next steps after initialization
+func (i *Initializer) showNextSteps() {
+	i.reporter.Success("\nInitialization complete!")
+	fmt.Println("\nNext steps:")
+	fmt.Println("  1. Review the generated configuration files")
+	fmt.Println("  2. Modify the data file as needed")
+	fmt.Println("  3. Run 'apcdeploy diff' to preview changes")
+	fmt.Println("  4. Run 'apcdeploy deploy' to deploy your configuration")
 }
