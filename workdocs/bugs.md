@@ -51,13 +51,13 @@
 ### 優先度 mid
 
 - [x] waitingのあとrollbackされたときにusageを表示するのはおかしい。こちらも理由がわかれば表示、わからなければrollbackされたという事実だけでいい
-- [ ] デフォルトが AppConfig.AllAtOnce で処理時間10minなのに、timeoutのデフォルトが300secなのはおかしい
-- [ ] デプロイ中にデプロイした時のエラーでusageを出すのはおかしい
-- [ ] デフォルトは wait なしでいい。waitしたいときに --waitをつけるようにしたい
-- [ ] Configurationのvaridationに失敗した際はusageを表示しない
-- [ ] validationに失敗した時は、可能であればその理由を出力したい
+- [x] デフォルトが AppConfig.AllAtOnce で処理時間10minなのに、timeoutのデフォルトが300secなのはおかしい
+- [x] デプロイ中にデプロイした時のエラーでusageを出すのはおかしい
+- [x] デフォルトは wait なしでいい。waitしたいときに --waitをつけるようにしたい
+- [x] Configurationのvaridationに失敗した際はusageを表示しない
+- [x] validationに失敗した時は、可能であればその理由を出力したい
 
 ### 優先度 low
 
-- [ ] Timeout in seconds for deployment (default: 300) (default 300) のdefaultの表示が重複
+- [x] Timeout in seconds for deployment (default: 300) (default 300) のdefaultの表示が重複
 - [ ] サブコマンド名を deploy 別の単語にしたい。実際に実行するときに apcdeploy deploy となるので違和感。候補 run/apply/exec
