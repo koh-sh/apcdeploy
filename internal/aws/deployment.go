@@ -90,10 +90,13 @@ func (c *Client) StartDeployment(
 
 // extractRollbackReason extracts the rollback reason from deployment event log
 func extractRollbackReason(eventLog []types.DeploymentEvent) string {
-	// Look for ROLLBACK_STARTED event in the event log
-	for _, event := range eventLog {
-		if event.EventType == types.DeploymentEventTypeRollbackStarted {
-			if event.Description != nil {
+	// Look for rollback events in reverse order (most recent first)
+	for i := len(eventLog) - 1; i >= 0; i-- {
+		event := eventLog[i]
+		// Check for rollback-related events
+		if event.EventType == types.DeploymentEventTypeRollbackStarted ||
+			event.EventType == types.DeploymentEventTypeRollbackCompleted {
+			if event.Description != nil && *event.Description != "" {
 				return *event.Description
 			}
 		}

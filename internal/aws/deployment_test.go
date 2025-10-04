@@ -304,6 +304,21 @@ func TestWaitForDeployment(t *testing.T) {
 			wantErrMsg:   "deployment was rolled back: Rollback initiated manually",
 		},
 		{
+			name:          "deployment is rolled back by user request (RollbackCompleted event)",
+			deploymentNum: 7,
+			mockStates:    []types.DeploymentState{types.DeploymentStateRolledBack},
+			mockEventLog: []types.DeploymentEvent{
+				{
+					EventType:   types.DeploymentEventTypeRollbackCompleted,
+					Description: aws_stringPtr("Deployment rolled back by user request"),
+				},
+			},
+			timeout:      10 * time.Second,
+			wantErr:      true,
+			wantComplete: false,
+			wantErrMsg:   "deployment was rolled back: Deployment rolled back by user request",
+		},
+		{
 			name:          "deployment times out",
 			deploymentNum: 3,
 			mockStates:    []types.DeploymentState{types.DeploymentStateDeploying, types.DeploymentStateDeploying},
