@@ -240,8 +240,8 @@ func resolveByName[T interface{ GetName() *string; GetId() *string }](
 - [x] `make cov` でカバレッジを確認、特に`internal/aws/resolver_common.go`の新規コードを確認
 - [x] 既存のResolver関連テストが全て通ることを確認
 - [x] このドキュメントのPhase 3チェックリストを全て更新
-- [ ] 変更をコミット: `git add . && git commit -m "refactor: extract common resolver logic using generics"`
-- [ ] リモートにプッシュ: `git push`
+- [x] 変更をコミット: `git add . && git commit -m "refactor: extract common resolver logic using generics"`
+- [x] リモートにプッシュ: `git push`
 
 **影響範囲**: `internal/aws/resolver_test.go`, `internal/aws/resolver_common.go`
 
