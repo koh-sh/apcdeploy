@@ -40,7 +40,7 @@ configuration and generating apcdeploy.yml and data files.`,
 	cmd.Flags().StringVar(&initRegion, "region", "", "AWS region (optional, uses default from AWS config)")
 	cmd.Flags().StringVarP(&initConfig, "config", "c", "apcdeploy.yml", "Output config file path")
 	cmd.Flags().StringVar(&initOutputData, "output-data", "", "Output data file path (optional, auto-detected from ContentType)")
-	cmd.Flags().BoolVar(&initForce, "force", false, "Overwrite existing files without prompting")
+	cmd.Flags().BoolVar(&initForce, "force", false, "Overwrite existing files if they already exist")
 
 	cmd.MarkFlagRequired("app")
 	cmd.MarkFlagRequired("profile")
