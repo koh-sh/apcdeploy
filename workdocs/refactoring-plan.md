@@ -250,10 +250,10 @@ func resolveByName[T interface{ GetName() *string; GetId() *string }](
 ### Phase 4: コマンドレイヤーのクリーンアップ（優先度: 中）
 
 #### Task 4.1: init.goのリファクタリング
-- [ ] `createInitializer` ヘルパー関数を追加
-- [ ] `createDefaultInitializer` 関数を追加
-- [ ] `runInit` 関数のロジックを簡素化
-- [ ] テスト用分岐を整理
+- [x] `createInitializer` ヘルパー関数を追加
+- [x] `createDefaultInitializer` 関数を追加
+- [x] `runInit` 関数のロジックを簡素化
+- [x] テスト用分岐を整理
 
 **成果物**:
 ```go
@@ -317,10 +317,10 @@ func showNextSteps(result *initPkg.Result) {
 ---
 
 #### Task 4.2: Phase 4 完了チェック（必須）
-- [ ] `make ci` を実行してパスすることを確認
-- [ ] `make cov` でカバレッジを確認、`cmd/init.go`のカバレッジを確認
-- [ ] 既存のinit関連テストが全て通ることを確認
-- [ ] このドキュメントのPhase 4チェックリストを全て更新
+- [x] `make ci` を実行してパスすることを確認
+- [x] `make cov` でカバレッジを確認、`cmd/init.go`のカバレッジを確認
+- [x] 既存のinit関連テストが全て通ることを確認
+- [x] このドキュメントのPhase 4チェックリストを全て更新
 - [ ] 変更をコミット: `git add . && git commit -m "refactor: clean up init command with helper functions"`
 - [ ] リモートにプッシュ: `git push`
 

@@ -54,27 +54,11 @@ func InitCommand() *cobra.Command {
 func runInit(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
-	// Create initializer (using factory if set, otherwise default implementation)
-	var initializer *initPkg.Initializer
-	var err error
-
-	if initializerFactory != nil {
-		initializer, err = initializerFactory(ctx, initRegion)
-	} else {
-		// Default implementation: create AWS client and initializer
-		awsClient, clientErr := awsInternal.NewClient(ctx, initRegion)
-		if clientErr != nil {
-			return fmt.Errorf("failed to initialize AWS client: %w", clientErr)
-		}
-		reporter := &cliReporter{}
-		initializer = initPkg.New(awsClient, reporter)
-	}
-
+	initializer, err := createInitializer(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create initializer: %w", err)
 	}
 
-	// Create options
 	opts := &initPkg.Options{
 		Application: initApp,
 		Profile:     initProfile,
@@ -84,13 +68,33 @@ func runInit(cmd *cobra.Command, args []string) error {
 		OutputData:  initOutputData,
 	}
 
-	// Run initialization
 	result, err := initializer.Run(ctx, opts)
 	if err != nil {
 		return err
 	}
 
-	// Show next steps
+	showNextSteps(result)
+	return nil
+}
+
+func createInitializer(ctx context.Context) (*initPkg.Initializer, error) {
+	if initializerFactory != nil {
+		return initializerFactory(ctx, initRegion)
+	}
+	return createDefaultInitializer(ctx)
+}
+
+func createDefaultInitializer(ctx context.Context) (*initPkg.Initializer, error) {
+	awsClient, err := awsInternal.NewClient(ctx, initRegion)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize AWS client: %w", err)
+	}
+
+	reporter := &cliReporter{}
+	return initPkg.New(awsClient, reporter), nil
+}
+
+func showNextSteps(result *initPkg.Result) {
 	fmt.Println("\n" + display.Success("Initialization complete!"))
 	fmt.Println("\nNext steps:")
 	fmt.Println("  1. Review the generated configuration files")
@@ -100,6 +104,4 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	// Suppress unused variable warning
 	_ = result
-
-	return nil
 }

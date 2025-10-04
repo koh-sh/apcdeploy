@@ -43,19 +43,19 @@ func TestInitCommand(t *testing.T) {
 			name:    "all required flags provided without region",
 			args:    []string{"--app", "test-app", "--profile", "test-profile", "--env", "test-env"},
 			wantErr: true, // Expects region error
-			errMsg:  "failed to initialize AWS client: region must be specified either via --region flag or AWS_REGION/AWS_DEFAULT_REGION environment variable",
+			errMsg:  "failed to create initializer: failed to initialize AWS client: region must be specified either via --region flag or AWS_REGION/AWS_DEFAULT_REGION environment variable",
 		},
 		{
 			name:    "with optional config flag without region",
 			args:    []string{"--app", "test-app", "--profile", "test-profile", "--env", "test-env", "--config", "custom.yml"},
 			wantErr: true, // Expects region error
-			errMsg:  "failed to initialize AWS client: region must be specified either via --region flag or AWS_REGION/AWS_DEFAULT_REGION environment variable",
+			errMsg:  "failed to create initializer: failed to initialize AWS client: region must be specified either via --region flag or AWS_REGION/AWS_DEFAULT_REGION environment variable",
 		},
 		{
 			name:    "with optional output-data flag without region",
 			args:    []string{"--app", "test-app", "--profile", "test-profile", "--env", "test-env", "--output-data", "custom-data.json"},
 			wantErr: true, // Expects region error
-			errMsg:  "failed to initialize AWS client: region must be specified either via --region flag or AWS_REGION/AWS_DEFAULT_REGION environment variable",
+			errMsg:  "failed to create initializer: failed to initialize AWS client: region must be specified either via --region flag or AWS_REGION/AWS_DEFAULT_REGION environment variable",
 		},
 	}
 
