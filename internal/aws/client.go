@@ -3,9 +3,9 @@ package aws
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/appconfig"
 	"github.com/koh-sh/apcdeploy/internal/aws/mock"
@@ -20,22 +20,20 @@ type Client struct {
 
 // NewClient creates a new AWS client with the specified region
 func NewClient(ctx context.Context, region string) (*Client, error) {
-	// Determine region from parameter or environment
-	finalRegion := region
-	if finalRegion == "" {
-		finalRegion = os.Getenv("AWS_REGION")
-	}
-	if finalRegion == "" {
-		finalRegion = os.Getenv("AWS_DEFAULT_REGION")
-	}
-	if finalRegion == "" {
-		return nil, fmt.Errorf("region must be specified either via --region flag or AWS_REGION/AWS_DEFAULT_REGION environment variable")
-	}
+	var cfg aws.Config
+	var err error
 
 	// Load AWS config
-	cfg, err := config.LoadDefaultConfig(ctx,
-		config.WithRegion(finalRegion),
-	)
+	if region != "" {
+		// If region is explicitly provided, use it
+		cfg, err = config.LoadDefaultConfig(ctx,
+			config.WithRegion(region),
+		)
+	} else {
+		// Otherwise, let AWS SDK resolve the default region from AWS config
+		cfg, err = config.LoadDefaultConfig(ctx)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to load AWS config: %w", err)
 	}
@@ -45,7 +43,7 @@ func NewClient(ctx context.Context, region string) (*Client, error) {
 
 	return &Client{
 		AppConfig:       appconfigClient,
-		Region:          finalRegion,
+		Region:          cfg.Region,
 		PollingInterval: 5 * time.Second, // Default polling interval
 	}, nil
 }

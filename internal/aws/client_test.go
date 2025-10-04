@@ -36,9 +36,9 @@ func TestNewClient(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "error when no region specified",
+			name:    "successful client creation with SDK default region resolution",
 			region:  "",
-			wantErr: true,
+			wantErr: false,
 		},
 	}
 
