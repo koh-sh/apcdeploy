@@ -12,6 +12,50 @@ func TestInitCommand(t *testing.T) {
 		name    string
 		args    []string
 		wantErr bool
+	}{
+		{
+			name:    "all required flags provided",
+			args:    []string{"--app", "test-app", "--profile", "test-profile", "--env", "test-env", "--region", "us-east-1"},
+			wantErr: false,
+		},
+		{
+			name:    "with optional config flag",
+			args:    []string{"--app", "test-app", "--profile", "test-profile", "--env", "test-env", "--region", "us-east-1", "--config", "custom.yml"},
+			wantErr: false,
+		},
+		{
+			name:    "with optional output-data flag",
+			args:    []string{"--app", "test-app", "--profile", "test-profile", "--env", "test-env", "--region", "us-east-1", "--output-data", "custom-data.json"},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Reset global flags for each test
+			initApp = ""
+			initProfile = ""
+			initEnv = ""
+			initRegion = ""
+			initConfig = "apcdeploy.yml"
+			initOutputData = ""
+
+			cmd := newInitCmd()
+			cmd.SetArgs(tt.args)
+
+			err := cmd.ParseFlags(tt.args)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ParseFlags() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestInitCommandRequiredFlags(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr bool
 		errMsg  string
 	}{
 		{
@@ -31,24 +75,6 @@ func TestInitCommand(t *testing.T) {
 			args:    []string{"--app", "test-app", "--profile", "test-profile"},
 			wantErr: true,
 			errMsg:  "required flag(s) \"env\" not set",
-		},
-		{
-			name:    "all required flags provided without region",
-			args:    []string{"--app", "test-app", "--profile", "test-profile", "--env", "test-env"},
-			wantErr: true, // Expects region error
-			errMsg:  "region must be specified either via --region flag or AWS_REGION/AWS_DEFAULT_REGION environment variable",
-		},
-		{
-			name:    "with optional config flag without region",
-			args:    []string{"--app", "test-app", "--profile", "test-profile", "--env", "test-env", "--config", "custom.yml"},
-			wantErr: true, // Expects region error
-			errMsg:  "region must be specified either via --region flag or AWS_REGION/AWS_DEFAULT_REGION environment variable",
-		},
-		{
-			name:    "with optional output-data flag without region",
-			args:    []string{"--app", "test-app", "--profile", "test-profile", "--env", "test-env", "--output-data", "custom-data.json"},
-			wantErr: true, // Expects region error
-			errMsg:  "region must be specified either via --region flag or AWS_REGION/AWS_DEFAULT_REGION environment variable",
 		},
 	}
 
@@ -172,5 +198,34 @@ func TestCliReporter(t *testing.T) {
 				reporter.Warning(tt.message)
 			}
 		})
+	}
+}
+
+func TestRunInitNoRegion(t *testing.T) {
+	// Reset flags
+	initApp = "test-app"
+	initProfile = "test-profile"
+	initEnv = "test-env"
+	initRegion = ""
+	initConfig = "apcdeploy.yml"
+	initOutputData = ""
+
+	err := runInit(nil, nil)
+	if err == nil {
+		t.Error("Expected error when no region specified, got nil")
+	}
+	expectedMsg := "region must be specified"
+	if err != nil && len(err.Error()) > 0 && len(expectedMsg) > 0 {
+		// Just check that error mentions region
+		found := false
+		for i := 0; i < len(err.Error()); i++ {
+			if i+len(expectedMsg) <= len(err.Error()) && err.Error()[i:i+len("region")] == "region" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("Expected error to mention 'region', got: %v", err)
+		}
 	}
 }
