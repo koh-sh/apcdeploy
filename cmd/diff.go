@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"context"
+	"errors"
+	"os"
 
 	"github.com/koh-sh/apcdeploy/internal/cli"
 	"github.com/koh-sh/apcdeploy/internal/diff"
@@ -9,8 +11,9 @@ import (
 )
 
 var (
-	diffConfigFile string
-	diffRegion     string
+	diffConfigFile  string
+	diffRegion      string
+	diffExitNonzero bool
 )
 
 // DiffCommand returns the diff command
@@ -32,6 +35,7 @@ and displays the differences in unified diff format.`,
 
 	cmd.Flags().StringVarP(&diffConfigFile, "config", "c", "apcdeploy.yml", "Path to configuration file")
 	cmd.Flags().StringVar(&diffRegion, "region", "", "AWS region (overrides config file)")
+	cmd.Flags().BoolVar(&diffExitNonzero, "exit-nonzero", false, "Exit with code 1 if differences exist")
 
 	return cmd
 }
@@ -41,8 +45,9 @@ func runDiff(cmd *cobra.Command, args []string) error {
 
 	// Create options
 	opts := &diff.Options{
-		ConfigFile: diffConfigFile,
-		Region:     diffRegion,
+		ConfigFile:  diffConfigFile,
+		Region:      diffRegion,
+		ExitNonzero: diffExitNonzero,
 	}
 
 	// Create reporter
@@ -50,5 +55,12 @@ func runDiff(cmd *cobra.Command, args []string) error {
 
 	// Run diff
 	executor := diff.NewExecutor(reporter)
-	return executor.Execute(ctx, opts)
+	err := executor.Execute(ctx, opts)
+
+	// Handle exit-nonzero case
+	if errors.Is(err, diff.ErrDiffFound) {
+		os.Exit(1)
+	}
+
+	return err
 }

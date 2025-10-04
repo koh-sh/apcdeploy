@@ -2,12 +2,16 @@ package diff
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/config"
 	"github.com/koh-sh/apcdeploy/internal/reporter"
 )
+
+// ErrDiffFound is returned when differences are found and ExitNonzero is true
+var ErrDiffFound = errors.New("differences found")
 
 // Executor handles the diff operation orchestration
 type Executor struct {
@@ -105,6 +109,11 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 
 	// Step 10: Display diff
 	display(diffResult, cfg, resources, deployment)
+
+	// Step 11: Return error if differences found and ExitNonzero is set
+	if opts.ExitNonzero && diffResult.HasChanges {
+		return ErrDiffFound
+	}
 
 	return nil
 }

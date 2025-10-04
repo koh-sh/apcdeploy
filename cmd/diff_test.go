@@ -121,3 +121,43 @@ func TestDiffCommandSilenceUsage(t *testing.T) {
 		t.Error("diff command should have SilenceUsage set to true")
 	}
 }
+
+func TestDiffCommandExitNonzeroFlag(t *testing.T) {
+	tests := []struct {
+		name         string
+		args         []string
+		expectedFlag bool
+	}{
+		{
+			name:         "exit-nonzero flag not specified",
+			args:         []string{},
+			expectedFlag: false,
+		},
+		{
+			name:         "exit-nonzero flag specified",
+			args:         []string{"--exit-nonzero"},
+			expectedFlag: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Reset flags
+			diffConfigFile = "apcdeploy.yml"
+			diffRegion = ""
+			diffExitNonzero = false
+
+			cmd := newDiffCmd()
+			cmd.SetArgs(tt.args)
+
+			err := cmd.ParseFlags(tt.args)
+			if err != nil {
+				t.Errorf("ParseFlags() error = %v", err)
+			}
+
+			if diffExitNonzero != tt.expectedFlag {
+				t.Errorf("diffExitNonzero = %v, want %v", diffExitNonzero, tt.expectedFlag)
+			}
+		})
+	}
+}
