@@ -169,7 +169,7 @@ func (i *Initializer) generateFiles(opts *Options, result *Result) error {
 		dataFilePath := filepath.Join(filepath.Dir(result.ConfigFile), result.DataFile)
 		i.reporter.Progress(fmt.Sprintf("Writing configuration data: %s", dataFilePath))
 
-		if err := config.WriteDataFile(result.VersionInfo.Content, result.VersionInfo.ContentType, dataFilePath); err != nil {
+		if err := config.WriteDataFile(result.VersionInfo.Content, result.VersionInfo.ContentType, dataFilePath, result.ProfileType); err != nil {
 			return fmt.Errorf("failed to write data file: %w", err)
 		}
 

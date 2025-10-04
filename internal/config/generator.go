@@ -69,7 +69,8 @@ func DetermineDataFileName(contentType string) string {
 }
 
 // WriteDataFile writes configuration data to a file with appropriate formatting
-func WriteDataFile(content []byte, contentType, outputPath string) error {
+// For FeatureFlags profile type, it removes _updatedAt and _createdAt fields
+func WriteDataFile(content []byte, contentType, outputPath, profileType string) error {
 	// Normalize content type
 	ct := strings.ToLower(strings.TrimSpace(contentType))
 	if idx := strings.Index(ct, ";"); idx != -1 {
@@ -83,7 +84,7 @@ func WriteDataFile(content []byte, contentType, outputPath string) error {
 	switch ct {
 	case ContentTypeJSON:
 		// Format JSON with indentation
-		dataToWrite, err = formatJSON(content)
+		dataToWrite, err = formatJSON(content, profileType)
 		if err != nil {
 			return fmt.Errorf("failed to format JSON: %w", err)
 		}
@@ -101,10 +102,19 @@ func WriteDataFile(content []byte, contentType, outputPath string) error {
 }
 
 // formatJSON formats JSON data with proper indentation
-func formatJSON(data []byte) ([]byte, error) {
+// For FeatureFlags profile type, it removes _updatedAt and _createdAt fields
+func formatJSON(data []byte, profileType string) ([]byte, error) {
 	var obj any
 	if err := json.Unmarshal(data, &obj); err != nil {
 		return nil, fmt.Errorf("invalid JSON: %w", err)
+	}
+
+	// For FeatureFlags, remove _updatedAt and _createdAt fields
+	if profileType == "AWS.AppConfig.FeatureFlags" {
+		if objMap, ok := obj.(map[string]any); ok {
+			delete(objMap, "_updatedAt")
+			delete(objMap, "_createdAt")
+		}
 	}
 
 	var buf bytes.Buffer

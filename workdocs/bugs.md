@@ -6,7 +6,7 @@
 
 - [x] initで作成された設定のdeployment_strategyが "" になって名前が設定されていない
 - [x] 生成されたファイルにregionが記載されていない。initだけ明示的にregionの指定が必要だが、それ以外のコマンドは設定ファイルからregionを読み込む
-- [ ] initで作成された設定の deployment_strategyが直近使用されたデプロイ戦略ではなく固定でAppConfig.AllAtOnceになっている
+- [x] initで作成された設定の deployment_strategyが直近使用されたデプロイ戦略ではなく固定でAppConfig.AllAtOnceになっている
 
 ### 優先度 mid
 
@@ -54,8 +54,8 @@
 
 ### 優先度 high
 
-- [ ] featureflagの場合、updatedAtが通常の運用の場合初回initした時の値から更新されないためずっと古いままになってしまう。initする際に意図的に_updatedAtのキーを削除する and diffの際に差分として表示しないように読み捨てる必要がある
-- [ ] _createdAt も削除する and diffに表示しない
+- [x] featureflagの場合、updatedAtが通常の運用の場合初回initした時の値から更新されないためずっと古いままになってしまう。initする際に意図的に_updatedAtのキーを削除する and diffの際に差分として表示しないように読み捨てる必要がある
+- [x] _createdAt も削除する and diffに表示しない
 
 ### 優先度 mid
 

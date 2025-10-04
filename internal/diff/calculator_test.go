@@ -90,7 +90,7 @@ func TestCalculate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := calculate(tt.remoteContent, tt.localContent, tt.fileName)
+			result, err := calculate(tt.remoteContent, tt.localContent, tt.fileName, "")
 
 			if tt.wantErr {
 				if err == nil {
@@ -151,7 +151,7 @@ func TestNormalizeJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := normalizeJSON(tt.input)
+			result, err := normalizeJSON(tt.input, "")
 
 			if tt.wantErr {
 				if err == nil {
@@ -169,7 +169,7 @@ func TestNormalizeJSON(t *testing.T) {
 			}
 
 			// Verify it's valid JSON by normalizing again
-			_, err = normalizeJSON(result)
+			_, err = normalizeJSON(result, "")
 			if err != nil {
 				t.Errorf("normalized result is not valid JSON: %v", err)
 			}
@@ -314,7 +314,7 @@ func TestNormalizeContent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := normalizeContent(tt.content, tt.ext)
+			result, err := normalizeContent(tt.content, tt.ext, "")
 
 			if tt.wantErr {
 				if err == nil {
@@ -340,7 +340,7 @@ func TestCalculateResult(t *testing.T) {
 	localContent := `{"key": "new"}`
 	fileName := "config.json"
 
-	result, err := calculate(remoteContent, localContent, fileName)
+	result, err := calculate(remoteContent, localContent, fileName, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -369,5 +369,73 @@ func TestCalculateResult(t *testing.T) {
 	// Verify the diff contains expected markers
 	if !strings.Contains(result.UnifiedDiff, "old") || !strings.Contains(result.UnifiedDiff, "new") {
 		t.Error("UnifiedDiff should contain both old and new values")
+	}
+}
+
+func TestCalculateFeatureFlags(t *testing.T) {
+	tests := []struct {
+		name          string
+		remoteContent string
+		localContent  string
+		profileType   string
+		wantChanges   bool
+	}{
+		{
+			name:          "feature flags - no changes when only timestamps differ",
+			remoteContent: `{"_updatedAt":"2024-01-01T00:00:00Z","_createdAt":"2024-01-01T00:00:00Z","flags":{"feature1":{"enabled":true}}}`,
+			localContent:  `{"flags":{"feature1":{"enabled":true}}}`,
+			profileType:   "AWS.AppConfig.FeatureFlags",
+			wantChanges:   false,
+		},
+		{
+			name:          "feature flags - changes detected in flags",
+			remoteContent: `{"_updatedAt":"2024-01-01T00:00:00Z","flags":{"feature1":{"enabled":true}}}`,
+			localContent:  `{"flags":{"feature1":{"enabled":false}}}`,
+			profileType:   "AWS.AppConfig.FeatureFlags",
+			wantChanges:   true,
+		},
+		{
+			name:          "freeform - timestamps cause changes",
+			remoteContent: `{"_updatedAt":"2024-01-01T00:00:00Z","data":"value"}`,
+			localContent:  `{"data":"value"}`,
+			profileType:   "AWS.AppConfig.Freeform",
+			wantChanges:   true,
+		},
+		{
+			name:          "feature flags - both timestamps removed from diff",
+			remoteContent: `{"_updatedAt":"2024-01-01T00:00:00Z","_createdAt":"2024-01-01T00:00:00Z","flags":{}}`,
+			localContent:  `{"_updatedAt":"2024-02-01T00:00:00Z","_createdAt":"2024-02-01T00:00:00Z","flags":{}}`,
+			profileType:   "AWS.AppConfig.FeatureFlags",
+			wantChanges:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := calculate(tt.remoteContent, tt.localContent, "config.json", tt.profileType)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if result.HasChanges != tt.wantChanges {
+				t.Errorf("HasChanges = %v, want %v", result.HasChanges, tt.wantChanges)
+			}
+
+			// For feature flags, verify timestamps are not in normalized content
+			if tt.profileType == "AWS.AppConfig.FeatureFlags" {
+				if strings.Contains(result.RemoteContent, "_updatedAt") {
+					t.Error("RemoteContent should not contain _updatedAt for FeatureFlags")
+				}
+				if strings.Contains(result.RemoteContent, "_createdAt") {
+					t.Error("RemoteContent should not contain _createdAt for FeatureFlags")
+				}
+				if strings.Contains(result.LocalContent, "_updatedAt") {
+					t.Error("LocalContent should not contain _updatedAt for FeatureFlags")
+				}
+				if strings.Contains(result.LocalContent, "_createdAt") {
+					t.Error("LocalContent should not contain _createdAt for FeatureFlags")
+				}
+			}
+		})
 	}
 }

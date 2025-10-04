@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/goccy/go-yaml"
@@ -281,7 +282,81 @@ func TestWriteDataFile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := WriteDataFile(tt.content, tt.contentType, tt.outputPath)
+			err := WriteDataFile(tt.content, tt.contentType, tt.outputPath, "")
+
+			if tt.wantErr && err == nil {
+				t.Error("expected error but got none")
+			} else if !tt.wantErr && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+
+			if !tt.wantErr && tt.validate != nil {
+				tt.validate(t, tt.outputPath)
+			}
+		})
+	}
+}
+
+func TestWriteDataFileFeatureFlags(t *testing.T) {
+	tempDir := t.TempDir()
+
+	tests := []struct {
+		name        string
+		content     []byte
+		contentType string
+		profileType string
+		outputPath  string
+		wantErr     bool
+		validate    func(*testing.T, string)
+	}{
+		{
+			name:        "feature flags - removes _updatedAt and _createdAt",
+			content:     []byte(`{"_updatedAt":"2024-01-01T00:00:00Z","_createdAt":"2024-01-01T00:00:00Z","flags":{"feature1":{"enabled":true}}}`),
+			contentType: "application/json",
+			profileType: "AWS.AppConfig.FeatureFlags",
+			outputPath:  filepath.Join(tempDir, "featureflags.json"),
+			wantErr:     false,
+			validate: func(t *testing.T, path string) {
+				data, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatalf("failed to read file: %v", err)
+				}
+				// Should not contain _updatedAt or _createdAt
+				if strings.Contains(string(data), "_updatedAt") {
+					t.Error("_updatedAt should be removed from FeatureFlags")
+				}
+				if strings.Contains(string(data), "_createdAt") {
+					t.Error("_createdAt should be removed from FeatureFlags")
+				}
+				// Should contain flags
+				if !strings.Contains(string(data), "flags") {
+					t.Error("flags should be present in output")
+				}
+			},
+		},
+		{
+			name:        "freeform - keeps _updatedAt and _createdAt",
+			content:     []byte(`{"_updatedAt":"2024-01-01T00:00:00Z","data":"value"}`),
+			contentType: "application/json",
+			profileType: "AWS.AppConfig.Freeform",
+			outputPath:  filepath.Join(tempDir, "freeform.json"),
+			wantErr:     false,
+			validate: func(t *testing.T, path string) {
+				data, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatalf("failed to read file: %v", err)
+				}
+				// Should keep _updatedAt for non-FeatureFlags
+				if !strings.Contains(string(data), "_updatedAt") {
+					t.Error("_updatedAt should be kept for non-FeatureFlags profiles")
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := WriteDataFile(tt.content, tt.contentType, tt.outputPath, tt.profileType)
 
 			if tt.wantErr && err == nil {
 				t.Error("expected error but got none")
@@ -324,7 +399,7 @@ func Test_formatJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := formatJSON(tt.input)
+			got, err := formatJSON(tt.input, "")
 
 			if tt.wantErr {
 				if err == nil {

@@ -25,16 +25,17 @@ type Result struct {
 }
 
 // calculate computes the diff between remote and local configuration
-func calculate(remoteContent, localContent, fileName string) (*Result, error) {
+// For FeatureFlags profile type, it removes _updatedAt and _createdAt before comparing
+func calculate(remoteContent, localContent, fileName, profileType string) (*Result, error) {
 	// Normalize content based on file extension
 	ext := strings.ToLower(filepath.Ext(fileName))
 
-	normalizedRemote, err := normalizeContent(remoteContent, ext)
+	normalizedRemote, err := normalizeContent(remoteContent, ext, profileType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to normalize remote content: %w", err)
 	}
 
-	normalizedLocal, err := normalizeContent(localContent, ext)
+	normalizedLocal, err := normalizeContent(localContent, ext, profileType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to normalize local content: %w", err)
 	}
@@ -69,10 +70,11 @@ func calculate(remoteContent, localContent, fileName string) (*Result, error) {
 }
 
 // normalizeContent normalizes content based on file type
-func normalizeContent(content, ext string) (string, error) {
+// For FeatureFlags profile type, it removes _updatedAt and _createdAt from JSON
+func normalizeContent(content, ext, profileType string) (string, error) {
 	switch ext {
 	case ".json":
-		return normalizeJSON(content)
+		return normalizeJSON(content, profileType)
 	case ".yaml", ".yml":
 		return normalizeYAML(content)
 	default:
@@ -82,10 +84,19 @@ func normalizeContent(content, ext string) (string, error) {
 }
 
 // normalizeJSON normalizes JSON content by parsing and re-formatting with sorted keys
-func normalizeJSON(content string) (string, error) {
+// For FeatureFlags profile type, it removes _updatedAt and _createdAt fields
+func normalizeJSON(content string, profileType string) (string, error) {
 	var data any
 	if err := json.Unmarshal([]byte(content), &data); err != nil {
 		return "", fmt.Errorf("invalid JSON: %w", err)
+	}
+
+	// For FeatureFlags, remove _updatedAt and _createdAt fields
+	if profileType == "AWS.AppConfig.FeatureFlags" {
+		if objMap, ok := data.(map[string]any); ok {
+			delete(objMap, "_updatedAt")
+			delete(objMap, "_createdAt")
+		}
 	}
 
 	// Re-marshal with indentation for consistent formatting
