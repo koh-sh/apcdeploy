@@ -23,10 +23,10 @@ func LoadConfig(path string) (*Config, error) {
 	}
 
 	// Set defaults
-	config.SetDefaults()
+	config.setDefaults()
 
 	// Validate
-	if err := config.Validate(); err != nil {
+	if err := config.validate(); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
 
@@ -35,13 +35,13 @@ func LoadConfig(path string) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve config path: %w", err)
 	}
-	config.DataFile = ResolveDataFilePath(absConfigPath, config.DataFile)
+	config.DataFile = resolveDataFilePath(absConfigPath, config.DataFile)
 
 	return &config, nil
 }
 
-// ResolveDataFilePath resolves a data file path relative to the config file
-func ResolveDataFilePath(configPath, dataFile string) string {
+// resolveDataFilePath resolves a data file path relative to the config file
+func resolveDataFilePath(configPath, dataFile string) string {
 	// If data file is already absolute, return as-is
 	if filepath.IsAbs(dataFile) {
 		return dataFile

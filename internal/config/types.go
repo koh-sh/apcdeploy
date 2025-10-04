@@ -12,8 +12,8 @@ type Config struct {
 	Region               string `yaml:"region,omitempty"`
 }
 
-// Validate checks if the configuration is valid
-func (c *Config) Validate() error {
+// validate checks if the configuration is valid
+func (c *Config) validate() error {
 	if c.Application == "" {
 		return fmt.Errorf("application is required")
 	}
@@ -29,8 +29,8 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-// SetDefaults sets default values for optional fields
-func (c *Config) SetDefaults() {
+// setDefaults sets default values for optional fields
+func (c *Config) setDefaults() {
 	if c.DeploymentStrategy == "" {
 		c.DeploymentStrategy = "AppConfig.AllAtOnce"
 	}

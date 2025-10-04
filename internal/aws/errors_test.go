@@ -374,7 +374,7 @@ func TestFormatValidationError(t *testing.T) {
 	}
 }
 
-func TestFormatUserFriendlyError(t *testing.T) {
+func Test_formatUserFriendlyError(t *testing.T) {
 	tests := []struct {
 		name        string
 		err         error
@@ -424,10 +424,10 @@ func TestFormatUserFriendlyError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := FormatUserFriendlyError(tt.err, tt.operation)
+			result := formatUserFriendlyError(tt.err, tt.operation)
 
 			if !contains(result, tt.wantContain) {
-				t.Errorf("FormatUserFriendlyError() = %q, want to contain %q", result, tt.wantContain)
+				t.Errorf("formatUserFriendlyError() = %q, want to contain %q", result, tt.wantContain)
 			}
 		})
 	}

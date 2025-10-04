@@ -75,7 +75,7 @@ func WriteDataFile(content []byte, contentType, outputPath string) error {
 	switch ct {
 	case ContentTypeJSON:
 		// Format JSON with indentation
-		dataToWrite, err = FormatJSON(content)
+		dataToWrite, err = formatJSON(content)
 		if err != nil {
 			return fmt.Errorf("failed to format JSON: %w", err)
 		}
@@ -92,8 +92,8 @@ func WriteDataFile(content []byte, contentType, outputPath string) error {
 	return nil
 }
 
-// FormatJSON formats JSON data with proper indentation
-func FormatJSON(data []byte) ([]byte, error) {
+// formatJSON formats JSON data with proper indentation
+func formatJSON(data []byte) ([]byte, error) {
 	var obj any
 	if err := json.Unmarshal(data, &obj); err != nil {
 		return nil, fmt.Errorf("invalid JSON: %w", err)

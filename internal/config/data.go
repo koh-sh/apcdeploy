@@ -18,7 +18,7 @@ const (
 // LoadDataFile loads a configuration data file
 func LoadDataFile(path string) ([]byte, error) {
 	// Check file size first
-	if err := CheckDataFileSize(path); err != nil {
+	if err := checkDataFileSize(path); err != nil {
 		return nil, err
 	}
 
@@ -66,8 +66,8 @@ func ValidateDataFile(data []byte, contentType string) error {
 	return nil
 }
 
-// CheckDataFileSize checks if a file is within the size limit
-func CheckDataFileSize(path string) error {
+// checkDataFileSize checks if a file is within the size limit
+func checkDataFileSize(path string) error {
 	info, err := os.Stat(path)
 	if err != nil {
 		return fmt.Errorf("failed to stat file: %w", err)

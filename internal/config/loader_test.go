@@ -112,7 +112,7 @@ func TestLoadConfigValues(t *testing.T) {
 	}
 }
 
-func TestResolveDataFilePath(t *testing.T) {
+func Test_resolveDataFilePath(t *testing.T) {
 	tests := []struct {
 		name       string
 		configPath string
@@ -135,7 +135,7 @@ func TestResolveDataFilePath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := ResolveDataFilePath(tt.configPath, tt.dataFile)
+			result := resolveDataFilePath(tt.configPath, tt.dataFile)
 			if tt.wantAbs && !filepath.IsAbs(result) {
 				t.Errorf("Expected absolute path, got %s", result)
 			}

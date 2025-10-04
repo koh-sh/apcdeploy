@@ -65,9 +65,9 @@ func TestConfigValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.config.Validate()
+			err := tt.config.validate()
 			if (err != nil) != tt.wantErr {
-				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("validate() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
@@ -104,7 +104,7 @@ func TestConfigDefaults(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.config.SetDefaults()
+			tt.config.setDefaults()
 			if tt.config.DeploymentStrategy != tt.expected {
 				t.Errorf("Expected deployment strategy '%s', got '%s'", tt.expected, tt.config.DeploymentStrategy)
 			}

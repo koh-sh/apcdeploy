@@ -116,26 +116,3 @@ func TestProgress(t *testing.T) {
 		})
 	}
 }
-
-func TestInfo(t *testing.T) {
-	tests := []struct {
-		name     string
-		message  string
-		contains string
-	}{
-		{
-			name:     "info message",
-			message:  "Version: 1.0.0",
-			contains: "Version: 1.0.0",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := Info(tt.message)
-			if !strings.Contains(result, tt.contains) {
-				t.Errorf("Info() = %s, want to contain %s", result, tt.contains)
-			}
-		})
-	}
-}

@@ -22,11 +22,6 @@ func Progress(message string) string {
 	return fmt.Sprintf("⏳ %s", message)
 }
 
-// Info formats an info message
-func Info(message string) string {
-	return message
-}
-
 // Bold formats text in bold (using ANSI codes)
 func Bold(text string) string {
 	return fmt.Sprintf("\033[1m%s\033[0m", text)

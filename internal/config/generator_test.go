@@ -268,7 +268,7 @@ func TestWriteDataFile(t *testing.T) {
 	}
 }
 
-func TestFormatJSON(t *testing.T) {
+func Test_formatJSON(t *testing.T) {
 	tests := []struct {
 		name    string
 		input   []byte
@@ -296,7 +296,7 @@ func TestFormatJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := FormatJSON(tt.input)
+			got, err := formatJSON(tt.input)
 
 			if tt.wantErr {
 				if err == nil {

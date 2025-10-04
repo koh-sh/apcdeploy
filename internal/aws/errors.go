@@ -133,8 +133,8 @@ func FormatValidationError(err error) string {
 	return sb.String()
 }
 
-// FormatUserFriendlyError converts AWS errors into user-friendly messages
-func FormatUserFriendlyError(err error, operation string) string {
+// formatUserFriendlyError converts AWS errors into user-friendly messages
+func formatUserFriendlyError(err error, operation string) string {
 	if err == nil {
 		return ""
 	}
