@@ -84,7 +84,7 @@ func ShowDeploymentStatus(deployment *aws.DeploymentDetails, cfg *config.Config,
 	// Rollback information
 	if deployment.State == types.DeploymentStateRolledBack {
 		fmt.Println()
-		fmt.Println(Error("  Deployment was rolled back"))
+		fmt.Printf("  %s\n", Error("Deployment was rolled back"))
 
 		// Try to find rollback reason from event log
 		rollbackReason := getRollbackReason(deployment.EventLog)
