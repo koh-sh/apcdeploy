@@ -37,4 +37,10 @@ cover.html
 # bin
 apcdeploy
 
-tmp
+# tmp dir
+tmp/*
+
+# outputs
+apcdeploy.yml
+data.json
+data.yml
