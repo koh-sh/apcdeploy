@@ -145,3 +145,13 @@ func (d *Deployer) WaitForDeployment(ctx context.Context, resolved *aws.Resolved
 	}
 	return d.awsClient.WaitForDeployment(ctx, resolved.ApplicationID, resolved.EnvironmentID, deploymentNumber, duration)
 }
+
+// IsValidationError checks if the error is a validation error
+func (d *Deployer) IsValidationError(err error) bool {
+	return aws.IsValidationError(err)
+}
+
+// FormatValidationError formats a validation error with detailed information
+func (d *Deployer) FormatValidationError(err error) string {
+	return aws.FormatValidationError(err)
+}

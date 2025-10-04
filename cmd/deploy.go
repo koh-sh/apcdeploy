@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/deploy"
 	"github.com/koh-sh/apcdeploy/internal/display"
 	"github.com/spf13/cobra"
@@ -105,6 +106,10 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 	display.Progress("Creating configuration version...")
 	versionNumber, err := deployer.CreateVersion(ctx, resolved, dataContent, contentType)
 	if err != nil {
+		// Check if this is a validation error and provide user-friendly message
+		if aws.IsValidationError(err) {
+			return fmt.Errorf("%s", aws.FormatValidationError(err))
+		}
 		return fmt.Errorf("failed to create configuration version: %w", err)
 	}
 	display.Success(fmt.Sprintf("Created configuration version %d", versionNumber))

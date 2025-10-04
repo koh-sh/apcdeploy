@@ -275,6 +275,105 @@ func TestIsThrottlingError(t *testing.T) {
 	}
 }
 
+func TestIsValidationError(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "bad request exception via API error",
+			err: &smithy.GenericAPIError{
+				Code:    "BadRequestException",
+				Message: "Validation failed",
+			},
+			want: true,
+		},
+		{
+			name: "typed bad request exception",
+			err:  &types.BadRequestException{Message: stringPtr("Invalid configuration")},
+			want: true,
+		},
+		{
+			name: "resource not found error",
+			err: &smithy.GenericAPIError{
+				Code:    "ResourceNotFoundException",
+				Message: "Resource not found",
+			},
+			want: false,
+		},
+		{
+			name: "generic error",
+			err:  errors.New("some error"),
+			want: false,
+		},
+		{
+			name: "nil error",
+			err:  nil,
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsValidationError(tt.err); got != tt.want {
+				t.Errorf("IsValidationError() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFormatValidationError(t *testing.T) {
+	tests := []struct {
+		name        string
+		err         error
+		wantContain []string
+	}{
+		{
+			name: "typed bad request exception with message",
+			err:  &types.BadRequestException{Message: stringPtr("JSON Schema validation failed")},
+			wantContain: []string{
+				"Configuration validation failed",
+				"JSON Schema validation failed",
+				"Possible causes",
+				"JSON Schema validator",
+				"Lambda validator",
+			},
+		},
+		{
+			name: "generic API error",
+			err: &smithy.GenericAPIError{
+				Code:    "BadRequestException",
+				Message: "Lambda function returned error",
+			},
+			wantContain: []string{
+				"Configuration validation failed",
+				"Lambda function returned error",
+			},
+		},
+		{
+			name: "generic error",
+			err:  errors.New("validation error"),
+			wantContain: []string{
+				"Configuration validation failed",
+				"validation error",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := FormatValidationError(tt.err)
+
+			for _, want := range tt.wantContain {
+				if !contains(result, want) {
+					t.Errorf("FormatValidationError() = %q, want to contain %q", result, want)
+				}
+			}
+		})
+	}
+}
+
 func TestFormatUserFriendlyError(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -282,6 +381,12 @@ func TestFormatUserFriendlyError(t *testing.T) {
 		operation   string
 		wantContain string
 	}{
+		{
+			name:        "validation error",
+			err:         &types.BadRequestException{Message: stringPtr("Schema validation failed")},
+			operation:   "CreateHostedConfigurationVersion",
+			wantContain: "Configuration validation failed",
+		},
 		{
 			name: "access denied error",
 			err: &smithy.GenericAPIError{

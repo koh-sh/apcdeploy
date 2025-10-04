@@ -492,10 +492,10 @@ AWS APIのモックを使用してテストファーストで実装します。
     - [x] ContentType
     - [x] Description（オプション）
   - [x] バージョン番号取得
-  - [ ] AWS側Validatorエラーハンドリング
-    - [ ] JSON Schema エラー
-    - [ ] Lambda Function エラー
-    - [ ] エラーメッセージの整形表示
+  - [x] AWS側Validatorエラーハンドリング
+    - [x] JSON Schema エラー
+    - [x] Lambda Function エラー
+    - [x] エラーメッセージの整形表示
 
 - [x] **4.8 デプロイ開始**
   - [x] `StartDeployment` API呼び出し
@@ -530,14 +530,14 @@ AWS APIのモックを使用してテストファーストで実装します。
   - [x] バリデーションエラー
   - [x] タイムアウトエラー
 
-- [ ] **4.12 Epic 4 完了確認（MUST）**
-  - [ ] `make ci` 実行
-    - [ ] `make test` - すべてのテストがパス
-    - [ ] `make lint` - リンターエラーを修正
-    - [ ] `make modernize` - 最新化の問題を修正
-    - [ ] `make fmt` - フォーマット適用
-  - [ ] すべてのチェックがパスするまで修正を繰り返す
-  - [ ] 実装計画のチェックリストを更新
+- [x] **4.12 Epic 4 完了確認（MUST）**
+  - [x] `make ci` 実行
+    - [x] `make test` - すべてのテストがパス
+    - [x] `make lint` - リンターエラーを修正
+    - [x] `make modernize` - 最新化の問題を修正
+    - [x] `make fmt` - フォーマット適用
+  - [x] すべてのチェックがパスするまで修正を繰り返す
+  - [x] 実装計画のチェックリストを更新
   - [ ] Gitコミット・プッシュ
     - [ ] `git add .`
     - [ ] `git commit -m "feat: complete Epic 4 - deploy command implementation"`
