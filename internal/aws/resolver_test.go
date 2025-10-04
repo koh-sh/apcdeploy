@@ -11,6 +11,29 @@ import (
 	"github.com/koh-sh/apcdeploy/internal/aws/mock"
 )
 
+func TestNewResolver(t *testing.T) {
+	// Use the actual client since we just need to verify the constructor
+	ctx := context.Background()
+
+	// Set AWS region via environment to avoid errors
+	t.Setenv("AWS_REGION", "us-east-1")
+
+	client, err := NewClient(ctx, "us-east-1")
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	resolver := NewResolver(client)
+
+	if resolver == nil {
+		t.Fatal("expected non-nil resolver")
+	}
+
+	if resolver.client == nil {
+		t.Error("resolver client should not be nil")
+	}
+}
+
 func TestResolveApplication(t *testing.T) {
 	tests := []struct {
 		name        string

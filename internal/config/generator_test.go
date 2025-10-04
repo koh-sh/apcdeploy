@@ -9,6 +9,8 @@ import (
 )
 
 func TestGenerateConfigFile(t *testing.T) {
+	tempDir := t.TempDir()
+
 	tests := []struct {
 		name           string
 		app            string
@@ -25,7 +27,7 @@ func TestGenerateConfigFile(t *testing.T) {
 			profile:    "test-profile",
 			env:        "test-env",
 			dataFile:   "data.json",
-			outputPath: filepath.Join(t.TempDir(), "apcdeploy.yml"),
+			outputPath: filepath.Join(tempDir, "apcdeploy.yml"),
 			wantErr:    false,
 			validateConfig: func(t *testing.T, cfg *Config) {
 				if cfg.Application != "test-app" {
@@ -48,7 +50,7 @@ func TestGenerateConfigFile(t *testing.T) {
 			profile:    "my-profile",
 			env:        "production",
 			dataFile:   "config.yaml",
-			outputPath: filepath.Join(t.TempDir(), "custom.yml"),
+			outputPath: filepath.Join(tempDir, "custom.yml"),
 			wantErr:    false,
 			validateConfig: func(t *testing.T, cfg *Config) {
 				if cfg.DataFile != "config.yaml" {
@@ -122,8 +124,18 @@ func TestDetermineDataFileName(t *testing.T) {
 			want:        "data.json",
 		},
 		{
+			name:        "json with charset",
+			contentType: "application/json; charset=utf-8",
+			want:        "data.json",
+		},
+		{
 			name:        "yaml content type",
 			contentType: "application/x-yaml",
+			want:        "data.yaml",
+		},
+		{
+			name:        "yaml alternative content type",
+			contentType: "application/yaml",
 			want:        "data.yaml",
 		},
 		{
@@ -154,6 +166,8 @@ func TestDetermineDataFileName(t *testing.T) {
 }
 
 func TestWriteDataFile(t *testing.T) {
+	tempDir := t.TempDir()
+
 	tests := []struct {
 		name        string
 		content     []byte
@@ -166,7 +180,7 @@ func TestWriteDataFile(t *testing.T) {
 			name:        "write json data",
 			content:     []byte(`{"key":"value"}`),
 			contentType: "application/json",
-			outputPath:  filepath.Join(t.TempDir(), "data.json"),
+			outputPath:  filepath.Join(tempDir, "data.json"),
 			wantErr:     false,
 			validate: func(t *testing.T, path string) {
 				data, err := os.ReadFile(path)
@@ -180,10 +194,34 @@ func TestWriteDataFile(t *testing.T) {
 			},
 		},
 		{
+			name:        "write json data with charset",
+			content:     []byte(`{"foo":"bar"}`),
+			contentType: "application/json; charset=utf-8",
+			outputPath:  filepath.Join(tempDir, "data2.json"),
+			wantErr:     false,
+			validate: func(t *testing.T, path string) {
+				data, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatalf("failed to read file: %v", err)
+				}
+				expected := "{\n  \"foo\": \"bar\"\n}\n"
+				if string(data) != expected {
+					t.Errorf("expected formatted JSON:\n%s\ngot:\n%s", expected, string(data))
+				}
+			},
+		},
+		{
+			name:        "write invalid json",
+			content:     []byte(`{invalid`),
+			contentType: "application/json",
+			outputPath:  filepath.Join(tempDir, "invalid.json"),
+			wantErr:     true,
+		},
+		{
 			name:        "write yaml data",
 			content:     []byte("key: value\n"),
 			contentType: "application/x-yaml",
-			outputPath:  filepath.Join(t.TempDir(), "data.yaml"),
+			outputPath:  filepath.Join(tempDir, "data.yaml"),
 			wantErr:     false,
 			validate: func(t *testing.T, path string) {
 				data, err := os.ReadFile(path)
@@ -199,7 +237,7 @@ func TestWriteDataFile(t *testing.T) {
 			name:        "write text data",
 			content:     []byte("plain text content"),
 			contentType: "text/plain",
-			outputPath:  filepath.Join(t.TempDir(), "data.txt"),
+			outputPath:  filepath.Join(tempDir, "data.txt"),
 			wantErr:     false,
 			validate: func(t *testing.T, path string) {
 				data, err := os.ReadFile(path)

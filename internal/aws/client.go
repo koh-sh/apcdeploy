@@ -7,11 +7,12 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/appconfig"
+	"github.com/koh-sh/apcdeploy/internal/aws/mock"
 )
 
 // Client wraps the AWS AppConfig client
 type Client struct {
-	AppConfig *appconfig.Client
+	AppConfig mock.AppConfigAPI
 	Region    string
 }
 

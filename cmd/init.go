@@ -3,11 +3,10 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
-	"github.com/koh-sh/apcdeploy/internal/config"
 	"github.com/koh-sh/apcdeploy/internal/display"
+	initPkg "github.com/koh-sh/apcdeploy/internal/init"
 	"github.com/spf13/cobra"
 )
 
@@ -52,84 +51,30 @@ func InitCommand() *cobra.Command {
 func runInit(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
-	// Show initialization message
-	fmt.Println(display.Progress("Initializing apcdeploy configuration..."))
-
 	// Initialize AWS client
 	awsClient, err := awsInternal.NewClient(ctx, initRegion)
 	if err != nil {
 		return fmt.Errorf("failed to initialize AWS client: %w", err)
 	}
 
-	// Resolve resources
-	resolver := awsInternal.NewResolver(awsClient)
+	// Create options
+	opts := &initPkg.Options{
+		Application: initApp,
+		Profile:     initProfile,
+		Environment: initEnv,
+		Region:      initRegion,
+		ConfigFile:  initConfig,
+		OutputData:  initOutputData,
+	}
 
-	fmt.Println(display.Progress("Resolving AWS resources..."))
+	// Create reporter
+	reporter := &cliReporter{}
 
-	appID, err := resolver.ResolveApplication(ctx, initApp)
+	// Run initialization
+	initializer := initPkg.New(awsClient, reporter)
+	result, err := initializer.Run(ctx, opts)
 	if err != nil {
-		return fmt.Errorf("failed to resolve application: %w", err)
-	}
-
-	profileInfo, err := resolver.ResolveConfigurationProfile(ctx, appID, initProfile)
-	if err != nil {
-		return fmt.Errorf("failed to resolve configuration profile: %w", err)
-	}
-
-	envID, err := resolver.ResolveEnvironment(ctx, appID, initEnv)
-	if err != nil {
-		return fmt.Errorf("failed to resolve environment: %w", err)
-	}
-
-	// Show resource information
-	fmt.Println(display.Success(fmt.Sprintf("Application: %s (ID: %s)", initApp, appID)))
-	fmt.Println(display.Success(fmt.Sprintf("Configuration Profile: %s (ID: %s)", initProfile, profileInfo.ID)))
-	fmt.Println(display.Success(fmt.Sprintf("Environment: %s (ID: %s)", initEnv, envID)))
-	fmt.Println(display.Success(fmt.Sprintf("Profile Type: %s", profileInfo.Type)))
-
-	// Fetch latest configuration version
-	fmt.Println(display.Progress("Fetching latest configuration version..."))
-
-	versionFetcher := awsInternal.NewConfigVersionFetcher(awsClient)
-	versionInfo, err := versionFetcher.GetLatestVersion(ctx, appID, profileInfo.ID)
-	if err != nil {
-		// If no version exists, we'll create config without data file
-		fmt.Println(display.Warning("No configuration versions found - config file will be created without data"))
-		versionInfo = nil
-	} else {
-		fmt.Println(display.Success(fmt.Sprintf("Found version: %d (ContentType: %s)", versionInfo.VersionNumber, versionInfo.ContentType)))
-	}
-
-	// Determine data file name
-	var dataFileName string
-	switch {
-	case initOutputData != "":
-		dataFileName = initOutputData
-	case versionInfo != nil:
-		dataFileName = config.DetermineDataFileName(versionInfo.ContentType)
-	default:
-		dataFileName = "data.json" // Default if no version exists
-	}
-
-	// Generate apcdeploy.yml
-	fmt.Println(display.Progress(fmt.Sprintf("Generating configuration file: %s", initConfig)))
-
-	if err := config.GenerateConfigFile(initApp, initProfile, initEnv, dataFileName, initConfig); err != nil {
-		return fmt.Errorf("failed to generate config file: %w", err)
-	}
-
-	fmt.Println(display.Success(fmt.Sprintf("Created: %s", initConfig)))
-
-	// Write data file if version exists
-	if versionInfo != nil {
-		dataFilePath := filepath.Join(filepath.Dir(initConfig), dataFileName)
-		fmt.Println(display.Progress(fmt.Sprintf("Writing configuration data: %s", dataFilePath)))
-
-		if err := config.WriteDataFile(versionInfo.Content, versionInfo.ContentType, dataFilePath); err != nil {
-			return fmt.Errorf("failed to write data file: %w", err)
-		}
-
-		fmt.Println(display.Success(fmt.Sprintf("Created: %s", dataFilePath)))
+		return err
 	}
 
 	// Show next steps
@@ -140,5 +85,23 @@ func runInit(cmd *cobra.Command, args []string) error {
 	fmt.Println("  3. Run 'apcdeploy diff' to preview changes")
 	fmt.Println("  4. Run 'apcdeploy deploy' to deploy your configuration")
 
+	// Suppress unused variable warning
+	_ = result
+
 	return nil
+}
+
+// cliReporter implements the ProgressReporter interface for CLI output
+type cliReporter struct{}
+
+func (r *cliReporter) Progress(message string) {
+	fmt.Println(display.Progress(message))
+}
+
+func (r *cliReporter) Success(message string) {
+	fmt.Println(display.Success(message))
+}
+
+func (r *cliReporter) Warning(message string) {
+	fmt.Println(display.Warning(message))
 }

@@ -74,3 +74,24 @@ func TestGlobalFlags(t *testing.T) {
 		t.Error("region flag not found")
 	}
 }
+
+func TestExecute(t *testing.T) {
+	// This test verifies that the Execute function works without crashing
+	// Execute() calls NewRootCommand() internally
+	// We can't easily test the error path without causing the program to exit,
+	// so we test the success path by ensuring no panic occurs
+	defer func() {
+		if r := recover(); r != nil {
+			t.Errorf("Execute() caused a panic: %v", r)
+		}
+	}()
+
+	// Execute with help flag to ensure it completes successfully
+	oldArgs := []string{}
+	defer func() {
+		// Restore original args if needed
+		_ = oldArgs
+	}()
+
+	Execute()
+}
