@@ -80,6 +80,11 @@ func TestNewClient(t *testing.T) {
 			if client == nil {
 				t.Error("expected client, got nil")
 			}
+
+			// Verify region is set correctly
+			if tt.region != "" && client.Region != tt.region {
+				t.Errorf("expected client.Region to be %q, got %q", tt.region, client.Region)
+			}
 		})
 	}
 }
