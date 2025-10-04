@@ -50,7 +50,7 @@
 
 ### 優先度 mid
 
-- [ ] waitingのあとrollbackされたときにusageを表示するのはおかしい。こちらも理由がわかれば表示、わからなければrollbackされたという事実だけでいい
+- [x] waitingのあとrollbackされたときにusageを表示するのはおかしい。こちらも理由がわかれば表示、わからなければrollbackされたという事実だけでいい
 - [ ] デフォルトが AppConfig.AllAtOnce で処理時間10minなのに、timeoutのデフォルトが300secなのはおかしい
 - [ ] デプロイ中にデプロイした時のエラーでusageを出すのはおかしい
 - [ ] デフォルトは wait なしでいい。waitしたいときに --waitをつけるようにしたい

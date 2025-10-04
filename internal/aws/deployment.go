@@ -88,6 +88,19 @@ func (c *Client) StartDeployment(
 	return output.DeploymentNumber, nil
 }
 
+// extractRollbackReason extracts the rollback reason from deployment event log
+func extractRollbackReason(eventLog []types.DeploymentEvent) string {
+	// Look for ROLLBACK_STARTED event in the event log
+	for _, event := range eventLog {
+		if event.EventType == types.DeploymentEventTypeRollbackStarted {
+			if event.Description != nil {
+				return *event.Description
+			}
+		}
+	}
+	return ""
+}
+
 // WaitForDeployment waits for a deployment to complete
 func (c *Client) WaitForDeployment(
 	ctx context.Context,
@@ -122,6 +135,11 @@ func (c *Client) WaitForDeployment(
 		case types.DeploymentStateComplete:
 			return true, nil
 		case types.DeploymentStateRolledBack:
+			// Try to get rollback reason from event log
+			reason := extractRollbackReason(output.EventLog)
+			if reason != "" {
+				return false, fmt.Errorf("deployment was rolled back: %s", reason)
+			}
 			return false, fmt.Errorf("deployment was rolled back")
 		case types.DeploymentStateDeploying, types.DeploymentStateBaking:
 			return false, nil

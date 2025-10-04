@@ -250,9 +250,11 @@ func TestWaitForDeployment(t *testing.T) {
 		name          string
 		deploymentNum int32
 		mockStates    []types.DeploymentState
+		mockEventLog  []types.DeploymentEvent
 		timeout       time.Duration
 		wantErr       bool
 		wantComplete  bool
+		wantErrMsg    string
 	}{
 		{
 			name:          "deployment completes immediately",
@@ -269,6 +271,37 @@ func TestWaitForDeployment(t *testing.T) {
 			timeout:       10 * time.Second,
 			wantErr:       true,
 			wantComplete:  false,
+			wantErrMsg:    "deployment was rolled back",
+		},
+		{
+			name:          "deployment is rolled back with CloudWatch alarm reason",
+			deploymentNum: 5,
+			mockStates:    []types.DeploymentState{types.DeploymentStateRolledBack},
+			mockEventLog: []types.DeploymentEvent{
+				{
+					EventType:   types.DeploymentEventTypeRollbackStarted,
+					Description: aws_stringPtr("Rollback initiated by CloudWatch Alarm: arn:aws:cloudwatch:us-east-1:123456789012:alarm:HighErrorRate"),
+				},
+			},
+			timeout:      10 * time.Second,
+			wantErr:      true,
+			wantComplete: false,
+			wantErrMsg:   "deployment was rolled back: Rollback initiated by CloudWatch Alarm: arn:aws:cloudwatch:us-east-1:123456789012:alarm:HighErrorRate",
+		},
+		{
+			name:          "deployment is rolled back with custom reason",
+			deploymentNum: 6,
+			mockStates:    []types.DeploymentState{types.DeploymentStateRolledBack},
+			mockEventLog: []types.DeploymentEvent{
+				{
+					EventType:   types.DeploymentEventTypeRollbackStarted,
+					Description: aws_stringPtr("Rollback initiated manually"),
+				},
+			},
+			timeout:      10 * time.Second,
+			wantErr:      true,
+			wantComplete: false,
+			wantErrMsg:   "deployment was rolled back: Rollback initiated manually",
 		},
 		{
 			name:          "deployment times out",
@@ -305,6 +338,7 @@ func TestWaitForDeployment(t *testing.T) {
 						DeploymentNumber:   tt.deploymentNum,
 						State:              state,
 						PercentageComplete: aws_floatPtr(float32(callCount) * 50.0),
+						EventLog:           tt.mockEventLog,
 					}, nil
 				},
 			}
@@ -323,6 +357,12 @@ func TestWaitForDeployment(t *testing.T) {
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("WaitForDeployment() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			if tt.wantErrMsg != "" && err != nil {
+				if err.Error() != tt.wantErrMsg {
+					t.Errorf("WaitForDeployment() error message = %q, want %q", err.Error(), tt.wantErrMsg)
+				}
 			}
 		})
 	}
