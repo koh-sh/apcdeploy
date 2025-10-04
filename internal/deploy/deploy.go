@@ -28,10 +28,16 @@ func New(ctx context.Context, cfg *config.Config) (*Deployer, error) {
 		return nil, fmt.Errorf("failed to initialize AWS client: %w", err)
 	}
 
+	return NewWithClient(cfg, awsClient), nil
+}
+
+// NewWithClient creates a new Deployer instance with a provided AWS client
+// This is useful for testing with mock clients
+func NewWithClient(cfg *config.Config, awsClient *aws.Client) *Deployer {
 	return &Deployer{
 		cfg:       cfg,
 		awsClient: awsClient,
-	}, nil
+	}
 }
 
 // LoadConfiguration loads the configuration file and data file

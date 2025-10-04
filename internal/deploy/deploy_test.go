@@ -6,6 +6,11 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/appconfig"
+	"github.com/aws/aws-sdk-go-v2/service/appconfig/types"
+	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
+	"github.com/koh-sh/apcdeploy/internal/aws/mock"
 	"github.com/koh-sh/apcdeploy/internal/config"
 )
 
@@ -281,5 +286,346 @@ func TestDeployer_ResolveResources(t *testing.T) {
 	// This test just verifies the deployer has the AWS client
 	if d.awsClient == nil {
 		t.Error("Expected awsClient to be non-nil")
+	}
+}
+
+func TestNewWithClient(t *testing.T) {
+	cfg := &config.Config{
+		Application:          "test-app",
+		ConfigurationProfile: "test-profile",
+		Environment:          "test-env",
+		DeploymentStrategy:   "AppConfig.AllAtOnce",
+		DataFile:             "data.json",
+		Region:               "us-east-1",
+	}
+
+	mockClient := &mock.MockAppConfigClient{}
+	awsClient := &awsInternal.Client{
+		AppConfig: mockClient,
+	}
+
+	deployer := NewWithClient(cfg, awsClient)
+
+	if deployer == nil {
+		t.Fatal("expected deployer to be non-nil")
+	}
+
+	if deployer.cfg != cfg {
+		t.Error("expected deployer to have the provided config")
+	}
+
+	if deployer.awsClient != awsClient {
+		t.Error("expected deployer to have the provided AWS client")
+	}
+}
+
+func TestResolveResourcesWithMock(t *testing.T) {
+	cfg := &config.Config{
+		Application:          "test-app",
+		ConfigurationProfile: "test-profile",
+		Environment:          "test-env",
+		DeploymentStrategy:   "AppConfig.AllAtOnce",
+		DataFile:             "data.json",
+		Region:               "us-east-1",
+	}
+
+	mockClient := &mock.MockAppConfigClient{
+		ListApplicationsFunc: func(ctx context.Context, params *appconfig.ListApplicationsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListApplicationsOutput, error) {
+			return &appconfig.ListApplicationsOutput{
+				Items: []types.Application{
+					{
+						Id:   aws.String("app-123"),
+						Name: aws.String("test-app"),
+					},
+				},
+			}, nil
+		},
+		ListConfigurationProfilesFunc: func(ctx context.Context, params *appconfig.ListConfigurationProfilesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListConfigurationProfilesOutput, error) {
+			return &appconfig.ListConfigurationProfilesOutput{
+				Items: []types.ConfigurationProfileSummary{
+					{
+						Id:   aws.String("profile-123"),
+						Name: aws.String("test-profile"),
+						Type: aws.String("AWS.Freeform"),
+					},
+				},
+			}, nil
+		},
+		GetConfigurationProfileFunc: func(ctx context.Context, params *appconfig.GetConfigurationProfileInput, optFns ...func(*appconfig.Options)) (*appconfig.GetConfigurationProfileOutput, error) {
+			return &appconfig.GetConfigurationProfileOutput{
+				Id:   aws.String("profile-123"),
+				Name: aws.String("test-profile"),
+				Type: aws.String("AWS.Freeform"),
+			}, nil
+		},
+		ListEnvironmentsFunc: func(ctx context.Context, params *appconfig.ListEnvironmentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListEnvironmentsOutput, error) {
+			return &appconfig.ListEnvironmentsOutput{
+				Items: []types.Environment{
+					{
+						Id:   aws.String("env-123"),
+						Name: aws.String("test-env"),
+					},
+				},
+			}, nil
+		},
+		ListDeploymentStrategiesFunc: func(ctx context.Context, params *appconfig.ListDeploymentStrategiesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentStrategiesOutput, error) {
+			return &appconfig.ListDeploymentStrategiesOutput{
+				Items: []types.DeploymentStrategy{
+					{
+						Id:   aws.String("strategy-123"),
+						Name: aws.String("AppConfig.AllAtOnce"),
+					},
+				},
+			}, nil
+		},
+	}
+
+	awsClient := &awsInternal.Client{
+		AppConfig: mockClient,
+	}
+
+	deployer := NewWithClient(cfg, awsClient)
+	resolved, err := deployer.ResolveResources(context.Background())
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if resolved.ApplicationID != "app-123" {
+		t.Errorf("expected ApplicationID 'app-123', got '%s'", resolved.ApplicationID)
+	}
+
+	if resolved.Profile.ID != "profile-123" {
+		t.Errorf("expected ProfileID 'profile-123', got '%s'", resolved.Profile.ID)
+	}
+
+	if resolved.EnvironmentID != "env-123" {
+		t.Errorf("expected EnvironmentID 'env-123', got '%s'", resolved.EnvironmentID)
+	}
+
+	if resolved.DeploymentStrategyID != "strategy-123" {
+		t.Errorf("expected DeploymentStrategyID 'strategy-123', got '%s'", resolved.DeploymentStrategyID)
+	}
+}
+
+func TestCheckOngoingDeploymentWithMock(t *testing.T) {
+	cfg := &config.Config{
+		Application:          "test-app",
+		ConfigurationProfile: "test-profile",
+		Environment:          "test-env",
+		DeploymentStrategy:   "AppConfig.AllAtOnce",
+		DataFile:             "data.json",
+		Region:               "us-east-1",
+	}
+
+	tests := []struct {
+		name        string
+		deployments []types.DeploymentSummary
+		wantOngoing bool
+	}{
+		{
+			name:        "no ongoing deployments",
+			deployments: []types.DeploymentSummary{},
+			wantOngoing: false,
+		},
+		{
+			name: "has deploying deployment",
+			deployments: []types.DeploymentSummary{
+				{
+					DeploymentNumber: 1,
+					State:            types.DeploymentStateDeploying,
+				},
+			},
+			wantOngoing: true,
+		},
+		{
+			name: "has completed deployment",
+			deployments: []types.DeploymentSummary{
+				{
+					DeploymentNumber: 1,
+					State:            types.DeploymentStateComplete,
+				},
+			},
+			wantOngoing: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockClient := &mock.MockAppConfigClient{
+				ListDeploymentsFunc: func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
+					return &appconfig.ListDeploymentsOutput{
+						Items: tt.deployments,
+					}, nil
+				},
+			}
+
+			awsClient := &awsInternal.Client{
+				AppConfig: mockClient,
+			}
+
+			deployer := NewWithClient(cfg, awsClient)
+
+			resolved := &awsInternal.ResolvedResources{
+				ApplicationID:        "app-123",
+				EnvironmentID:        "env-123",
+				DeploymentStrategyID: "strategy-123",
+				Profile: &awsInternal.ProfileInfo{
+					ID:   "profile-123",
+					Type: "AWS.Freeform",
+				},
+			}
+
+			hasOngoing, _, err := deployer.CheckOngoingDeployment(context.Background(), resolved)
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if hasOngoing != tt.wantOngoing {
+				t.Errorf("expected hasOngoing=%v, got %v", tt.wantOngoing, hasOngoing)
+			}
+		})
+	}
+}
+
+func TestCreateVersionWithMock(t *testing.T) {
+	cfg := &config.Config{
+		Application:          "test-app",
+		ConfigurationProfile: "test-profile",
+		Environment:          "test-env",
+		DeploymentStrategy:   "AppConfig.AllAtOnce",
+		DataFile:             "data.json",
+		Region:               "us-east-1",
+	}
+
+	mockClient := &mock.MockAppConfigClient{
+		CreateHostedConfigurationVersionFunc: func(ctx context.Context, params *appconfig.CreateHostedConfigurationVersionInput, optFns ...func(*appconfig.Options)) (*appconfig.CreateHostedConfigurationVersionOutput, error) {
+			return &appconfig.CreateHostedConfigurationVersionOutput{
+				VersionNumber: 5,
+			}, nil
+		},
+	}
+
+	awsClient := &awsInternal.Client{
+		AppConfig: mockClient,
+	}
+
+	deployer := NewWithClient(cfg, awsClient)
+
+	resolved := &awsInternal.ResolvedResources{
+		ApplicationID:        "app-123",
+		EnvironmentID:        "env-123",
+		DeploymentStrategyID: "strategy-123",
+		Profile: &awsInternal.ProfileInfo{
+			ID:   "profile-123",
+			Type: "AWS.Freeform",
+		},
+	}
+
+	versionNumber, err := deployer.CreateVersion(context.Background(), resolved, []byte(`{"key":"value"}`), "application/json")
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if versionNumber != 5 {
+		t.Errorf("expected version number 5, got %d", versionNumber)
+	}
+}
+
+func TestStartDeploymentWithMock(t *testing.T) {
+	cfg := &config.Config{
+		Application:          "test-app",
+		ConfigurationProfile: "test-profile",
+		Environment:          "test-env",
+		DeploymentStrategy:   "AppConfig.AllAtOnce",
+		DataFile:             "data.json",
+		Region:               "us-east-1",
+	}
+
+	mockClient := &mock.MockAppConfigClient{
+		StartDeploymentFunc: func(ctx context.Context, params *appconfig.StartDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.StartDeploymentOutput, error) {
+			return &appconfig.StartDeploymentOutput{
+				DeploymentNumber: 3,
+			}, nil
+		},
+	}
+
+	awsClient := &awsInternal.Client{
+		AppConfig: mockClient,
+	}
+
+	deployer := NewWithClient(cfg, awsClient)
+
+	resolved := &awsInternal.ResolvedResources{
+		ApplicationID:        "app-123",
+		EnvironmentID:        "env-123",
+		DeploymentStrategyID: "strategy-123",
+		Profile: &awsInternal.ProfileInfo{
+			ID:   "profile-123",
+			Type: "AWS.Freeform",
+		},
+	}
+
+	deploymentNumber, err := deployer.StartDeployment(context.Background(), resolved, 1)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if deploymentNumber != 3 {
+		t.Errorf("expected deployment number 3, got %d", deploymentNumber)
+	}
+}
+
+func TestWaitForDeploymentWithMock(t *testing.T) {
+	cfg := &config.Config{
+		Application:          "test-app",
+		ConfigurationProfile: "test-profile",
+		Environment:          "test-env",
+		DeploymentStrategy:   "AppConfig.AllAtOnce",
+		DataFile:             "data.json",
+		Region:               "us-east-1",
+	}
+
+	callCount := 0
+	mockClient := &mock.MockAppConfigClient{
+		GetDeploymentFunc: func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
+			callCount++
+			state := types.DeploymentStateDeploying
+			if callCount >= 2 {
+				state = types.DeploymentStateComplete
+			}
+			return &appconfig.GetDeploymentOutput{
+				State: state,
+			}, nil
+		},
+	}
+
+	awsClient := &awsInternal.Client{
+		AppConfig: mockClient,
+	}
+
+	deployer := NewWithClient(cfg, awsClient)
+
+	resolved := &awsInternal.ResolvedResources{
+		ApplicationID:        "app-123",
+		EnvironmentID:        "env-123",
+		DeploymentStrategyID: "strategy-123",
+		Profile: &awsInternal.ProfileInfo{
+			ID:   "profile-123",
+			Type: "AWS.Freeform",
+		},
+	}
+
+	err := deployer.WaitForDeployment(context.Background(), resolved, 1, 30)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if callCount < 2 {
+		t.Errorf("expected at least 2 calls to GetDeployment, got %d", callCount)
 	}
 }
