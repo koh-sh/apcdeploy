@@ -24,9 +24,9 @@
 
 ### 優先度 mid
 
-- [ ] statusがROLLED_BACKなのに Descriptionが Deploying new configuration
-- [ ] ROLLED_BACKの要因は CloudWatch Alermとは限らないので、理由を取得できたら取得して表示したい。できなければrollbackされたという事実だけ表示する
-- [ ] statusの表示にデプロイ戦略を表示したい
+- [x] statusがROLLED_BACKなのに Descriptionが Deploying new configuration
+- [x] ROLLED_BACKの要因は CloudWatch Alermとは限らないので、理由を取得できたら取得して表示したい。できなければrollbackされたという事実だけ表示する
+- [x] statusの表示にデプロイ戦略を表示したい
 
 ## diff
 
