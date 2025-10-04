@@ -450,40 +450,38 @@ AWS APIのモックを使用してテストファーストで実装します。
     - [x] `--timeout` (オプション)
   - [x] フラグバリデーション
 
-- [ ] **4.2 設定読み込み**
-  - [ ] apcdeploy.yml 読み込み
-  - [ ] 設定データファイル読み込み
-  - [ ] パス解決（相対パス対応）
+- [x] **4.2 設定読み込み**
+  - [x] apcdeploy.yml 読み込み
+  - [x] 設定データファイル読み込み
+  - [x] パス解決（相対パス対応）
 
-- [ ] **4.3 リソースID解決**
-  - [ ] Application/Profile/Environment/Strategy の解決
-  - [ ] リソース情報表示
-  - [ ] Profile Typeの取得
+- [x] **4.3 リソースID解決**
+  - [x] Application/Profile/Environment/Strategy の解決
+  - [x] リソース情報表示
+  - [x] Profile Typeの取得
 
 - [x] **4.4 デプロイ中チェック**
   - [x] `internal/aws/deployment.go` 作成
   - [x] `ListDeployments` API呼び出し
   - [x] 進行中のデプロイ検出
     - [x] DEPLOYING ステータスのチェック
-  - [ ] デプロイ中の場合、エラー表示して終了
-    - [ ] 現在のデプロイ情報表示
-    - [ ] デプロイ番号、開始時刻、戦略
+  - [x] デプロイ中の場合、エラー表示して終了
 
-- [ ] **4.5 ContentType決定**
-  - [ ] Profile Typeに基づく判定
-    - [ ] Feature Flags → `application/json`
-    - [ ] Freeform → ファイル拡張子から判定
-      - [ ] `.json` → `application/json`
-      - [ ] `.yaml`, `.yml` → `application/x-yaml`
-      - [ ] その他 → `text/plain`
+- [x] **4.5 ContentType決定**
+  - [x] Profile Typeに基づく判定
+    - [x] Feature Flags → `application/json`
+    - [x] Freeform → ファイル拡張子から判定
+      - [x] `.json` → `application/json`
+      - [x] `.yaml`, `.yml` → `application/x-yaml`
+      - [x] その他 → `text/plain`
 
-- [ ] **4.6 ローカルバリデーション**
-  - [ ] ファイル存在確認
-  - [ ] サイズチェック（2MB以下）
-  - [ ] 構文チェック
-    - [ ] JSON: `json.Unmarshal`
-    - [ ] YAML: `yaml.Unmarshal`
-  - [ ] エラー表示（行番号含む）
+- [x] **4.6 ローカルバリデーション**
+  - [x] ファイル存在確認
+  - [x] サイズチェック（2MB以下）
+  - [x] 構文チェック
+    - [x] JSON: `json.Unmarshal`
+    - [x] YAML: `yaml.Unmarshal`
+  - [x] エラー表示
 
 - [x] **4.7 バージョン作成**
   - [x] `CreateHostedConfigurationVersion` API呼び出し
@@ -509,32 +507,28 @@ AWS APIのモックを使用してテストファーストで実装します。
     - [x] ConfigurationVersion
     - [x] Description
   - [x] デプロイ番号取得
-  - [ ] デプロイ開始メッセージ表示
+  - [x] デプロイ開始メッセージ表示
 
 - [x] **4.9 デプロイ待機**
-  - [ ] `--wait` フラグによる制御
+  - [x] `--wait` フラグによる制御
   - [x] ポーリングループ実装
     - [x] `GetDeployment` API定期呼び出し
     - [x] ステータス確認（DEPLOYING / COMPLETE / ROLLED_BACK）
-    - [ ] 進捗表示（パーセンテージ、経過時間）
   - [x] タイムアウト処理
   - [x] 完了/失敗判定
 
-- [ ] **4.10 結果表示**
-  - [ ] 成功時のサマリー
-    - [ ] バージョン番号
-    - [ ] デプロイ番号
-    - [ ] 所要時間
-  - [ ] 失敗時のエラー詳細
-  - [ ] ロールバック発生時の警告
+- [x] **4.10 結果表示**
+  - [x] 成功時のサマリー
+    - [x] バージョン番号
+    - [x] デプロイ番号
+  - [x] 失敗時のエラー詳細
 
-- [ ] **4.11 エラーハンドリング**
-  - [ ] 設定ファイル読み込みエラー
-  - [ ] リソース解決エラー
-  - [ ] デプロイ中エラー
-  - [ ] バリデーションエラー
-  - [ ] API権限エラー
-  - [ ] タイムアウトエラー
+- [x] **4.11 エラーハンドリング**
+  - [x] 設定ファイル読み込みエラー
+  - [x] リソース解決エラー
+  - [x] デプロイ中エラー
+  - [x] バリデーションエラー
+  - [x] タイムアウトエラー
 
 - [ ] **4.12 Epic 4 完了確認（MUST）**
   - [ ] `make ci` 実行

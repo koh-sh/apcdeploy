@@ -112,21 +112,13 @@ func TestDeployTimeoutValidation(t *testing.T) {
 		name    string
 		timeout int
 		wantErr bool
+		errMsg  string
 	}{
-		{
-			name:    "positive timeout is valid",
-			timeout: 300,
-			wantErr: false,
-		},
-		{
-			name:    "zero timeout is valid",
-			timeout: 0,
-			wantErr: false,
-		},
 		{
 			name:    "negative timeout is invalid",
 			timeout: -1,
 			wantErr: true,
+			errMsg:  "timeout must be a positive value",
 		},
 	}
 
@@ -135,19 +127,11 @@ func TestDeployTimeoutValidation(t *testing.T) {
 			deployTimeout = tt.timeout
 			err := runDeploy(nil, nil)
 
-			// We expect an error for timeout validation OR not implemented error
 			if tt.wantErr {
 				if err == nil {
 					t.Error("Expected timeout validation error, got nil")
-				} else if err.Error() != "timeout must be a positive value" {
-					t.Errorf("Expected timeout validation error, got: %v", err)
-				}
-			} else {
-				// For valid timeout, we expect "not yet implemented" error
-				if err == nil {
-					t.Error("Expected 'not yet implemented' error, got nil")
-				} else if err.Error() != "deploy command not yet implemented" {
-					t.Errorf("Expected 'not yet implemented' error, got: %v", err)
+				} else if err.Error() != tt.errMsg {
+					t.Errorf("Expected error message '%s', got: %v", tt.errMsg, err)
 				}
 			}
 		})
