@@ -84,6 +84,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 
 	// Step 7: Handle case when deployment is in progress
 	if deployment.State == "DEPLOYING" || deployment.State == "BAKING" {
+		fmt.Println()
 		e.reporter.Warning(fmt.Sprintf("Deployment #%d is currently %s", deployment.DeploymentNumber, deployment.State))
 		fmt.Println("The diff will be calculated against the currently deploying version.")
 		fmt.Println()
