@@ -1,4 +1,4 @@
-.PHONY: test fmt cov tidy lint build modernize modernize-fix ci tool-install
+.PHONY: test fmt cov tidy lint lint-fix build modernize modernize-fix ci tool-install
 
 COVFILE = coverage.out
 COVHTML = cover.html
@@ -20,10 +20,13 @@ tidy:
 lint:
 	go tool golangci-lint run -v
 
+lint-fix:
+	go tool golangci-lint run -v --fix
+
 build:
 	go build
 
-ci: fmt modernize-fix lint test build
+ci: fmt modernize-fix lint-fix test build
 
 # Go Modernize
 modernize:

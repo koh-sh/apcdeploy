@@ -31,6 +31,9 @@ It provides commands to initialize, deploy, diff, and check the status of config
 	rootCmd.PersistentFlags().StringVarP(&configFile, "config", "c", "apcdeploy.yml", "config file path")
 	rootCmd.PersistentFlags().StringVar(&region, "region", "", "AWS region (overrides config file)")
 
+	// Add subcommands
+	rootCmd.AddCommand(InitCommand())
+
 	return rootCmd
 }
 

@@ -348,84 +348,84 @@ AWS APIのモックを使用してテストファーストで実装します。
 
 ### タスクチェックリスト
 
-- [ ] **3.1 コマンド定義（TDD）**
-  - [ ] `cmd/init_test.go` 作成
-    - [ ] フラグ解析テスト
-    - [ ] 必須フラグ検証テスト
-  - [ ] `cmd/init.go` 作成
-  - [ ] コマンド登録
-  - [ ] フラグ定義
-    - [ ] `--app` (必須)
-    - [ ] `--profile` (必須)
-    - [ ] `--env` (必須)
-    - [ ] `--region` (オプション)
-    - [ ] `--config, -c` (オプション、デフォルト: apcdeploy.yml)
-    - [ ] `--output-data` (オプション、デフォルト: 自動判定)
-  - [ ] フラグバリデーション実装
+- [x] **3.1 コマンド定義（TDD）**
+  - [x] `cmd/init_test.go` 作成
+    - [x] フラグ解析テスト
+    - [x] 必須フラグ検証テスト
+  - [x] `cmd/init.go` 作成
+  - [x] コマンド登録
+  - [x] フラグ定義
+    - [x] `--app` (必須)
+    - [x] `--profile` (必須)
+    - [x] `--env` (必須)
+    - [x] `--region` (オプション)
+    - [x] `--config, -c` (オプション、デフォルト: apcdeploy.yml)
+    - [x] `--output-data` (オプション、デフォルト: 自動判定)
+  - [x] フラグバリデーション実装
 
-- [ ] **3.2 設定ファイル生成ロジック（TDD）**
-  - [ ] `internal/config/generator_test.go` 作成
-    - [ ] apcdeploy.yml生成テスト
-    - [ ] 各フィールド値の検証テスト
-    - [ ] ファイル上書き確認テスト
-  - [ ] `internal/config/generator.go` 実装
-    - [ ] テンプレートから設定ファイル生成
-    - [ ] YAML書き込み
-    - [ ] ファイル上書き確認
-  - [ ] リファクタリング
+- [x] **3.2 設定ファイル生成ロジック（TDD）**
+  - [x] `internal/config/generator_test.go` 作成
+    - [x] apcdeploy.yml生成テスト
+    - [x] 各フィールド値の検証テスト
+    - [x] ファイル上書き確認テスト
+  - [x] `internal/config/generator.go` 実装
+    - [x] テンプレートから設定ファイル生成
+    - [x] YAML書き込み
+    - [x] ファイル上書き確認
+  - [x] リファクタリング
 
-- [ ] **3.3 設定データ取得・生成（TDD）**
-  - [ ] `generator_test.go` にデータ生成テスト追加
-    - [ ] ContentType判定テスト
-    - [ ] ファイル名決定テスト
-    - [ ] フォーマット整形テスト（JSON/YAML）
-    - [ ] バージョンが存在しない場合のテスト
-  - [ ] AWS APIモック拡張
-    - [ ] `ListHostedConfigurationVersions` モック
-    - [ ] `GetHostedConfigurationVersion` モック
-  - [ ] `generator.go` に実装追加
-    - [ ] 最新バージョン取得
-    - [ ] 設定データ取得
-    - [ ] ContentTypeに基づくファイル名決定
-      - [ ] `application/json` → data.json
-      - [ ] `application/x-yaml` → data.yaml
-      - [ ] `text/plain` → data.txt
-    - [ ] ユーザー指定ファイル名のサポート
-    - [ ] データ書き込みとフォーマット整形
-  - [ ] リファクタリング
+- [x] **3.3 設定データ取得・生成（TDD）**
+  - [x] `generator_test.go` にデータ生成テスト追加
+    - [x] ContentType判定テスト
+    - [x] ファイル名決定テスト
+    - [x] フォーマット整形テスト（JSON/YAML）
+    - [x] バージョンが存在しない場合のテスト
+  - [x] AWS APIモック拡張
+    - [x] `ListHostedConfigurationVersions` モック
+    - [x] `GetHostedConfigurationVersion` モック
+  - [x] `generator.go` に実装追加
+    - [x] 最新バージョン取得
+    - [x] 設定データ取得
+    - [x] ContentTypeに基づくファイル名決定
+      - [x] `application/json` → data.json
+      - [x] `application/x-yaml` → data.yaml
+      - [x] `text/plain` → data.txt
+    - [x] ユーザー指定ファイル名のサポート
+    - [x] データ書き込みとフォーマット整形
+  - [x] リファクタリング
 
-- [ ] **3.4 initコマンド統合（TDD）**
-  - [ ] `cmd/init_test.go` に統合テスト追加
-    - [ ] エンドツーエンド実行テスト
-    - [ ] 出力メッセージ検証テスト
-  - [ ] `cmd/init.go` に統合実装
-    - [ ] リソース解決の呼び出し
-    - [ ] ジェネレーターの呼び出し
-    - [ ] 出力メッセージ実装
-      - [ ] 初期化開始メッセージ
-      - [ ] リソース情報表示
-      - [ ] 生成ファイル一覧表示
-      - [ ] Next steps ガイド
-  - [ ] エラーハンドリング実装
-    - [ ] リソース不存在エラー
-    - [ ] バージョンが存在しない場合の警告
-    - [ ] ファイル書き込みエラー
-    - [ ] 権限エラー
-  - [ ] リファクタリング
+- [x] **3.4 initコマンド統合（TDD）**
+  - [x] `cmd/init_test.go` に統合テスト追加
+    - [x] エンドツーエンド実行テスト
+    - [x] 出力メッセージ検証テスト
+  - [x] `cmd/init.go` に統合実装
+    - [x] リソース解決の呼び出し
+    - [x] ジェネレーターの呼び出し
+    - [x] 出力メッセージ実装
+      - [x] 初期化開始メッセージ
+      - [x] リソース情報表示
+      - [x] 生成ファイル一覧表示
+      - [x] Next steps ガイド
+  - [x] エラーハンドリング実装
+    - [x] リソース不存在エラー
+    - [x] バージョンが存在しない場合の警告
+    - [x] ファイル書き込みエラー
+    - [x] 権限エラー
+  - [x] リファクタリング
 
-- [ ] **3.5 Epic 3 完了確認（MUST）**
-  - [ ] `make ci` 実行
-    - [ ] `make test` - すべてのテストがパス
-    - [ ] `make lint` - リンターエラーを修正
-    - [ ] `make modernize` - 最新化の問題を修正
-    - [ ] `make fmt` - フォーマット適用
-  - [ ] すべてのチェックがパスするまで修正を繰り返す
-  - [ ] 実装計画のチェックリストを更新
-  - [ ] Gitコミット・プッシュ
-    - [ ] `git add .`
-    - [ ] `git commit -m "feat: complete Epic 3 - init command implementation"`
-    - [ ] `git push origin main`
-    - [ ] チェックリスト更新をコミット・プッシュ
+- [x] **3.5 Epic 3 完了確認（MUST）**
+  - [x] `make ci` 実行
+    - [x] `make test` - すべてのテストがパス
+    - [x] `make lint` - リンターエラーを修正
+    - [x] `make modernize` - 最新化の問題を修正
+    - [x] `make fmt` - フォーマット適用
+  - [x] すべてのチェックがパスするまで修正を繰り返す
+  - [x] 実装計画のチェックリストを更新
+  - [x] Gitコミット・プッシュ
+    - [x] `git add .`
+    - [x] `git commit -m "feat: complete Epic 3 - init command implementation"`
+    - [x] `git push origin main`
+    - [x] チェックリスト更新をコミット・プッシュ
 
 ---
 
