@@ -1,0 +1,334 @@
+package aws
+
+import (
+	"errors"
+	"testing"
+
+	"github.com/aws/aws-sdk-go-v2/service/appconfig/types"
+	"github.com/aws/smithy-go"
+)
+
+func TestWrapAWSError(t *testing.T) {
+	tests := []struct {
+		name        string
+		err         error
+		operation   string
+		wantContain string
+	}{
+		{
+			name:        "wrap generic error",
+			err:         errors.New("something went wrong"),
+			operation:   "ListApplications",
+			wantContain: "ListApplications failed: something went wrong",
+		},
+		{
+			name:        "wrap nil error",
+			err:         nil,
+			operation:   "GetApplication",
+			wantContain: "",
+		},
+		{
+			name: "wrap AWS API error",
+			err: &smithy.GenericAPIError{
+				Code:    "ResourceNotFoundException",
+				Message: "Resource not found",
+			},
+			operation:   "GetConfigurationProfile",
+			wantContain: "GetConfigurationProfile failed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			wrapped := WrapAWSError(tt.err, tt.operation)
+
+			if tt.err == nil {
+				if wrapped != nil {
+					t.Errorf("WrapAWSError() with nil error should return nil, got %v", wrapped)
+				}
+				return
+			}
+
+			if wrapped == nil {
+				t.Error("WrapAWSError() returned nil for non-nil error")
+				return
+			}
+
+			errMsg := wrapped.Error()
+			if !contains(errMsg, tt.wantContain) {
+				t.Errorf("WrapAWSError() error message = %q, want to contain %q", errMsg, tt.wantContain)
+			}
+		})
+	}
+}
+
+func TestIsAccessDeniedError(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "access denied error",
+			err: &smithy.GenericAPIError{
+				Code:    "AccessDeniedException",
+				Message: "User is not authorized",
+			},
+			want: true,
+		},
+		{
+			name: "unauthorized error",
+			err: &smithy.GenericAPIError{
+				Code:    "UnauthorizedException",
+				Message: "Not authorized",
+			},
+			want: true,
+		},
+		{
+			name: "forbidden error",
+			err: &smithy.GenericAPIError{
+				Code:    "ForbiddenException",
+				Message: "Forbidden",
+			},
+			want: true,
+		},
+		{
+			name: "resource not found error",
+			err: &smithy.GenericAPIError{
+				Code:    "ResourceNotFoundException",
+				Message: "Resource not found",
+			},
+			want: false,
+		},
+		{
+			name: "generic error",
+			err:  errors.New("some error"),
+			want: false,
+		},
+		{
+			name: "nil error",
+			err:  nil,
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsAccessDeniedError(tt.err); got != tt.want {
+				t.Errorf("IsAccessDeniedError() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsResourceNotFoundError(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "resource not found error",
+			err: &smithy.GenericAPIError{
+				Code:    "ResourceNotFoundException",
+				Message: "Resource not found",
+			},
+			want: true,
+		},
+		{
+			name: "typed resource not found error",
+			err:  &types.ResourceNotFoundException{Message: stringPtr("not found")},
+			want: true,
+		},
+		{
+			name: "access denied error",
+			err: &smithy.GenericAPIError{
+				Code:    "AccessDeniedException",
+				Message: "Access denied",
+			},
+			want: false,
+		},
+		{
+			name: "generic error",
+			err:  errors.New("some error"),
+			want: false,
+		},
+		{
+			name: "nil error",
+			err:  nil,
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsResourceNotFoundError(tt.err); got != tt.want {
+				t.Errorf("IsResourceNotFoundError() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFormatAccessDeniedError(t *testing.T) {
+	tests := []struct {
+		name        string
+		operation   string
+		wantContain []string
+	}{
+		{
+			name:      "list applications operation",
+			operation: "ListApplications",
+			wantContain: []string{
+				"Access denied",
+				"ListApplications",
+				"appconfig:ListApplications",
+			},
+		},
+		{
+			name:      "get configuration profile operation",
+			operation: "GetConfigurationProfile",
+			wantContain: []string{
+				"Access denied",
+				"GetConfigurationProfile",
+				"appconfig:GetConfigurationProfile",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := FormatAccessDeniedError(tt.operation)
+
+			for _, want := range tt.wantContain {
+				if !contains(result, want) {
+					t.Errorf("FormatAccessDeniedError() = %q, want to contain %q", result, want)
+				}
+			}
+		})
+	}
+}
+
+func TestIsThrottlingError(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "throttling exception",
+			err: &smithy.GenericAPIError{
+				Code:    "ThrottlingException",
+				Message: "Rate exceeded",
+			},
+			want: true,
+		},
+		{
+			name: "throttled exception",
+			err: &smithy.GenericAPIError{
+				Code:    "ThrottledException",
+				Message: "Throttled",
+			},
+			want: true,
+		},
+		{
+			name: "too many requests",
+			err: &smithy.GenericAPIError{
+				Code:    "TooManyRequestsException",
+				Message: "Too many requests",
+			},
+			want: true,
+		},
+		{
+			name: "request limit exceeded",
+			err: &smithy.GenericAPIError{
+				Code:    "RequestLimitExceeded",
+				Message: "Request limit exceeded",
+			},
+			want: true,
+		},
+		{
+			name: "resource not found error",
+			err: &smithy.GenericAPIError{
+				Code:    "ResourceNotFoundException",
+				Message: "Resource not found",
+			},
+			want: false,
+		},
+		{
+			name: "generic error",
+			err:  errors.New("some error"),
+			want: false,
+		},
+		{
+			name: "nil error",
+			err:  nil,
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsThrottlingError(tt.err); got != tt.want {
+				t.Errorf("IsThrottlingError() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFormatUserFriendlyError(t *testing.T) {
+	tests := []struct {
+		name        string
+		err         error
+		operation   string
+		wantContain string
+	}{
+		{
+			name: "access denied error",
+			err: &smithy.GenericAPIError{
+				Code:    "AccessDeniedException",
+				Message: "User is not authorized",
+			},
+			operation:   "ListApplications",
+			wantContain: "Access denied",
+		},
+		{
+			name: "resource not found error",
+			err: &smithy.GenericAPIError{
+				Code:    "ResourceNotFoundException",
+				Message: "Resource not found",
+			},
+			operation:   "GetApplication",
+			wantContain: "Resource not found",
+		},
+		{
+			name: "throttling error",
+			err: &smithy.GenericAPIError{
+				Code:    "ThrottlingException",
+				Message: "Rate exceeded",
+			},
+			operation:   "ListDeployments",
+			wantContain: "Rate limit exceeded",
+		},
+		{
+			name:        "generic error",
+			err:         errors.New("connection timeout"),
+			operation:   "StartDeployment",
+			wantContain: "connection timeout",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := FormatUserFriendlyError(tt.err, tt.operation)
+
+			if !contains(result, tt.wantContain) {
+				t.Errorf("FormatUserFriendlyError() = %q, want to contain %q", result, tt.wantContain)
+			}
+		})
+	}
+}
+
+// Helper function
+func stringPtr(s string) *string {
+	return &s
+}
