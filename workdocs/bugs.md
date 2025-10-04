@@ -4,8 +4,8 @@
 
 ### 優先度 high
 
-- [ ] initで作成された設定のdeployment_strategyが "" になって名前が設定されていない
-- [ ] 生成されたファイルにregionが記載されていない。initだけ明示的にregionの指定が必要だが、それ以外のコマンドは設定ファイルからregionを読み込む
+- [x] initで作成された設定のdeployment_strategyが "" になって名前が設定されていない
+- [x] 生成されたファイルにregionが記載されていない。initだけ明示的にregionの指定が必要だが、それ以外のコマンドは設定ファイルからregionを読み込む
 
 ### 優先度 mid
 

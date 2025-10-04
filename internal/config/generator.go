@@ -11,7 +11,7 @@ import (
 )
 
 // GenerateConfigFile generates an apcdeploy.yml file with the given parameters
-func GenerateConfigFile(app, profile, env, dataFile, outputPath string) error {
+func GenerateConfigFile(app, profile, env, dataFile, region, outputPath string) error {
 	// Check if file already exists
 	if _, err := os.Stat(outputPath); err == nil {
 		return fmt.Errorf("config file already exists at %s (use --force to overwrite)", outputPath)
@@ -23,6 +23,8 @@ func GenerateConfigFile(app, profile, env, dataFile, outputPath string) error {
 		ConfigurationProfile: profile,
 		Environment:          env,
 		DataFile:             dataFile,
+		DeploymentStrategy:   "AppConfig.AllAtOnce",
+		Region:               region,
 	}
 
 	// Marshal to YAML

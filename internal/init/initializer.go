@@ -130,7 +130,7 @@ func (i *Initializer) generateFiles(opts *Options, result *Result) error {
 	// Generate apcdeploy.yml
 	i.reporter.Progress(fmt.Sprintf("Generating configuration file: %s", result.ConfigFile))
 
-	if err := config.GenerateConfigFile(result.AppName, result.ProfileName, result.EnvName, result.DataFile, result.ConfigFile); err != nil {
+	if err := config.GenerateConfigFile(result.AppName, result.ProfileName, result.EnvName, result.DataFile, opts.Region, result.ConfigFile); err != nil {
 		return fmt.Errorf("failed to generate config file: %w", err)
 	}
 

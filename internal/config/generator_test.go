@@ -17,6 +17,7 @@ func TestGenerateConfigFile(t *testing.T) {
 		profile        string
 		env            string
 		dataFile       string
+		region         string
 		outputPath     string
 		wantErr        bool
 		validateConfig func(*testing.T, *Config)
@@ -27,6 +28,7 @@ func TestGenerateConfigFile(t *testing.T) {
 			profile:    "test-profile",
 			env:        "test-env",
 			dataFile:   "data.json",
+			region:     "us-east-1",
 			outputPath: filepath.Join(tempDir, "apcdeploy.yml"),
 			wantErr:    false,
 			validateConfig: func(t *testing.T, cfg *Config) {
@@ -42,6 +44,12 @@ func TestGenerateConfigFile(t *testing.T) {
 				if cfg.DataFile != "data.json" {
 					t.Errorf("expected data file %q, got %q", "data.json", cfg.DataFile)
 				}
+				if cfg.DeploymentStrategy != "AppConfig.AllAtOnce" {
+					t.Errorf("expected deployment_strategy %q, got %q", "AppConfig.AllAtOnce", cfg.DeploymentStrategy)
+				}
+				if cfg.Region != "us-east-1" {
+					t.Errorf("expected region %q, got %q", "us-east-1", cfg.Region)
+				}
 			},
 		},
 		{
@@ -50,6 +58,7 @@ func TestGenerateConfigFile(t *testing.T) {
 			profile:    "my-profile",
 			env:        "production",
 			dataFile:   "config.yaml",
+			region:     "ap-northeast-1",
 			outputPath: filepath.Join(tempDir, "custom.yml"),
 			wantErr:    false,
 			validateConfig: func(t *testing.T, cfg *Config) {
@@ -62,7 +71,7 @@ func TestGenerateConfigFile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := GenerateConfigFile(tt.app, tt.profile, tt.env, tt.dataFile, tt.outputPath)
+			err := GenerateConfigFile(tt.app, tt.profile, tt.env, tt.dataFile, tt.region, tt.outputPath)
 
 			if tt.wantErr && err == nil {
 				t.Error("expected error but got none")
@@ -106,7 +115,7 @@ func TestGenerateConfigFileOverwrite(t *testing.T) {
 	}
 
 	// Try to generate - should fail without force flag
-	err := GenerateConfigFile("app", "profile", "env", "data.json", configPath)
+	err := GenerateConfigFile("app", "profile", "env", "data.json", "us-east-1", configPath)
 	if err == nil {
 		t.Error("expected error when overwriting existing file, but got none")
 	}
