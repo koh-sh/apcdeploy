@@ -102,19 +102,16 @@ func WriteDataFile(content []byte, contentType, outputPath, profileType string) 
 }
 
 // formatJSON formats JSON data with proper indentation
-// For FeatureFlags profile type, it removes _updatedAt and _createdAt fields
+// For FeatureFlags profile type, it removes _updatedAt and _createdAt fields recursively
 func formatJSON(data []byte, profileType string) ([]byte, error) {
 	var obj any
 	if err := json.Unmarshal(data, &obj); err != nil {
 		return nil, fmt.Errorf("invalid JSON: %w", err)
 	}
 
-	// For FeatureFlags, remove _updatedAt and _createdAt fields
+	// For FeatureFlags, remove _updatedAt and _createdAt fields recursively
 	if profileType == "AWS.AppConfig.FeatureFlags" {
-		if objMap, ok := obj.(map[string]any); ok {
-			delete(objMap, "_updatedAt")
-			delete(objMap, "_createdAt")
-		}
+		obj = removeTimestampFields(obj)
 	}
 
 	var buf bytes.Buffer
@@ -125,4 +122,28 @@ func formatJSON(data []byte, profileType string) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
+}
+
+// removeTimestampFields recursively removes _updatedAt and _createdAt from all maps in the object
+func removeTimestampFields(obj any) any {
+	switch v := obj.(type) {
+	case map[string]any:
+		// Remove timestamp fields from this map
+		delete(v, "_updatedAt")
+		delete(v, "_createdAt")
+		// Recursively process all values in the map
+		for key, value := range v {
+			v[key] = removeTimestampFields(value)
+		}
+		return v
+	case []any:
+		// Recursively process all elements in the array
+		for i, value := range v {
+			v[i] = removeTimestampFields(value)
+		}
+		return v
+	default:
+		// Return primitive values as-is
+		return v
+	}
 }

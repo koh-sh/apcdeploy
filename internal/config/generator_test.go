@@ -310,8 +310,8 @@ func TestWriteDataFileFeatureFlags(t *testing.T) {
 		validate    func(*testing.T, string)
 	}{
 		{
-			name:        "feature flags - removes _updatedAt and _createdAt",
-			content:     []byte(`{"_updatedAt":"2024-01-01T00:00:00Z","_createdAt":"2024-01-01T00:00:00Z","flags":{"feature1":{"enabled":true}}}`),
+			name:        "feature flags - removes _updatedAt and _createdAt recursively",
+			content:     []byte(`{"flags":{"flag1":{"_createdAt":"2025-10-04T12:56:48.285Z","_updatedAt":"2025-10-04T12:30:01.96Z","name":"flag1"},"flag2":{"_createdAt":"2025-10-04T12:56:48.285Z","_updatedAt":"2025-10-04T12:30:01.96Z","name":"flag2"}},"values":{"flag1":{"_createdAt":"2025-10-04T12:56:48.285Z","_updatedAt":"2025-10-04T12:56:48.285Z","enabled":true},"flag2":{"_createdAt":"2025-10-04T12:56:48.285Z","_updatedAt":"2025-10-04T12:23:12.05Z","enabled":true}},"version":"1"}`),
 			contentType: "application/json",
 			profileType: "AWS.AppConfig.FeatureFlags",
 			outputPath:  filepath.Join(tempDir, "featureflags.json"),
@@ -321,16 +321,26 @@ func TestWriteDataFileFeatureFlags(t *testing.T) {
 				if err != nil {
 					t.Fatalf("failed to read file: %v", err)
 				}
-				// Should not contain _updatedAt or _createdAt
+				// Should not contain _updatedAt or _createdAt anywhere
 				if strings.Contains(string(data), "_updatedAt") {
-					t.Error("_updatedAt should be removed from FeatureFlags")
+					t.Error("_updatedAt should be removed from all nested objects in FeatureFlags")
 				}
 				if strings.Contains(string(data), "_createdAt") {
-					t.Error("_createdAt should be removed from FeatureFlags")
+					t.Error("_createdAt should be removed from all nested objects in FeatureFlags")
 				}
-				// Should contain flags
+				// Should contain flags and values
 				if !strings.Contains(string(data), "flags") {
 					t.Error("flags should be present in output")
+				}
+				if !strings.Contains(string(data), "values") {
+					t.Error("values should be present in output")
+				}
+				// Should keep other fields like name, enabled
+				if !strings.Contains(string(data), "flag1") {
+					t.Error("flag1 should be present in output")
+				}
+				if !strings.Contains(string(data), "enabled") {
+					t.Error("enabled should be present in output")
 				}
 			},
 		},

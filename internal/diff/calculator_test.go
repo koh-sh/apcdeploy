@@ -381,16 +381,16 @@ func TestCalculateFeatureFlags(t *testing.T) {
 		wantChanges   bool
 	}{
 		{
-			name:          "feature flags - no changes when only timestamps differ",
-			remoteContent: `{"_updatedAt":"2024-01-01T00:00:00Z","_createdAt":"2024-01-01T00:00:00Z","flags":{"feature1":{"enabled":true}}}`,
-			localContent:  `{"flags":{"feature1":{"enabled":true}}}`,
+			name:          "feature flags - no changes when only nested timestamps differ",
+			remoteContent: `{"flags":{"flag1":{"_createdAt":"2025-10-04T12:56:48.285Z","_updatedAt":"2025-10-04T12:30:01.96Z","name":"flag1"},"flag2":{"_createdAt":"2025-10-04T12:56:48.285Z","_updatedAt":"2025-10-04T12:30:01.96Z","name":"flag2"}},"values":{"flag1":{"_createdAt":"2025-10-04T12:56:48.285Z","_updatedAt":"2025-10-04T12:56:48.285Z","enabled":true},"flag2":{"_createdAt":"2025-10-04T12:56:48.285Z","_updatedAt":"2025-10-04T12:23:12.05Z","enabled":true}},"version":"1"}`,
+			localContent:  `{"flags":{"flag1":{"name":"flag1"},"flag2":{"name":"flag2"}},"values":{"flag1":{"enabled":true},"flag2":{"enabled":true}},"version":"1"}`,
 			profileType:   "AWS.AppConfig.FeatureFlags",
 			wantChanges:   false,
 		},
 		{
-			name:          "feature flags - changes detected in flags",
-			remoteContent: `{"_updatedAt":"2024-01-01T00:00:00Z","flags":{"feature1":{"enabled":true}}}`,
-			localContent:  `{"flags":{"feature1":{"enabled":false}}}`,
+			name:          "feature flags - changes detected in nested flags",
+			remoteContent: `{"flags":{"flag1":{"_updatedAt":"2025-10-04T12:30:01.96Z","name":"flag1"}},"values":{"flag1":{"_updatedAt":"2025-10-04T12:56:48.285Z","enabled":true}},"version":"1"}`,
+			localContent:  `{"flags":{"flag1":{"name":"flag1"}},"values":{"flag1":{"enabled":false}},"version":"1"}`,
 			profileType:   "AWS.AppConfig.FeatureFlags",
 			wantChanges:   true,
 		},
@@ -402,9 +402,9 @@ func TestCalculateFeatureFlags(t *testing.T) {
 			wantChanges:   true,
 		},
 		{
-			name:          "feature flags - both timestamps removed from diff",
-			remoteContent: `{"_updatedAt":"2024-01-01T00:00:00Z","_createdAt":"2024-01-01T00:00:00Z","flags":{}}`,
-			localContent:  `{"_updatedAt":"2024-02-01T00:00:00Z","_createdAt":"2024-02-01T00:00:00Z","flags":{}}`,
+			name:          "feature flags - different timestamps but same content",
+			remoteContent: `{"flags":{"flag1":{"_createdAt":"2024-01-01T00:00:00Z","_updatedAt":"2024-01-01T00:00:00Z","name":"flag1"}},"values":{"flag1":{"_createdAt":"2024-01-01T00:00:00Z","_updatedAt":"2024-01-01T00:00:00Z","enabled":true}},"version":"1"}`,
+			localContent:  `{"flags":{"flag1":{"_createdAt":"2024-02-01T00:00:00Z","_updatedAt":"2024-02-01T00:00:00Z","name":"flag1"}},"values":{"flag1":{"_createdAt":"2024-02-01T00:00:00Z","_updatedAt":"2024-02-01T00:00:00Z","enabled":true}},"version":"1"}`,
 			profileType:   "AWS.AppConfig.FeatureFlags",
 			wantChanges:   false,
 		},
