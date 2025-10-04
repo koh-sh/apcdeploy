@@ -514,6 +514,121 @@ func TestGetLatestDeployment(t *testing.T) {
 	}
 }
 
+func TestGetLatestDeploymentIncludingRollback(t *testing.T) {
+	tests := []struct {
+		name              string
+		deployments       []types.DeploymentSummary
+		getDeploymentFunc func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error)
+		profileID         string
+		wantDeployment    *DeploymentInfo
+		wantErr           bool
+	}{
+		{
+			name: "returns ROLLED_BACK deployment when it's the latest",
+			deployments: []types.DeploymentSummary{
+				{DeploymentNumber: 1},
+				{DeploymentNumber: 2},
+				{DeploymentNumber: 3},
+			},
+			getDeploymentFunc: func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
+				deployNum := *params.DeploymentNumber
+				state := types.DeploymentStateComplete
+				configVersion := "5"
+				// Deployment 3 is ROLLED_BACK (latest)
+				if deployNum == 3 {
+					state = types.DeploymentStateRolledBack
+					configVersion = "7"
+				}
+				// Deployment 2 is successful
+				if deployNum == 2 {
+					configVersion = "6"
+				}
+				return &appconfig.GetDeploymentOutput{
+					DeploymentNumber:       deployNum,
+					ConfigurationProfileId: aws_stringPtr("profile-123"),
+					ConfigurationVersion:   aws_stringPtr(configVersion),
+					State:                  state,
+				}, nil
+			},
+			profileID: "profile-123",
+			wantDeployment: &DeploymentInfo{
+				DeploymentNumber:     3,
+				ConfigurationVersion: "7",
+				State:                types.DeploymentStateRolledBack,
+				Description:          "",
+			},
+			wantErr: false,
+		},
+		{
+			name: "returns latest deployment regardless of state",
+			deployments: []types.DeploymentSummary{
+				{DeploymentNumber: 5},
+				{DeploymentNumber: 7},
+			},
+			getDeploymentFunc: func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
+				deployNum := *params.DeploymentNumber
+				return &appconfig.GetDeploymentOutput{
+					DeploymentNumber:       deployNum,
+					ConfigurationProfileId: aws_stringPtr("profile-123"),
+					ConfigurationVersion:   aws_stringPtr("10"),
+					State:                  types.DeploymentStateComplete,
+				}, nil
+			},
+			profileID: "profile-123",
+			wantDeployment: &DeploymentInfo{
+				DeploymentNumber:     7,
+				ConfigurationVersion: "10",
+				State:                types.DeploymentStateComplete,
+				Description:          "",
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockClient := &mock.MockAppConfigClient{
+				ListDeploymentsFunc: func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
+					return &appconfig.ListDeploymentsOutput{
+						Items: tt.deployments,
+					}, nil
+				},
+				GetDeploymentFunc: tt.getDeploymentFunc,
+			}
+
+			client := &Client{AppConfig: mockClient}
+			deployment, err := GetLatestDeploymentIncludingRollback(context.Background(), client, "app-123", "env-123", tt.profileID)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetLatestDeploymentIncludingRollback() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if tt.wantDeployment == nil {
+				if deployment != nil {
+					t.Errorf("GetLatestDeploymentIncludingRollback() = %v, want nil", deployment)
+				}
+				return
+			}
+
+			if deployment == nil {
+				t.Error("GetLatestDeploymentIncludingRollback() = nil, want deployment")
+				return
+			}
+
+			if deployment.DeploymentNumber != tt.wantDeployment.DeploymentNumber {
+				t.Errorf("DeploymentNumber = %v, want %v", deployment.DeploymentNumber, tt.wantDeployment.DeploymentNumber)
+			}
+			if deployment.ConfigurationVersion != tt.wantDeployment.ConfigurationVersion {
+				t.Errorf("ConfigurationVersion = %v, want %v", deployment.ConfigurationVersion, tt.wantDeployment.ConfigurationVersion)
+			}
+			if deployment.State != tt.wantDeployment.State {
+				t.Errorf("State = %v, want %v", deployment.State, tt.wantDeployment.State)
+			}
+		})
+	}
+}
+
 func TestGetHostedConfigurationVersion(t *testing.T) {
 	tests := []struct {
 		name          string

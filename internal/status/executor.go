@@ -126,8 +126,9 @@ func (e *Executor) getDeploymentByID(ctx context.Context, client *aws.Client, re
 }
 
 // getLatestDeployment retrieves the latest deployment for the configuration profile
+// This includes ROLLED_BACK deployments for status command
 func (e *Executor) getLatestDeployment(ctx context.Context, client *aws.Client, resources *aws.ResolvedResources) (*aws.DeploymentDetails, error) {
-	deployment, err := aws.GetLatestDeployment(ctx, client, resources.ApplicationID, resources.EnvironmentID, resources.Profile.ID)
+	deployment, err := aws.GetLatestDeploymentIncludingRollback(ctx, client, resources.ApplicationID, resources.EnvironmentID, resources.Profile.ID)
 	if err != nil {
 		return nil, err
 	}

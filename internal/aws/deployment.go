@@ -157,7 +157,19 @@ type DeploymentInfo struct {
 }
 
 // GetLatestDeployment retrieves the latest deployment for the specified configuration profile
+// This function skips ROLLED_BACK deployments and returns the last successful or in-progress deployment
 func GetLatestDeployment(ctx context.Context, client *Client, applicationID, environmentID, profileID string) (*DeploymentInfo, error) {
+	return getLatestDeploymentInternal(ctx, client, applicationID, environmentID, profileID, true)
+}
+
+// GetLatestDeploymentIncludingRollback retrieves the latest deployment for the specified configuration profile
+// This function includes ROLLED_BACK deployments and returns the absolute latest deployment
+func GetLatestDeploymentIncludingRollback(ctx context.Context, client *Client, applicationID, environmentID, profileID string) (*DeploymentInfo, error) {
+	return getLatestDeploymentInternal(ctx, client, applicationID, environmentID, profileID, false)
+}
+
+// getLatestDeploymentInternal is the internal implementation for retrieving the latest deployment
+func getLatestDeploymentInternal(ctx context.Context, client *Client, applicationID, environmentID, profileID string, skipRolledBack bool) (*DeploymentInfo, error) {
 	input := &appconfig.ListDeploymentsInput{
 		ApplicationId: aws.String(applicationID),
 		EnvironmentId: aws.String(environmentID),
@@ -170,7 +182,6 @@ func GetLatestDeployment(ctx context.Context, client *Client, applicationID, env
 
 	// Find the latest deployment for this configuration profile
 	// We need to get full deployment details to access ConfigurationProfileId
-	// Skip ROLLED_BACK deployments and return the last successful or in-progress deployment
 	var latestDeployment *DeploymentInfo
 	for i := range output.Items {
 		summary := &output.Items[i]
@@ -187,8 +198,13 @@ func GetLatestDeployment(ctx context.Context, client *Client, applicationID, env
 			continue // Skip this deployment if we can't get details
 		}
 
-		// Check if this is for the target configuration profile and is not ROLLED_BACK
-		if aws.ToString(deployment.ConfigurationProfileId) == profileID && deployment.State != types.DeploymentStateRolledBack {
+		// Check if this is for the target configuration profile
+		if aws.ToString(deployment.ConfigurationProfileId) == profileID {
+			// Skip ROLLED_BACK deployments if requested
+			if skipRolledBack && deployment.State == types.DeploymentStateRolledBack {
+				continue
+			}
+
 			if latestDeployment == nil || summary.DeploymentNumber > latestDeployment.DeploymentNumber {
 				latestDeployment = &DeploymentInfo{
 					DeploymentNumber:     summary.DeploymentNumber,
