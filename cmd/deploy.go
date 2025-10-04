@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 
+	"github.com/koh-sh/apcdeploy/internal/cli"
 	"github.com/koh-sh/apcdeploy/internal/deploy"
 	"github.com/spf13/cobra"
 )
@@ -51,7 +52,7 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create reporter
-	reporter := &cliReporter{}
+	reporter := cli.NewReporter()
 
 	// Run deployment
 	executor := deploy.NewExecutor(reporter)

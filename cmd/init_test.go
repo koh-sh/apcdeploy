@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/appconfig/types"
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/aws/mock"
+	"github.com/koh-sh/apcdeploy/internal/cli"
 	initPkg "github.com/koh-sh/apcdeploy/internal/init"
 )
 
@@ -167,7 +168,7 @@ func TestCliReporter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			reporter := &cliReporter{}
+			reporter := cli.NewReporter()
 
 			// Call the method (we're just checking it doesn't panic)
 			switch tt.method {
@@ -228,7 +229,7 @@ func TestInitCommandWithMock(t *testing.T) {
 	// Set factory to return mock-based initializer
 	initializerFactory = func(ctx context.Context, region string) (*initPkg.Initializer, error) {
 		awsClient := &awsInternal.Client{AppConfig: mockClient}
-		return initPkg.New(awsClient, &cliReporter{}), nil
+		return initPkg.New(awsClient, cli.NewReporter()), nil
 	}
 
 	cmd := newInitCommand()

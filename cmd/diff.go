@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 
+	"github.com/koh-sh/apcdeploy/internal/cli"
 	"github.com/koh-sh/apcdeploy/internal/diff"
 	"github.com/spf13/cobra"
 )
@@ -44,7 +45,7 @@ func runDiff(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create reporter
-	reporter := &cliReporter{}
+	reporter := cli.NewReporter()
 
 	// Run diff
 	executor := diff.NewExecutor(reporter)

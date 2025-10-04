@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
+	"github.com/koh-sh/apcdeploy/internal/cli"
 	"github.com/koh-sh/apcdeploy/internal/display"
 	initPkg "github.com/koh-sh/apcdeploy/internal/init"
 	"github.com/spf13/cobra"
@@ -90,7 +91,7 @@ func createDefaultInitializer(ctx context.Context) (*initPkg.Initializer, error)
 		return nil, fmt.Errorf("failed to initialize AWS client: %w", err)
 	}
 
-	reporter := &cliReporter{}
+	reporter := cli.NewReporter()
 	return initPkg.New(awsClient, reporter), nil
 }
 
