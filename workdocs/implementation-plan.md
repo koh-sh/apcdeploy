@@ -538,10 +538,10 @@ AWS APIのモックを使用してテストファーストで実装します。
     - [x] `make fmt` - フォーマット適用
   - [x] すべてのチェックがパスするまで修正を繰り返す
   - [x] 実装計画のチェックリストを更新
-  - [ ] Gitコミット・プッシュ
-    - [ ] `git add .`
-    - [ ] `git commit -m "feat: complete Epic 4 - deploy command implementation"`
-    - [ ] `git push origin main`
+  - [x] Gitコミット・プッシュ
+    - [x] `git add .`
+    - [x] `git commit -m "feat: complete Epic 4 - deploy command implementation"`
+    - [x] `git push origin main`
     - [ ] チェックリスト更新をコミット・プッシュ
 
 ---
