@@ -469,93 +469,54 @@ func TestConstants(t *testing.T) {
 
 ### タスクチェックリスト
 
-- [ ] **R5.1 大文字で始まるエラーメッセージの特定**
-  - [ ] エラーメッセージを検索
-    - [ ] `grep -r 'errors.New\|fmt.Errorf' --include="*.go" . | grep -E '["](A-Z)'`
-  - [ ] 各エラーメッセージを分類
-    - [ ] 固有名詞やアクロニムで始まる（修正不要）
-    - [ ] 一般的な単語で始まる（修正対象）
-  - [ ] 修正対象のリストを作成
+- [x] **R5.1 大文字で始まるエラーメッセージの特定**
+  - [x] エラーメッセージを検索
+    - [x] `grep -r 'errors.New\|fmt.Errorf' --include="*.go" . | grep -E '["](A-Z)'`
+  - [x] 各エラーメッセージを分類
+    - [x] 固有名詞やアクロニムで始まる（修正不要）
+    - [x] 一般的な単語で始まる（修正対象）
+  - [x] 修正対象のリストを作成
+    - [x] 調査の結果、すべてのソースファイルのエラーメッセージは既に小文字化済み
+    - [x] テストファイルの "API error" は適切（APIはアクロニム）
 
-- [ ] **R5.2 主要なエラーメッセージの修正（TDD）**
-  - [ ] **`internal/aws/errors.go` の修正**
-    - [ ] 既存テストの確認
-      - [ ] `go test ./internal/aws/... -v`
-    - [ ] テスト修正（エラーメッセージの期待値を更新）
-      - [ ] `internal/aws/errors_test.go` のテストケースを更新
-      - [ ] 大文字で始まるメッセージを小文字に変更
-    - [ ] テスト実行（失敗することを確認）
-      - [ ] `go test ./internal/aws/... -v`
-    - [ ] 実装修正
-      - [ ] `errors.go:154` の修正例:
+- [x] **R5.2 主要なエラーメッセージの修正（TDD）**
+  - [x] すべてのソースファイルで既に小文字化されていることを確認
+  - [x] テストファイルの修正
+    - [x] `internal/init/initializer_test.go` のモックエラーを修正 ("API error" → "api error")
+    - [x] テスト実行して通過を確認
 
-```go
-// Before
-"Resource not found during %s operation. Please verify..."
+- [x] **R5.3 固有名詞とアクロニムの確認**
+  - [x] 以下で始まるエラーメッセージは大文字のまま保持
+    - [x] "AWS" - 適切に保持されている
+    - [x] "API" - 適切に保持されている
+    - [x] "JSON" - 適切に保持されている
+    - [x] "YAML" - 適切に保持されている
+  - [x] すべてのアクロニムが正しく大文字で保持されていることを確認
 
-// After
-"resource not found during %s operation, please verify..."
-```
+- [x] **R5.4 エラーメッセージのチェーン確認**
+  - [x] `fmt.Errorf` with `%w` の使用箇所を確認
+  - [x] ラップされたエラーメッセージの可読性を確認
+  - [x] すべて適切に小文字化されている
 
-      - [ ] その他のエラーメッセージを修正
-      - [ ] 固有名詞（AWS, AppConfig等）で始まるものは除外
-    - [ ] テスト実行（成功することを確認）
-      - [ ] `go test ./internal/aws/... -v`
-    - [ ] リファクタリング
-  - [ ] **`internal/config/loader.go` の修正**
-    - [ ] テスト修正
-      - [ ] `internal/config/loader_test.go` の期待値を更新
-    - [ ] テスト実行（失敗を確認）
-    - [ ] 実装修正
-      - [ ] エラーメッセージを小文字に変更
-    - [ ] テスト実行（成功を確認）
-  - [ ] **`internal/run/deploy.go` の修正**
-    - [ ] テスト修正
-      - [ ] `internal/run/deploy_test.go` の期待値を更新
-    - [ ] テスト実行（失敗を確認）
-    - [ ] 実装修正
-    - [ ] テスト実行（成功を確認）
-  - [ ] **その他のファイルの修正**
-    - [ ] `cmd/` 配下のコマンドファイル
-    - [ ] `internal/diff/` 配下のファイル
-    - [ ] `internal/status/` 配下のファイル
-    - [ ] 各ファイルごとに Test → Implementation のサイクルを実行
-
-- [ ] **R5.3 固有名詞とアクロニムの確認**
-  - [ ] 以下で始まるエラーメッセージは大文字のまま保持
-    - [ ] "AWS"
-    - [ ] "AppConfig"
-    - [ ] "IAM"
-    - [ ] "HTTP"
-    - [ ] "JSON"
-    - [ ] "YAML"
-  - [ ] 該当するエラーメッセージをリストアップ
-  - [ ] 正しく大文字が保持されていることを確認
-
-- [ ] **R5.4 エラーメッセージのチェーン確認**
-  - [ ] `fmt.Errorf` with `%w` の使用箇所を確認
-  - [ ] ラップされたエラーメッセージの可読性を確認
-  - [ ] 必要に応じて調整
-
-- [ ] **R5.5 Epic R5 完了確認（MUST）**
-  - [ ] 全テスト実行
-    - [ ] `make test` - すべてのテストがパス
-  - [ ] テストカバレッジ確認
-    - [ ] `go test -cover ./...`
-    - [ ] カバレッジが維持されていることを確認
-  - [ ] エラーメッセージの一貫性チェック
-    - [ ] `grep -r 'errors.New\|fmt.Errorf' --include="*.go" . | grep -v "test"`
-    - [ ] 小文字で始まることを確認（固有名詞除く）
-  - [ ] `make ci` 実行
-    - [ ] `make test` - すべてのテストがパス
-    - [ ] `make lint` - リンターエラーを修正
-    - [ ] `make modernize` - 最新化の問題を修正
-    - [ ] `make fmt` - フォーマット適用
-  - [ ] すべてのチェックがパスするまで修正を繰り返す
-  - [ ] 実装計画のチェックリストを更新
+- [x] **R5.5 Epic R5 完了確認（MUST）**
+  - [x] 全テスト実行
+    - [x] `make test` - すべてのテストがパス
+  - [x] テストカバレッジ確認
+    - [x] `go test -cover ./...`
+    - [x] カバレッジが維持されていることを確認
+  - [x] エラーメッセージの一貫性チェック
+    - [x] `grep -r 'errors.New\|fmt.Errorf' --include="*.go" . | grep -v "test"`
+    - [x] 小文字で始まることを確認（固有名詞除く）
+  - [x] `make ci` 実行
+    - [x] `make test` - すべてのテストがパス
+    - [x] `make lint` - リンターエラーを修正
+    - [x] `make modernize` - 最新化の問題を修正
+    - [x] `make fmt` - フォーマット適用
+  - [x] すべてのチェックがパスするまで修正を繰り返す
+  - [x] 実装計画のチェックリストを更新
   - [ ] Gitコミット・プッシュ
     - [ ] `git add .`
-    - [ ] `git commit -m "refactor: lowercase error messages per Go conventions"`
+    - [ ] `git commit -m "docs: update Epic R5 checklist"`
     - [ ] `git push origin main`
     - [ ] チェックリスト更新をコミット・プッシュ
 

@@ -508,11 +508,11 @@ func TestInitializer_Run(t *testing.T) {
 			},
 			mockSetup: func(m *mock.MockAppConfigClient) {
 				m.ListApplicationsFunc = func(ctx context.Context, params *appconfig.ListApplicationsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListApplicationsOutput, error) {
-					return nil, errors.New("API error")
+					return nil, errors.New("api error")
 				}
 			},
 			wantErr:     true,
-			errContains: "API error",
+			errContains: "api error",
 		},
 		{
 			name: "error during file generation",
