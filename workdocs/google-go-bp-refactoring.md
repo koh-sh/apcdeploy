@@ -192,18 +192,18 @@
 
 ### タスクチェックリスト
 
-- [ ] **R3.1 コメント不足関数のリスト作成**
-  - [ ] コメントが不足している関数を特定
-    - [ ] `internal/run/deploy.go:43` - `loadConfiguration`
-    - [ ] `internal/diff/calculator.go:27` - `calculate`
-    - [ ] `internal/diff/calculator.go:157` - `formatDiffs`
-  - [ ] 各関数の責務と入出力を分析
+- [x] **R3.1 コメント不足関数のリスト作成**
+  - [x] コメントが不足している関数を特定
+    - [x] `internal/run/deploy.go:43` - `loadConfiguration`
+    - [x] `internal/diff/calculator.go:27` - `calculate`
+    - [x] `internal/diff/calculator.go:157` - `formatDiffs`
+  - [x] 各関数の責務と入出力を分析
 
-- [ ] **R3.2 `internal/run/deploy.go` のドキュメント追加**
-  - [ ] 既存テストの確認
-    - [ ] `go test ./internal/run/... -v`
-    - [ ] テストが通過することを確認
-  - [ ] `loadConfiguration`関数にコメント追加
+- [x] **R3.2 `internal/run/deploy.go` のドキュメント追加**
+  - [x] 既存テストの確認
+    - [x] `go test ./internal/run/... -v`
+    - [x] テストが通過することを確認
+  - [x] `loadConfiguration`関数にコメント追加
 
 ```go
 // loadConfiguration loads the configuration file and data file.
@@ -220,15 +220,15 @@
 func loadConfiguration(configPath string) (*config.Config, []byte, error) {
 ```
 
-  - [ ] テスト実行（変更なしの確認）
-    - [ ] `go test ./internal/run/... -v`
-  - [ ] godocフォーマット確認
-    - [ ] `go doc -all internal/run`
+  - [x] テスト実行（変更なしの確認）
+    - [x] `go test ./internal/run/... -v`
+  - [x] godocフォーマット確認
+    - [x] `go doc -all internal/run`
 
-- [ ] **R3.3 `internal/diff/calculator.go` の `calculate` 関数ドキュメント追加**
-  - [ ] 既存テストの確認
-    - [ ] `go test ./internal/diff/... -v`
-  - [ ] `calculate`関数にコメント追加
+- [x] **R3.3 `internal/diff/calculator.go` の `calculate` 関数ドキュメント追加**
+  - [x] 既存テストの確認
+    - [x] `go test ./internal/diff/... -v`
+  - [x] `calculate`関数にコメント追加
 
 ```go
 // calculate computes the diff between remote and local configuration.
@@ -250,12 +250,12 @@ func loadConfiguration(configPath string) (*config.Config, []byte, error) {
 func calculate(remoteContent, localContent, fileName, profileType string) (*Result, error) {
 ```
 
-  - [ ] テスト実行
-    - [ ] `go test ./internal/diff/... -v`
-  - [ ] godocフォーマット確認
+  - [x] テスト実行
+    - [x] `go test ./internal/diff/... -v`
+  - [x] godocフォーマット確認
 
-- [ ] **R3.4 `internal/diff/calculator.go` の `formatDiffs` 関数ドキュメント追加**
-  - [ ] `formatDiffs`関数にコメント追加
+- [x] **R3.4 `internal/diff/calculator.go` の `formatDiffs` 関数ドキュメント追加**
+  - [x] `formatDiffs`関数にコメント追加
 
 ```go
 // formatDiffs converts line-based diffs to a simple diff format.
@@ -274,37 +274,37 @@ func calculate(remoteContent, localContent, fileName, profileType string) (*Resu
 func formatDiffs(diffs []diffmatchpatch.Diff) string {
 ```
 
-  - [ ] テスト実行
-    - [ ] `go test ./internal/diff/... -v`
-  - [ ] godocフォーマット確認
+  - [x] テスト実行
+    - [x] `go test ./internal/diff/... -v`
+  - [x] godocフォーマット確認
 
-- [ ] **R3.5 その他の関数のドキュメント確認と追加**
-  - [ ] 複雑な非公開関数を追加で探す
-    - [ ] `grep -n "^func [a-z]" internal/**/*.go`
-  - [ ] 必要に応じてコメントを追加
-  - [ ] 全テスト実行
+- [x] **R3.5 その他の関数のドキュメント確認と追加**
+  - [x] 複雑な非公開関数を追加で探す
+    - [x] `grep -n "^func [a-z]" internal/**/*.go`
+  - [x] 必要に応じてコメントを追加
+  - [x] 全テスト実行
 
-- [ ] **R3.6 Epic R3 完了確認（MUST）**
-  - [ ] godoc生成確認
-    - [ ] `go doc -all internal/run`
-    - [ ] `go doc -all internal/diff`
-    - [ ] コメントが正しく表示されることを確認
-  - [ ] 全テスト実行
-    - [ ] `make test` - すべてのテストがパス
-  - [ ] テストカバレッジ確認
-    - [ ] `go test -cover ./...`
-  - [ ] `make ci` 実行
-    - [ ] `make test` - すべてのテストがパス
-    - [ ] `make lint` - リンターエラーを修正
-    - [ ] `make modernize` - 最新化の問題を修正
-    - [ ] `make fmt` - フォーマット適用
-  - [ ] すべてのチェックがパスするまで修正を繰り返す
-  - [ ] 実装計画のチェックリストを更新
-  - [ ] Gitコミット・プッシュ
-    - [ ] `git add .`
-    - [ ] `git commit -m "docs: add godoc comments to helper functions"`
-    - [ ] `git push origin main`
-    - [ ] チェックリスト更新をコミット・プッシュ
+- [x] **R3.6 Epic R3 完了確認（MUST）**
+  - [x] godoc生成確認
+    - [x] `go doc -all internal/run`
+    - [x] `go doc -all internal/diff`
+    - [x] コメントが正しく表示されることを確認
+  - [x] 全テスト実行
+    - [x] `make test` - すべてのテストがパス
+  - [x] テストカバレッジ確認
+    - [x] `go test -cover ./...`
+  - [x] `make ci` 実行
+    - [x] `make test` - すべてのテストがパス
+    - [x] `make lint` - リンターエラーを修正
+    - [x] `make modernize` - 最新化の問題を修正
+    - [x] `make fmt` - フォーマット適用
+  - [x] すべてのチェックがパスするまで修正を繰り返す
+  - [x] 実装計画のチェックリストを更新
+  - [x] Gitコミット・プッシュ
+    - [x] `git add .`
+    - [x] `git commit -m "docs: add godoc comments to helper functions"`
+    - [x] `git push origin main`
+    - [x] チェックリスト更新をコミット・プッシュ
 
 ---
 
