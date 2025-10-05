@@ -318,17 +318,17 @@ func formatDiffs(diffs []diffmatchpatch.Diff) string {
 
 ### タスクチェックリスト
 
-- [ ] **R4.1 マジックストリングの特定**
-  - [ ] プロファイルタイプ関連
-    - [ ] `"AWS.AppConfig.FeatureFlags"` の使用箇所を検索
-    - [ ] `"AWS.Freeform"` の使用箇所を検索
-  - [ ] デプロイ戦略プレフィックス
-    - [ ] `"AppConfig."` の使用箇所を検索（`internal/aws/resolver.go:134`）
-  - [ ] その他のマジックストリング
-    - [ ] コンテンツタイプ関連の文字列
+- [x] **R4.1 マジックストリングの特定**
+  - [x] プロファイルタイプ関連
+    - [x] `"AWS.AppConfig.FeatureFlags"` の使用箇所を検索
+    - [x] `"AWS.Freeform"` の使用箇所を検索
+  - [x] デプロイ戦略プレフィックス
+    - [x] `"AppConfig."` の使用箇所を検索（`internal/aws/resolver.go:134`）
+  - [x] その他のマジックストリング
+    - [x] コンテンツタイプ関連の文字列
 
-- [ ] **R4.2 定数定義の設計**
-  - [ ] `internal/config/constants.go` に定義する定数を設計
+- [x] **R4.2 定数定義の設計**
+  - [x] `internal/config/constants.go` に定義する定数を設計
 
 ```go
 package config
@@ -352,11 +352,11 @@ const (
 )
 ```
 
-  - [ ] パッケージ構成の確認
+  - [x] パッケージ構成の確認
 
-- [ ] **R4.3 `internal/config/constants.go` の作成（TDD）**
-  - [ ] `internal/config/constants_test.go` 作成
-    - [ ] 定数の値が正しいことを検証するテスト
+- [x] **R4.3 `internal/config/constants.go` の作成（TDD）**
+  - [x] `internal/config/constants_test.go` 作成
+    - [x] 定数の値が正しいことを検証するテスト
 
 ```go
 func TestConstants(t *testing.T) {
@@ -383,74 +383,79 @@ func TestConstants(t *testing.T) {
 }
 ```
 
-  - [ ] テスト実行（失敗することを確認）
-    - [ ] `go test ./internal/config/... -v`
-  - [ ] `internal/config/constants.go` 作成
-    - [ ] 定数を定義
-  - [ ] テスト実行（成功することを確認）
-    - [ ] `go test ./internal/config/... -v`
+  - [x] テスト実行（失敗することを確認）
+    - [x] `go test ./internal/config/... -v`
+  - [x] `internal/config/constants.go` 作成
+    - [x] 定数を定義
+  - [x] テスト実行（成功することを確認）
+    - [x] `go test ./internal/config/... -v`
 
-- [ ] **R4.4 既存コードでの定数使用（段階的リファクタリング）**
-  - [ ] **Phase 1: `internal/run/deploy.go` の修正**
-    - [ ] 既存テストの確認
-      - [ ] `go test ./internal/run/... -v`
-    - [ ] マジックストリングを定数に置き換え
-      - [ ] `"AWS.AppConfig.FeatureFlags"` → `config.ProfileTypeFeatureFlags`
-      - [ ] `"application/json"` → `config.ContentTypeJSON`
-      - [ ] `"application/x-yaml"` → `config.ContentTypeYAML`
-      - [ ] `"text/plain"` → `config.ContentTypeText`
-    - [ ] テスト実行
-      - [ ] `go test ./internal/run/... -v`
-    - [ ] リファクタリング
-  - [ ] **Phase 2: `internal/diff/calculator.go` の修正**
-    - [ ] 既存テストの確認
-      - [ ] `go test ./internal/diff/... -v`
-    - [ ] マジックストリングを定数に置き換え
-      - [ ] `"AWS.AppConfig.FeatureFlags"` → `config.ProfileTypeFeatureFlags`
-    - [ ] テスト実行
-      - [ ] `go test ./internal/diff/... -v`
-    - [ ] リファクタリング
-  - [ ] **Phase 3: `internal/aws/resolver.go` の修正**
-    - [ ] 既存テストの確認
-      - [ ] `go test ./internal/aws/... -v`
-    - [ ] マジックストリングを定数に置き換え
-      - [ ] `"AppConfig."` → `config.StrategyPrefixPredefined`
-    - [ ] テスト実行
-      - [ ] `go test ./internal/aws/... -v`
-    - [ ] リファクタリング
-  - [ ] **Phase 4: テストファイルの修正**
-    - [ ] `internal/run/deploy_test.go` の修正
-      - [ ] マジックストリングを定数に置き換え
-      - [ ] テスト実行
-    - [ ] `internal/diff/calculator_test.go` の修正
-      - [ ] 同様に定数に置き換え
-      - [ ] テスト実行
-    - [ ] その他のテストファイルを修正
+- [x] **R4.4 既存コードでの定数使用（段階的リファクタリング）**
+  - [x] **Phase 1: `internal/run/deploy.go` の修正**
+    - [x] 既存テストの確認
+      - [x] `go test ./internal/run/... -v`
+    - [x] マジックストリングを定数に置き換え
+      - [x] `"AWS.AppConfig.FeatureFlags"` → `config.ProfileTypeFeatureFlags`
+      - [x] `"application/json"` → `config.ContentTypeJSON`
+      - [x] `"application/x-yaml"` → `config.ContentTypeYAML`
+      - [x] `"text/plain"` → `config.ContentTypeText`
+    - [x] テスト実行
+      - [x] `go test ./internal/run/... -v`
+    - [x] リファクタリング
+  - [x] **Phase 2: `internal/diff/calculator.go` の修正**
+    - [x] 既存テストの確認
+      - [x] `go test ./internal/diff/... -v`
+    - [x] マジックストリングを定数に置き換え
+      - [x] `"AWS.AppConfig.FeatureFlags"` → `config.ProfileTypeFeatureFlags`
+    - [x] テスト実行
+      - [x] `go test ./internal/diff/... -v`
+    - [x] リファクタリング
+  - [x] **Phase 3: `internal/aws/resolver.go` の修正**
+    - [x] 既存テストの確認
+      - [x] `go test ./internal/aws/... -v`
+    - [x] マジックストリングを定数に置き換え
+      - [x] `"AppConfig."` → `config.StrategyPrefixPredefined`
+      - [x] `strings.HasPrefix` を使用してコードを改善
+    - [x] テスト実行
+      - [x] `go test ./internal/aws/... -v`
+    - [x] リファクタリング
+  - [x] **Phase 4: テストファイルの修正**
+    - [x] `internal/run/deploy_test.go` の修正
+      - [x] マジックストリングを定数に置き換え
+      - [x] テスト実行
+    - [x] `internal/diff/calculator_test.go` の修正
+      - [x] 同様に定数に置き換え
+      - [x] テスト実行
+    - [x] その他のテストファイルを修正
+      - [x] `internal/config/generator_test.go`
+      - [x] `internal/aws/resolver_test.go`
+      - [x] `internal/init/initializer_test.go`
 
-- [ ] **R4.5 全ファイルの検索と置き換え確認**
-  - [ ] 残っているマジックストリングを検索
-    - [ ] `grep -r "AWS.AppConfig.FeatureFlags" --include="*.go" .`
-    - [ ] `grep -r "AWS.Freeform" --include="*.go" .`
-    - [ ] `grep -r '"AppConfig\."' --include="*.go" .`
-  - [ ] 見つかった箇所をすべて定数に置き換え
+- [x] **R4.5 全ファイルの検索と置き換え確認**
+  - [x] 残っているマジックストリングを検索
+    - [x] `grep -r "AWS.AppConfig.FeatureFlags" --include="*.go" .`
+    - [x] `grep -r "AWS.Freeform" --include="*.go" .`
+    - [x] `grep -r '"AppConfig\."' --include="*.go" .`
+  - [x] 見つかった箇所をすべて定数に置き換え
+    - [x] AWS API mockレスポンスは意図的に保持（データ形式の明示性のため）
 
-- [ ] **R4.6 Epic R4 完了確認（MUST）**
-  - [ ] 全テスト実行
-    - [ ] `make test` - すべてのテストがパス
-  - [ ] テストカバレッジ確認
-    - [ ] `go test -cover ./...`
-  - [ ] `make ci` 実行
-    - [ ] `make test` - すべてのテストがパス
-    - [ ] `make lint` - リンターエラーを修正
-    - [ ] `make modernize` - 最新化の問題を修正
-    - [ ] `make fmt` - フォーマット適用
-  - [ ] すべてのチェックがパスするまで修正を繰り返す
-  - [ ] 実装計画のチェックリストを更新
-  - [ ] Gitコミット・プッシュ
-    - [ ] `git add .`
-    - [ ] `git commit -m "refactor: replace magic strings with constants"`
-    - [ ] `git push origin main`
-    - [ ] チェックリスト更新をコミット・プッシュ
+- [x] **R4.6 Epic R4 完了確認（MUST）**
+  - [x] 全テスト実行
+    - [x] `make test` - すべてのテストがパス
+  - [x] テストカバレッジ確認
+    - [x] `go test -cover ./...`
+  - [x] `make ci` 実行
+    - [x] `make test` - すべてのテストがパス
+    - [x] `make lint` - リンターエラーを修正
+    - [x] `make modernize` - 最新化の問題を修正
+    - [x] `make fmt` - フォーマット適用
+  - [x] すべてのチェックがパスするまで修正を繰り返す
+  - [x] 実装計画のチェックリストを更新
+  - [x] Gitコミット・プッシュ
+    - [x] `git add .`
+    - [x] `git commit -m "refactor: replace magic strings with constants"`
+    - [x] `git push origin main`
+    - [x] チェックリスト更新をコミット・プッシュ
 
 ---
 
