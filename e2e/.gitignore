@@ -1,0 +1,11 @@
+# Ignore apcdeploy binary
+apcdeploy
+
+# Ignore test configuration and data files
+apcdeploy.yml
+*.json
+*.yaml
+*.txt
+
+# Keep .gitignore itself
+!.gitignore
