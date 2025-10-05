@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -152,7 +153,7 @@ func TestGetLatestVersion(t *testing.T) {
 				if err == nil {
 					t.Error("expected error, got nil")
 				}
-				if tt.errContains != "" && !contains(err.Error(), tt.errContains) {
+				if tt.errContains != "" && !strings.Contains(err.Error(), tt.errContains) {
 					t.Errorf("error = %v, want to contain %v", err, tt.errContains)
 				}
 				return

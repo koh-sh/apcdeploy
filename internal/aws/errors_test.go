@@ -2,6 +2,7 @@ package aws
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/service/appconfig/types"
@@ -55,7 +56,7 @@ func TestWrapAWSError(t *testing.T) {
 			}
 
 			errMsg := wrapped.Error()
-			if !contains(errMsg, tt.wantContain) {
+			if !strings.Contains(errMsg, tt.wantContain) {
 				t.Errorf("wrapAWSError() error message = %q, want to contain %q", errMsg, tt.wantContain)
 			}
 		})
@@ -200,7 +201,7 @@ func TestFormatAccessDeniedError(t *testing.T) {
 			result := formatAccessDeniedError(tt.operation)
 
 			for _, want := range tt.wantContain {
-				if !contains(result, want) {
+				if !strings.Contains(result, want) {
 					t.Errorf("formatAccessDeniedError() = %q, want to contain %q", result, want)
 				}
 			}
@@ -366,7 +367,7 @@ func TestFormatValidationError(t *testing.T) {
 			result := FormatValidationError(tt.err)
 
 			for _, want := range tt.wantContain {
-				if !contains(result, want) {
+				if !strings.Contains(result, want) {
 					t.Errorf("FormatValidationError() = %q, want to contain %q", result, want)
 				}
 			}
@@ -426,7 +427,7 @@ func Test_formatUserFriendlyError(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := formatUserFriendlyError(tt.err, tt.operation)
 
-			if !contains(result, tt.wantContain) {
+			if !strings.Contains(result, tt.wantContain) {
 				t.Errorf("formatUserFriendlyError() = %q, want to contain %q", result, tt.wantContain)
 			}
 		})

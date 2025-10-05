@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -818,17 +819,12 @@ func TestFormatValidationError(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := deployer.FormatValidationError(tt.err)
 			for _, want := range tt.wantContains {
-				if !contains(result, want) {
+				if !strings.Contains(result, want) {
 					t.Errorf("FormatValidationError() result does not contain %q\nGot: %s", want, result)
 				}
 			}
 		})
 	}
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
-		(len(s) > 0 && (s[:len(substr)] == substr || contains(s[1:], substr))))
 }
 
 func TestRemoveTimestampFieldsRecursive(t *testing.T) {

@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -65,7 +66,7 @@ func TestNewClient(t *testing.T) {
 				}
 				if tt.errContains != "" && err != nil {
 					// Check error message contains expected string
-					if !contains(err.Error(), tt.errContains) {
+					if !strings.Contains(err.Error(), tt.errContains) {
 						t.Errorf("error = %v, want to contain %v", err, tt.errContains)
 					}
 				}
