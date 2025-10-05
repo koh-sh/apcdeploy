@@ -7,7 +7,6 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/appconfig"
-	"github.com/koh-sh/apcdeploy/internal/aws/mock"
 )
 
 // ConfigVersionInfo contains information about a configuration version
@@ -19,7 +18,7 @@ type ConfigVersionInfo struct {
 
 // ConfigVersionFetcher handles fetching configuration versions
 type ConfigVersionFetcher struct {
-	client mock.AppConfigAPI
+	client AppConfigAPI
 }
 
 // NewConfigVersionFetcher creates a new config version fetcher

@@ -7,13 +7,12 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/appconfig"
 	"github.com/aws/aws-sdk-go-v2/service/appconfig/types"
-	"github.com/koh-sh/apcdeploy/internal/aws/mock"
 	"github.com/koh-sh/apcdeploy/internal/config"
 )
 
 // Resolver handles AWS resource name to ID resolution
 type Resolver struct {
-	client mock.AppConfigAPI
+	client AppConfigAPI
 }
 
 // NewResolver creates a new resolver with the given client

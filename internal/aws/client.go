@@ -8,13 +8,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/appconfig"
-	"github.com/koh-sh/apcdeploy/internal/aws/mock"
 	"github.com/koh-sh/apcdeploy/internal/config"
 )
 
 // Client wraps the AWS AppConfig client
 type Client struct {
-	AppConfig       mock.AppConfigAPI
+	AppConfig       AppConfigAPI
 	Region          string
 	PollingInterval time.Duration // Interval for polling deployment status (default: 5s)
 }
