@@ -1,4 +1,4 @@
-.PHONY: test fmt cov tidy lint lint-fix build modernize modernize-fix ci tool-install
+.PHONY: test fmt cov tidy lint lint-fix build modernize modernize-fix ci tool-install e2e-setup e2e-run e2e-teardown e2e-full
 
 COVFILE = coverage.out
 COVHTML = cover.html
@@ -40,3 +40,14 @@ tool-install:
 	go get -tool github.com/golangci/golangci-lint/v2/cmd/golangci-lint
 	go get -tool github.com/mfridman/tparse
 	go get -tool github.com/spf13/cobra-cli
+
+e2e-setup:
+	cd e2e/terraform && terraform init && terraform apply
+
+e2e-run:
+	./e2e/e2e-test.sh
+
+e2e-teardown:
+	cd e2e/terraform && ./cleanup.sh && terraform destroy
+
+e2e-full: e2e-setup e2e-run e2e-teardown
