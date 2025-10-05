@@ -125,7 +125,7 @@ func (i *Initializer) fetchDeploymentStrategy(ctx context.Context, result *Resul
 	if err != nil || latestDeployment == nil {
 		// If no deployment found or error, use default strategy
 		i.reporter.Warning("No previous deployments found - using default deployment strategy")
-		result.DeploymentStrategy = "AppConfig.AllAtOnce"
+		result.DeploymentStrategy = config.DefaultDeploymentStrategy
 		return
 	}
 
@@ -133,7 +133,7 @@ func (i *Initializer) fetchDeploymentStrategy(ctx context.Context, result *Resul
 	deploymentDetails, err := awsInternal.GetDeploymentDetails(ctx, i.awsClient, result.AppID, result.EnvID, latestDeployment.DeploymentNumber)
 	if err != nil {
 		i.reporter.Warning("Could not retrieve deployment strategy - using default")
-		result.DeploymentStrategy = "AppConfig.AllAtOnce"
+		result.DeploymentStrategy = config.DefaultDeploymentStrategy
 		return
 	}
 

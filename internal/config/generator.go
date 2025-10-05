@@ -20,7 +20,7 @@ func GenerateConfigFile(app, profile, env, dataFile, region, deploymentStrategy,
 	// Use provided deployment strategy, or default to AllAtOnce if empty
 	strategy := deploymentStrategy
 	if strategy == "" {
-		strategy = "AppConfig.AllAtOnce"
+		strategy = DefaultDeploymentStrategy
 	}
 
 	// Create config structure

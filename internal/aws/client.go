@@ -6,9 +6,10 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
+	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/appconfig"
 	"github.com/koh-sh/apcdeploy/internal/aws/mock"
+	"github.com/koh-sh/apcdeploy/internal/config"
 )
 
 // Client wraps the AWS AppConfig client
@@ -26,12 +27,12 @@ func NewClient(ctx context.Context, region string) (*Client, error) {
 	// Load AWS config
 	if region != "" {
 		// If region is explicitly provided, use it
-		cfg, err = config.LoadDefaultConfig(ctx,
-			config.WithRegion(region),
+		cfg, err = awsConfig.LoadDefaultConfig(ctx,
+			awsConfig.WithRegion(region),
 		)
 	} else {
 		// Otherwise, let AWS SDK resolve the default region from AWS config
-		cfg, err = config.LoadDefaultConfig(ctx)
+		cfg, err = awsConfig.LoadDefaultConfig(ctx)
 	}
 
 	if err != nil {
@@ -44,6 +45,6 @@ func NewClient(ctx context.Context, region string) (*Client, error) {
 	return &Client{
 		AppConfig:       appconfigClient,
 		Region:          cfg.Region,
-		PollingInterval: 5 * time.Second, // Default polling interval
+		PollingInterval: config.DefaultPollingInterval,
 	}, nil
 }

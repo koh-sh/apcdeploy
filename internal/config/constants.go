@@ -1,5 +1,7 @@
 package config
 
+import "time"
+
 const (
 	// MaxConfigSize is the maximum size for configuration data (2MB)
 	MaxConfigSize = 2 * 1024 * 1024
@@ -14,6 +16,12 @@ const (
 	// Deployment strategy prefixes
 	// StrategyPrefixPredefined is the prefix for predefined AWS AppConfig deployment strategies
 	StrategyPrefixPredefined = "AppConfig."
+
+	// DefaultDeploymentStrategy is the default deployment strategy when none is specified
+	DefaultDeploymentStrategy = "AppConfig.AllAtOnce"
+
+	// DefaultPollingInterval is the default interval for polling deployment status
+	DefaultPollingInterval = 5 * time.Second
 
 	// Content types
 	// ContentTypeJSON represents JSON content type

@@ -32,7 +32,7 @@ func (c *Config) validate() error {
 // setDefaults sets default values for optional fields
 func (c *Config) setDefaults() {
 	if c.DeploymentStrategy == "" {
-		c.DeploymentStrategy = "AppConfig.AllAtOnce"
+		c.DeploymentStrategy = DefaultDeploymentStrategy
 	}
 }
 
