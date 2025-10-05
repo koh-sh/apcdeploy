@@ -98,7 +98,7 @@ func (d *Deployer) ValidateLocalData(data []byte, contentType string) error {
 // DetermineContentType determines the content type based on profile type and file extension
 func (d *Deployer) DetermineContentType(profileType, dataPath string) (string, error) {
 	// Feature Flags always use JSON
-	if profileType == "AWS.AppConfig.FeatureFlags" {
+	if profileType == config.ProfileTypeFeatureFlags {
 		return config.ContentTypeJSON, nil
 	}
 
@@ -229,7 +229,7 @@ func normalizeJSON(content string, profileType string) (string, error) {
 	}
 
 	// For FeatureFlags, remove _updatedAt and _createdAt fields recursively
-	if profileType == "AWS.AppConfig.FeatureFlags" {
+	if profileType == config.ProfileTypeFeatureFlags {
 		data = removeTimestampFieldsRecursive(data)
 	}
 

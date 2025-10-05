@@ -3,10 +3,12 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/appconfig"
 	"github.com/aws/aws-sdk-go-v2/service/appconfig/types"
 	"github.com/koh-sh/apcdeploy/internal/aws/mock"
+	"github.com/koh-sh/apcdeploy/internal/config"
 )
 
 // Resolver handles AWS resource name to ID resolution
@@ -131,7 +133,7 @@ func (r *Resolver) ResolveDeploymentStrategy(ctx context.Context, strategyName s
 // Otherwise, looks up the custom strategy name from the AWS API
 func (r *Resolver) ResolveDeploymentStrategyIDToName(ctx context.Context, strategyID string) (string, error) {
 	// If it's a predefined strategy (starts with "AppConfig."), return as is
-	if len(strategyID) > 10 && strategyID[:10] == "AppConfig." {
+	if strings.HasPrefix(strategyID, config.StrategyPrefixPredefined) {
 		return strategyID, nil
 	}
 

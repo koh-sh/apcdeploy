@@ -319,7 +319,7 @@ func TestWriteDataFileFeatureFlags(t *testing.T) {
 			name:        "feature flags - removes _updatedAt and _createdAt recursively",
 			content:     []byte(`{"flags":{"flag1":{"_createdAt":"2025-10-04T12:56:48.285Z","_updatedAt":"2025-10-04T12:30:01.96Z","name":"flag1"},"flag2":{"_createdAt":"2025-10-04T12:56:48.285Z","_updatedAt":"2025-10-04T12:30:01.96Z","name":"flag2"}},"values":{"flag1":{"_createdAt":"2025-10-04T12:56:48.285Z","_updatedAt":"2025-10-04T12:56:48.285Z","enabled":true},"flag2":{"_createdAt":"2025-10-04T12:56:48.285Z","_updatedAt":"2025-10-04T12:23:12.05Z","enabled":true}},"version":"1"}`),
 			contentType: "application/json",
-			profileType: "AWS.AppConfig.FeatureFlags",
+			profileType: ProfileTypeFeatureFlags,
 			outputPath:  filepath.Join(tempDir, "featureflags.json"),
 			wantErr:     false,
 			validate: func(t *testing.T, path string) {
@@ -354,7 +354,7 @@ func TestWriteDataFileFeatureFlags(t *testing.T) {
 			name:        "freeform - keeps _updatedAt and _createdAt",
 			content:     []byte(`{"_updatedAt":"2024-01-01T00:00:00Z","data":"value"}`),
 			contentType: "application/json",
-			profileType: "AWS.AppConfig.Freeform",
+			profileType: ProfileTypeFreeform,
 			outputPath:  filepath.Join(tempDir, "freeform.json"),
 			wantErr:     false,
 			validate: func(t *testing.T, path string) {

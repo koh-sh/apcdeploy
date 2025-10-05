@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/appconfig/types"
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/aws/mock"
+	"github.com/koh-sh/apcdeploy/internal/config"
 	reportertest "github.com/koh-sh/apcdeploy/internal/reporter/testing"
 )
 
@@ -56,7 +57,7 @@ func TestInitializer_ResolveResources(t *testing.T) {
 					return &appconfig.GetConfigurationProfileOutput{
 						Id:   aws.String("prof-456"),
 						Name: aws.String("test-profile"),
-						Type: aws.String("AWS.AppConfig.FeatureFlags"),
+						Type: aws.String(config.ProfileTypeFeatureFlags),
 					}, nil
 				}
 
@@ -433,7 +434,7 @@ func TestInitializer_Run(t *testing.T) {
 					return &appconfig.GetConfigurationProfileOutput{
 						Id:   aws.String("prof-456"),
 						Name: aws.String("test-profile"),
-						Type: aws.String("AWS.AppConfig.Freeform"),
+						Type: aws.String(config.ProfileTypeFreeform),
 					}, nil
 				}
 
@@ -540,7 +541,7 @@ func TestInitializer_Run(t *testing.T) {
 					return &appconfig.GetConfigurationProfileOutput{
 						Id:   aws.String("prof-456"),
 						Name: aws.String("test-profile"),
-						Type: aws.String("AWS.AppConfig.Freeform"),
+						Type: aws.String(config.ProfileTypeFreeform),
 					}, nil
 				}
 				m.ListEnvironmentsFunc = func(ctx context.Context, params *appconfig.ListEnvironmentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListEnvironmentsOutput, error) {
@@ -602,7 +603,7 @@ func TestInitializer_Run(t *testing.T) {
 					return &appconfig.GetConfigurationProfileOutput{
 						Id:   aws.String("prof-456"),
 						Name: aws.String("test-profile"),
-						Type: aws.String("AWS.AppConfig.Freeform"),
+						Type: aws.String(config.ProfileTypeFreeform),
 					}, nil
 				}
 

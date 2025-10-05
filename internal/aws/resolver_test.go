@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/appconfig"
 	"github.com/aws/aws-sdk-go-v2/service/appconfig/types"
 	"github.com/koh-sh/apcdeploy/internal/aws/mock"
+	"github.com/koh-sh/apcdeploy/internal/config"
 )
 
 func TestNewResolver(t *testing.T) {
@@ -163,10 +164,10 @@ func TestResolveConfigurationProfile(t *testing.T) {
 			mockProfile: &appconfig.GetConfigurationProfileOutput{
 				Id:   aws.String("prof-456"),
 				Name: aws.String("test-profile"),
-				Type: aws.String("AWS.Freeform"),
+				Type: aws.String(config.ProfileTypeFreeform),
 			},
 			wantID:   "prof-456",
-			wantType: "AWS.Freeform",
+			wantType: config.ProfileTypeFreeform,
 			wantErr:  false,
 		},
 		{
@@ -182,10 +183,10 @@ func TestResolveConfigurationProfile(t *testing.T) {
 			mockProfile: &appconfig.GetConfigurationProfileOutput{
 				Id:   aws.String("prof-789"),
 				Name: aws.String("feature-flags"),
-				Type: aws.String("AWS.AppConfig.FeatureFlags"),
+				Type: aws.String(config.ProfileTypeFeatureFlags),
 			},
 			wantID:   "prof-789",
-			wantType: "AWS.AppConfig.FeatureFlags",
+			wantType: config.ProfileTypeFeatureFlags,
 			wantErr:  false,
 		},
 		{
@@ -495,14 +496,14 @@ func TestResolveDeploymentStrategyIDToName(t *testing.T) {
 	}{
 		{
 			name:       "predefined strategy - AllAtOnce",
-			strategyID: "AppConfig.AllAtOnce",
-			wantName:   "AppConfig.AllAtOnce",
+			strategyID: config.StrategyPrefixPredefined + "AllAtOnce",
+			wantName:   config.StrategyPrefixPredefined + "AllAtOnce",
 			wantErr:    false,
 		},
 		{
 			name:       "predefined strategy - Linear50PercentEvery30Seconds",
-			strategyID: "AppConfig.Linear50PercentEvery30Seconds",
-			wantName:   "AppConfig.Linear50PercentEvery30Seconds",
+			strategyID: config.StrategyPrefixPredefined + "Linear50PercentEvery30Seconds",
+			wantName:   config.StrategyPrefixPredefined + "Linear50PercentEvery30Seconds",
 			wantErr:    false,
 		},
 		{
@@ -632,7 +633,7 @@ func TestResolveAll(t *testing.T) {
 			mockProfile: &appconfig.GetConfigurationProfileOutput{
 				Id:   aws.String("prof-456"),
 				Name: aws.String("test-profile"),
-				Type: aws.String("AWS.Freeform"),
+				Type: aws.String(config.ProfileTypeFreeform),
 			},
 			mockEnvs: []types.Environment{
 				{
@@ -648,7 +649,7 @@ func TestResolveAll(t *testing.T) {
 			},
 			wantAppID:       "app-123",
 			wantProfileID:   "prof-456",
-			wantProfileType: "AWS.Freeform",
+			wantProfileType: config.ProfileTypeFreeform,
 			wantEnvID:       "env-789",
 			wantStrategyID:  "strategy-101",
 			wantErr:         false,

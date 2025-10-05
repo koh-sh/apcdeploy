@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/goccy/go-yaml"
+	"github.com/koh-sh/apcdeploy/internal/config"
 	"github.com/sergi/go-diff/diffmatchpatch"
 )
 
@@ -106,7 +107,7 @@ func normalizeJSON(content string, profileType string) (string, error) {
 	}
 
 	// For FeatureFlags, remove _updatedAt and _createdAt fields recursively
-	if profileType == "AWS.AppConfig.FeatureFlags" {
+	if profileType == config.ProfileTypeFeatureFlags {
 		data = removeTimestampFieldsRecursive(data)
 	}
 

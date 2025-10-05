@@ -3,6 +3,8 @@ package diff
 import (
 	"strings"
 	"testing"
+
+	"github.com/koh-sh/apcdeploy/internal/config"
 )
 
 func TestCalculate(t *testing.T) {
@@ -384,28 +386,28 @@ func TestCalculateFeatureFlags(t *testing.T) {
 			name:          "feature flags - no changes when only nested timestamps differ",
 			remoteContent: `{"flags":{"flag1":{"_createdAt":"2025-10-04T12:56:48.285Z","_updatedAt":"2025-10-04T12:30:01.96Z","name":"flag1"},"flag2":{"_createdAt":"2025-10-04T12:56:48.285Z","_updatedAt":"2025-10-04T12:30:01.96Z","name":"flag2"}},"values":{"flag1":{"_createdAt":"2025-10-04T12:56:48.285Z","_updatedAt":"2025-10-04T12:56:48.285Z","enabled":true},"flag2":{"_createdAt":"2025-10-04T12:56:48.285Z","_updatedAt":"2025-10-04T12:23:12.05Z","enabled":true}},"version":"1"}`,
 			localContent:  `{"flags":{"flag1":{"name":"flag1"},"flag2":{"name":"flag2"}},"values":{"flag1":{"enabled":true},"flag2":{"enabled":true}},"version":"1"}`,
-			profileType:   "AWS.AppConfig.FeatureFlags",
+			profileType:   config.ProfileTypeFeatureFlags,
 			wantChanges:   false,
 		},
 		{
 			name:          "feature flags - changes detected in nested flags",
 			remoteContent: `{"flags":{"flag1":{"_updatedAt":"2025-10-04T12:30:01.96Z","name":"flag1"}},"values":{"flag1":{"_updatedAt":"2025-10-04T12:56:48.285Z","enabled":true}},"version":"1"}`,
 			localContent:  `{"flags":{"flag1":{"name":"flag1"}},"values":{"flag1":{"enabled":false}},"version":"1"}`,
-			profileType:   "AWS.AppConfig.FeatureFlags",
+			profileType:   config.ProfileTypeFeatureFlags,
 			wantChanges:   true,
 		},
 		{
 			name:          "freeform - timestamps cause changes",
 			remoteContent: `{"_updatedAt":"2024-01-01T00:00:00Z","data":"value"}`,
 			localContent:  `{"data":"value"}`,
-			profileType:   "AWS.AppConfig.Freeform",
+			profileType:   config.ProfileTypeFreeform,
 			wantChanges:   true,
 		},
 		{
 			name:          "feature flags - different timestamps but same content",
 			remoteContent: `{"flags":{"flag1":{"_createdAt":"2024-01-01T00:00:00Z","_updatedAt":"2024-01-01T00:00:00Z","name":"flag1"}},"values":{"flag1":{"_createdAt":"2024-01-01T00:00:00Z","_updatedAt":"2024-01-01T00:00:00Z","enabled":true}},"version":"1"}`,
 			localContent:  `{"flags":{"flag1":{"_createdAt":"2024-02-01T00:00:00Z","_updatedAt":"2024-02-01T00:00:00Z","name":"flag1"}},"values":{"flag1":{"_createdAt":"2024-02-01T00:00:00Z","_updatedAt":"2024-02-01T00:00:00Z","enabled":true}},"version":"1"}`,
-			profileType:   "AWS.AppConfig.FeatureFlags",
+			profileType:   config.ProfileTypeFeatureFlags,
 			wantChanges:   false,
 		},
 	}
@@ -422,7 +424,7 @@ func TestCalculateFeatureFlags(t *testing.T) {
 			}
 
 			// For feature flags, verify timestamps are not in normalized content
-			if tt.profileType == "AWS.AppConfig.FeatureFlags" {
+			if tt.profileType == config.ProfileTypeFeatureFlags {
 				if strings.Contains(result.RemoteContent, "_updatedAt") {
 					t.Error("RemoteContent should not contain _updatedAt for FeatureFlags")
 				}

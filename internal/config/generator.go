@@ -115,7 +115,7 @@ func formatJSON(data []byte, profileType string) ([]byte, error) {
 	}
 
 	// For FeatureFlags, remove _updatedAt and _createdAt fields recursively
-	if profileType == "AWS.AppConfig.FeatureFlags" {
+	if profileType == ProfileTypeFeatureFlags {
 		obj = removeTimestampFields(obj)
 	}
 
