@@ -40,7 +40,17 @@ func NewWithClient(cfg *config.Config, awsClient *aws.Client) *Deployer {
 	}
 }
 
-// loadConfiguration loads the configuration file and data file
+// loadConfiguration loads the configuration file and data file.
+// It returns the parsed Config, the raw data file content, and any error encountered.
+// The data file path in the returned Config is resolved to an absolute path.
+//
+// Parameters:
+//   - configPath: Path to the apcdeploy.yml configuration file
+//
+// Returns:
+//   - *config.Config: Parsed configuration with resolved paths
+//   - []byte: Raw content of the data file
+//   - error: Any error during loading or parsing
 func loadConfiguration(configPath string) (*config.Config, []byte, error) {
 	// Load the config file
 	cfg, err := config.LoadConfig(configPath)

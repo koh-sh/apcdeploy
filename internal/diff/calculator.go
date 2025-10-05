@@ -24,8 +24,22 @@ type Result struct {
 	FileName string
 }
 
-// calculate computes the diff between remote and local configuration
-// For FeatureFlags profile type, it removes _updatedAt and _createdAt before comparing
+// calculate computes the diff between remote and local configuration.
+// For FeatureFlags profile type, it removes _updatedAt and _createdAt fields
+// before comparing to avoid false positives from auto-generated timestamps.
+//
+// The function normalizes both contents based on file type (JSON/YAML/text)
+// to ensure consistent formatting before comparison.
+//
+// Parameters:
+//   - remoteContent: The deployed configuration content
+//   - localContent: The local configuration content
+//   - fileName: Name of the local file (used to determine file type)
+//   - profileType: AWS AppConfig profile type (e.g., "AWS.AppConfig.FeatureFlags")
+//
+// Returns:
+//   - *Result: Diff result containing normalized contents and unified diff
+//   - error: Any error during normalization or diff calculation
 func calculate(remoteContent, localContent, fileName, profileType string) (*Result, error) {
 	// Normalize content based on file extension
 	ext := strings.ToLower(filepath.Ext(fileName))
@@ -154,7 +168,19 @@ func normalizeText(content string) string {
 	return content
 }
 
-// formatDiffs converts line-based diffs to simple diff format
+// formatDiffs converts line-based diffs to a simple diff format.
+// It processes each diff chunk and formats lines with prefixes:
+//   - "+" for added lines
+//   - "-" for deleted lines
+//   - " " for context lines (unchanged)
+//
+// Empty lines are skipped to produce a cleaner output.
+//
+// Parameters:
+//   - diffs: Slice of diff chunks from go-diff library
+//
+// Returns:
+//   - string: Formatted diff output
 func formatDiffs(diffs []diffmatchpatch.Diff) string {
 	var result strings.Builder
 
