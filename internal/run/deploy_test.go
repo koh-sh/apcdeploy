@@ -905,7 +905,7 @@ func TestRemoveTimestampFieldsRecursive(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := removeTimestampFieldsRecursive(tt.input)
+			result := config.RemoveTimestampFieldsRecursive(tt.input)
 			resultJSON, err := json.Marshal(result)
 			if err != nil {
 				t.Fatalf("failed to marshal result: %v", err)
@@ -915,7 +915,7 @@ func TestRemoveTimestampFieldsRecursive(t *testing.T) {
 				t.Fatalf("failed to marshal expected: %v", err)
 			}
 			if string(resultJSON) != string(expectedJSON) {
-				t.Errorf("removeTimestampFieldsRecursive() = %s, want %s", string(resultJSON), string(expectedJSON))
+				t.Errorf("RemoveTimestampFieldsRecursive() = %s, want %s", string(resultJSON), string(expectedJSON))
 			}
 		})
 	}
@@ -962,13 +962,13 @@ func TestNormalizeJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := normalizeJSON(tt.content, tt.profileType)
+			result, err := config.NormalizeJSON(tt.content, tt.profileType)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("normalizeJSON() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("NormalizeJSON() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !tt.wantErr && result == "" {
-				t.Error("normalizeJSON() returned empty string for valid input")
+				t.Error("NormalizeJSON() returned empty string for valid input")
 			}
 		})
 	}
@@ -1004,13 +1004,13 @@ func TestNormalizeYAML(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := normalizeYAML(tt.content)
+			result, err := config.NormalizeYAML(tt.content)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("normalizeYAML() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("NormalizeYAML() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !tt.wantErr && result == "" && tt.content != "" {
-				t.Error("normalizeYAML() returned empty string for non-empty valid input")
+				t.Error("NormalizeYAML() returned empty string for non-empty valid input")
 			}
 		})
 	}
@@ -1056,9 +1056,9 @@ func TestNormalizeText(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := normalizeText(tt.content)
+			result := config.NormalizeText(tt.content)
 			if result != tt.expected {
-				t.Errorf("normalizeText() = %q, want %q", result, tt.expected)
+				t.Errorf("NormalizeText() = %q, want %q", result, tt.expected)
 			}
 		})
 	}

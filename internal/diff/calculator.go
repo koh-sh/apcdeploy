@@ -1,12 +1,10 @@
 package diff
 
 import (
-	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strings"
 
-	"github.com/goccy/go-yaml"
 	"github.com/koh-sh/apcdeploy/internal/config"
 	"github.com/sergi/go-diff/diffmatchpatch"
 )
@@ -89,84 +87,13 @@ func calculate(remoteContent, localContent, fileName, profileType string) (*Resu
 func normalizeContent(content, ext, profileType string) (string, error) {
 	switch ext {
 	case ".json":
-		return normalizeJSON(content, profileType)
+		return config.NormalizeJSON(content, profileType)
 	case ".yaml", ".yml":
-		return normalizeYAML(content)
+		return config.NormalizeYAML(content)
 	default:
 		// For text files, just ensure consistent line endings
-		return normalizeText(content), nil
+		return config.NormalizeText(content), nil
 	}
-}
-
-// normalizeJSON normalizes JSON content by parsing and re-formatting with sorted keys
-// For FeatureFlags profile type, it removes _updatedAt and _createdAt fields recursively
-func normalizeJSON(content string, profileType string) (string, error) {
-	var data any
-	if err := json.Unmarshal([]byte(content), &data); err != nil {
-		return "", fmt.Errorf("invalid JSON: %w", err)
-	}
-
-	// For FeatureFlags, remove _updatedAt and _createdAt fields recursively
-	if profileType == config.ProfileTypeFeatureFlags {
-		data = removeTimestampFieldsRecursive(data)
-	}
-
-	// Re-marshal with indentation for consistent formatting
-	normalized, err := json.MarshalIndent(data, "", "  ")
-	if err != nil {
-		return "", fmt.Errorf("failed to format JSON: %w", err)
-	}
-
-	return string(normalized), nil
-}
-
-// removeTimestampFieldsRecursive recursively removes _updatedAt and _createdAt from all maps in the object
-func removeTimestampFieldsRecursive(obj any) any {
-	switch v := obj.(type) {
-	case map[string]any:
-		// Remove timestamp fields from this map
-		delete(v, "_updatedAt")
-		delete(v, "_createdAt")
-		// Recursively process all values in the map
-		for key, value := range v {
-			v[key] = removeTimestampFieldsRecursive(value)
-		}
-		return v
-	case []any:
-		// Recursively process all elements in the array
-		for i, value := range v {
-			v[i] = removeTimestampFieldsRecursive(value)
-		}
-		return v
-	default:
-		// Return primitive values as-is
-		return v
-	}
-}
-
-// normalizeYAML normalizes YAML content by parsing and re-formatting
-func normalizeYAML(content string) (string, error) {
-	var data any
-	if err := yaml.Unmarshal([]byte(content), &data); err != nil {
-		return "", fmt.Errorf("invalid YAML: %w", err)
-	}
-
-	// Re-marshal with consistent formatting
-	normalized, err := yaml.Marshal(data)
-	if err != nil {
-		return "", fmt.Errorf("failed to format YAML: %w", err)
-	}
-
-	return string(normalized), nil
-}
-
-// normalizeText normalizes text content by ensuring consistent line endings
-func normalizeText(content string) string {
-	// Convert CRLF to LF
-	content = strings.ReplaceAll(content, "\r\n", "\n")
-	// Ensure single trailing newline
-	content = strings.TrimRight(content, "\n") + "\n"
-	return content
 }
 
 // formatDiffs converts line-based diffs to a simple diff format.

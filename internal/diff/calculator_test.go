@@ -153,7 +153,7 @@ func TestNormalizeJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := normalizeJSON(tt.input, "")
+			result, err := config.NormalizeJSON(tt.input, "")
 
 			if tt.wantErr {
 				if err == nil {
@@ -171,7 +171,7 @@ func TestNormalizeJSON(t *testing.T) {
 			}
 
 			// Verify it's valid JSON by normalizing again
-			_, err = normalizeJSON(result, "")
+			_, err = config.NormalizeJSON(result, "")
 			if err != nil {
 				t.Errorf("normalized result is not valid JSON: %v", err)
 			}
@@ -204,7 +204,7 @@ func TestNormalizeYAML(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := normalizeYAML(tt.input)
+			result, err := config.NormalizeYAML(tt.input)
 
 			if tt.wantErr {
 				if err == nil {
@@ -218,7 +218,7 @@ func TestNormalizeYAML(t *testing.T) {
 			}
 
 			// Verify it's valid YAML by normalizing again
-			_, err = normalizeYAML(result)
+			_, err = config.NormalizeYAML(result)
 			if err != nil {
 				t.Errorf("normalized result is not valid YAML: %v", err)
 			}
@@ -261,9 +261,9 @@ func TestNormalizeText(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := normalizeText(tt.input)
+			result := config.NormalizeText(tt.input)
 			if result != tt.expected {
-				t.Errorf("normalizeText() = %q, want %q", result, tt.expected)
+				t.Errorf("NormalizeText() = %q, want %q", result, tt.expected)
 			}
 		})
 	}
