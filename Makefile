@@ -1,4 +1,4 @@
-.PHONY: test fmt cov tidy lint lint-fix build modernize modernize-fix ci tool-install e2e-setup e2e-run e2e-teardown e2e-full
+.PHONY: test fmt cov tidy lint lint-fix build modernize modernize-fix ci tool-install e2e-setup e2e-run e2e-clean e2e-full
 
 COVFILE = coverage.out
 COVHTML = cover.html
@@ -47,7 +47,7 @@ e2e-setup:
 e2e-run:
 	./e2e/e2e-test.sh
 
-e2e-teardown:
+e2e-clean:
 	cd e2e/terraform && ./cleanup.sh && terraform destroy
 
-e2e-full: e2e-setup e2e-run e2e-teardown
+e2e-full: e2e-setup e2e-run e2e-clean
