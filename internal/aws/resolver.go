@@ -24,13 +24,29 @@ func NewResolver(client *Client) *Resolver {
 
 // ResolveApplication resolves an application name to its ID
 func (r *Resolver) ResolveApplication(ctx context.Context, appName string) (string, error) {
-	output, err := r.client.ListApplications(ctx, &appconfig.ListApplicationsInput{})
-	if err != nil {
-		return "", fmt.Errorf("failed to list applications: %w", err)
+	var allItems []types.Application
+	var nextToken *string
+
+	// Loop through all pages
+	for {
+		output, err := r.client.ListApplications(ctx, &appconfig.ListApplicationsInput{
+			NextToken: nextToken,
+		})
+		if err != nil {
+			return "", fmt.Errorf("failed to list applications: %w", err)
+		}
+
+		allItems = append(allItems, output.Items...)
+
+		// Check if there are more pages
+		if output.NextToken == nil {
+			break
+		}
+		nextToken = output.NextToken
 	}
 
 	return resolveByName(
-		output.Items,
+		allItems,
 		appName,
 		"application",
 		func(app types.Application) *string { return app.Name },
@@ -47,15 +63,30 @@ type ProfileInfo struct {
 
 // ResolveConfigurationProfile resolves a configuration profile name to its ID and details
 func (r *Resolver) ResolveConfigurationProfile(ctx context.Context, appID, profileName string) (*ProfileInfo, error) {
-	output, err := r.client.ListConfigurationProfiles(ctx, &appconfig.ListConfigurationProfilesInput{
-		ApplicationId: &appID,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to list configuration profiles: %w", err)
+	var allItems []types.ConfigurationProfileSummary
+	var nextToken *string
+
+	// Loop through all pages
+	for {
+		output, err := r.client.ListConfigurationProfiles(ctx, &appconfig.ListConfigurationProfilesInput{
+			ApplicationId: &appID,
+			NextToken:     nextToken,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to list configuration profiles: %w", err)
+		}
+
+		allItems = append(allItems, output.Items...)
+
+		// Check if there are more pages
+		if output.NextToken == nil {
+			break
+		}
+		nextToken = output.NextToken
 	}
 
 	var matches []string
-	for _, profile := range output.Items {
+	for _, profile := range allItems {
 		if profile.Name != nil && *profile.Name == profileName {
 			if profile.Id != nil {
 				matches = append(matches, *profile.Id)
@@ -95,15 +126,30 @@ func (r *Resolver) ResolveConfigurationProfile(ctx context.Context, appID, profi
 
 // ResolveEnvironment resolves an environment name to its ID
 func (r *Resolver) ResolveEnvironment(ctx context.Context, appID, envName string) (string, error) {
-	output, err := r.client.ListEnvironments(ctx, &appconfig.ListEnvironmentsInput{
-		ApplicationId: &appID,
-	})
-	if err != nil {
-		return "", fmt.Errorf("failed to list environments: %w", err)
+	var allItems []types.Environment
+	var nextToken *string
+
+	// Loop through all pages
+	for {
+		output, err := r.client.ListEnvironments(ctx, &appconfig.ListEnvironmentsInput{
+			ApplicationId: &appID,
+			NextToken:     nextToken,
+		})
+		if err != nil {
+			return "", fmt.Errorf("failed to list environments: %w", err)
+		}
+
+		allItems = append(allItems, output.Items...)
+
+		// Check if there are more pages
+		if output.NextToken == nil {
+			break
+		}
+		nextToken = output.NextToken
 	}
 
 	return resolveByName(
-		output.Items,
+		allItems,
 		envName,
 		"environment",
 		func(env types.Environment) *string { return env.Name },
@@ -113,13 +159,29 @@ func (r *Resolver) ResolveEnvironment(ctx context.Context, appID, envName string
 
 // ResolveDeploymentStrategy resolves a deployment strategy name to its ID
 func (r *Resolver) ResolveDeploymentStrategy(ctx context.Context, strategyName string) (string, error) {
-	output, err := r.client.ListDeploymentStrategies(ctx, &appconfig.ListDeploymentStrategiesInput{})
-	if err != nil {
-		return "", fmt.Errorf("failed to list deployment strategies: %w", err)
+	var allItems []types.DeploymentStrategy
+	var nextToken *string
+
+	// Loop through all pages
+	for {
+		output, err := r.client.ListDeploymentStrategies(ctx, &appconfig.ListDeploymentStrategiesInput{
+			NextToken: nextToken,
+		})
+		if err != nil {
+			return "", fmt.Errorf("failed to list deployment strategies: %w", err)
+		}
+
+		allItems = append(allItems, output.Items...)
+
+		// Check if there are more pages
+		if output.NextToken == nil {
+			break
+		}
+		nextToken = output.NextToken
 	}
 
 	return resolveByName(
-		output.Items,
+		allItems,
 		strategyName,
 		"deployment strategy",
 		func(strategy types.DeploymentStrategy) *string { return strategy.Name },
@@ -136,13 +198,29 @@ func (r *Resolver) ResolveDeploymentStrategyIDToName(ctx context.Context, strate
 		return strategyID, nil
 	}
 
-	output, err := r.client.ListDeploymentStrategies(ctx, &appconfig.ListDeploymentStrategiesInput{})
-	if err != nil {
-		return "", fmt.Errorf("failed to list deployment strategies: %w", err)
+	var allItems []types.DeploymentStrategy
+	var nextToken *string
+
+	// Loop through all pages
+	for {
+		output, err := r.client.ListDeploymentStrategies(ctx, &appconfig.ListDeploymentStrategiesInput{
+			NextToken: nextToken,
+		})
+		if err != nil {
+			return "", fmt.Errorf("failed to list deployment strategies: %w", err)
+		}
+
+		allItems = append(allItems, output.Items...)
+
+		// Check if there are more pages
+		if output.NextToken == nil {
+			break
+		}
+		nextToken = output.NextToken
 	}
 
 	// Find the strategy with matching ID
-	for _, strategy := range output.Items {
+	for _, strategy := range allItems {
 		if strategy.Id != nil && *strategy.Id == strategyID {
 			if strategy.Name != nil {
 				return *strategy.Name, nil
