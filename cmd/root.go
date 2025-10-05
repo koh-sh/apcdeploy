@@ -9,9 +9,9 @@ import (
 
 var (
 	// Version information
-	Version   = "dev"
-	GitCommit = "none"
-	BuildDate = "unknown"
+	version string
+	commit  string
+	date    string
 
 	// Global flags
 	configFile string
@@ -25,7 +25,7 @@ func NewRootCommand() *cobra.Command {
 		Short: "AWS AppConfig deployment tool",
 		Long: `apcdeploy is a CLI tool for managing AWS AppConfig deployments.
 It provides commands to initialize, deploy, diff, and check the status of configurations.`,
-		Version: fmt.Sprintf("%s (commit: %s, built: %s)", Version, GitCommit, BuildDate),
+		Version: fmt.Sprintf("%s (Built on %s from Git SHA %s)", version, date, commit),
 	}
 
 	// Global flags
@@ -39,6 +39,13 @@ It provides commands to initialize, deploy, diff, and check the status of config
 	rootCmd.AddCommand(StatusCommand())
 
 	return rootCmd
+}
+
+// SetVersionInfo sets version information from build-time variables
+func SetVersionInfo(v, c, d string) {
+	version = v
+	commit = c
+	date = d
 }
 
 // Execute runs the root command
