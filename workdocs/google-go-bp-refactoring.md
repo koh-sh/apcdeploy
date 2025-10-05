@@ -140,45 +140,45 @@
 
 ### タスクチェックリスト
 
-- [ ] **R2.1 未使用コードの調査**
-  - [ ] `formatUserFriendlyError`関数の使用箇所を検索
-    - [ ] `grep -r "formatUserFriendlyError" .`
-  - [ ] 関数が本当に未使用であることを確認
-  - [ ] 他の未使用関数がないか確認
+- [x] **R2.1 未使用コードの調査**
+  - [x] `formatUserFriendlyError`関数の使用箇所を検索
+    - [x] `grep -r "formatUserFriendlyError" .`
+  - [x] 関数が本当に未使用であることを確認
+  - [x] 他の未使用関数がないか確認
 
-- [ ] **R2.2 `internal/aws/errors_test.go` の確認**
-  - [ ] `formatUserFriendlyError`に関連するテストの有無を確認
-  - [ ] 関連テストがある場合、削除対象として記録
-  - [ ] テストが存在しない場合、そのまま進む
+- [x] **R2.2 `internal/aws/errors_test.go` の確認**
+  - [x] `formatUserFriendlyError`に関連するテストの有無を確認
+  - [x] 関連テストがある場合、削除対象として記録
+  - [x] テストが存在しない場合、そのまま進む
 
-- [ ] **R2.3 未使用関数の削除**
-  - [ ] `internal/aws/errors.go` から`formatUserFriendlyError`を削除
-  - [ ] 関連するテストコードを削除（存在する場合）
-  - [ ] テスト実行
-    - [ ] `go test ./internal/aws/... -v`
-    - [ ] すべてのテストがパスすることを確認
-  - [ ] ビルド確認
-    - [ ] `go build ./...`
-    - [ ] ビルドエラーがないことを確認
+- [x] **R2.3 未使用関数の削除**
+  - [x] `internal/aws/errors.go` から`formatUserFriendlyError`を削除
+  - [x] 関連するテストコードを削除（存在する場合）
+  - [x] テスト実行
+    - [x] `go test ./internal/aws/... -v`
+    - [x] すべてのテストがパスすることを確認
+  - [x] ビルド確認
+    - [x] `go build ./...`
+    - [x] ビルドエラーがないことを確認
 
-- [ ] **R2.4 Epic R2 完了確認（MUST）**
-  - [ ] 全テスト実行
-    - [ ] `make test` - すべてのテストがパス
-  - [ ] テストカバレッジ確認
-    - [ ] `go test -cover ./internal/aws/...`
-    - [ ] カバレッジが適切であることを確認
-  - [ ] `make ci` 実行
-    - [ ] `make test` - すべてのテストがパス
-    - [ ] `make lint` - リンターエラーを修正
-    - [ ] `make modernize` - 最新化の問題を修正
-    - [ ] `make fmt` - フォーマット適用
-  - [ ] すべてのチェックがパスするまで修正を繰り返す
-  - [ ] 実装計画のチェックリストを更新
-  - [ ] Gitコミット・プッシュ
-    - [ ] `git add .`
-    - [ ] `git commit -m "refactor: remove unused formatUserFriendlyError function"`
-    - [ ] `git push origin main`
-    - [ ] チェックリスト更新をコミット・プッシュ
+- [x] **R2.4 Epic R2 完了確認（MUST）**
+  - [x] 全テスト実行
+    - [x] `make test` - すべてのテストがパス
+  - [x] テストカバレッジ確認
+    - [x] `go test -cover ./internal/aws/...`
+    - [x] カバレッジが適切であることを確認
+  - [x] `make ci` 実行
+    - [x] `make test` - すべてのテストがパス
+    - [x] `make lint` - リンターエラーを修正
+    - [x] `make modernize` - 最新化の問題を修正
+    - [x] `make fmt` - フォーマット適用
+  - [x] すべてのチェックがパスするまで修正を繰り返す
+  - [x] 実装計画のチェックリストを更新
+  - [x] Gitコミット・プッシュ
+    - [x] `git add .`
+    - [x] `git commit -m "refactor: remove unused formatUserFriendlyError function"`
+    - [x] `git push origin main`
+    - [x] チェックリスト更新をコミット・プッシュ
 
 ---
 

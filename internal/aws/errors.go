@@ -132,33 +132,3 @@ func FormatValidationError(err error) string {
 
 	return sb.String()
 }
-
-// formatUserFriendlyError converts AWS errors into user-friendly messages
-func formatUserFriendlyError(err error, operation string) string {
-	if err == nil {
-		return ""
-	}
-
-	// Check for validation errors
-	if IsValidationError(err) {
-		return FormatValidationError(err)
-	}
-
-	// Check for access denied
-	if isAccessDeniedError(err) {
-		return formatAccessDeniedError(operation)
-	}
-
-	// Check for resource not found
-	if isResourceNotFoundError(err) {
-		return fmt.Sprintf("Resource not found during %s operation. Please verify the resource exists and you have access to it.", operation)
-	}
-
-	// Check for throttling
-	if isThrottlingError(err) {
-		return "Rate limit exceeded. Please wait a moment and try again."
-	}
-
-	// Default: return the original error message
-	return err.Error()
-}

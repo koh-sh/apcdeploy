@@ -375,65 +375,6 @@ func TestFormatValidationError(t *testing.T) {
 	}
 }
 
-func Test_formatUserFriendlyError(t *testing.T) {
-	tests := []struct {
-		name        string
-		err         error
-		operation   string
-		wantContain string
-	}{
-		{
-			name:        "validation error",
-			err:         &types.BadRequestException{Message: stringPtr("Schema validation failed")},
-			operation:   "CreateHostedConfigurationVersion",
-			wantContain: "Configuration validation failed",
-		},
-		{
-			name: "access denied error",
-			err: &smithy.GenericAPIError{
-				Code:    "AccessDeniedException",
-				Message: "User is not authorized",
-			},
-			operation:   "ListApplications",
-			wantContain: "Access denied",
-		},
-		{
-			name: "resource not found error",
-			err: &smithy.GenericAPIError{
-				Code:    "ResourceNotFoundException",
-				Message: "Resource not found",
-			},
-			operation:   "GetApplication",
-			wantContain: "Resource not found",
-		},
-		{
-			name: "throttling error",
-			err: &smithy.GenericAPIError{
-				Code:    "ThrottlingException",
-				Message: "Rate exceeded",
-			},
-			operation:   "ListDeployments",
-			wantContain: "Rate limit exceeded",
-		},
-		{
-			name:        "generic error",
-			err:         errors.New("connection timeout"),
-			operation:   "StartDeployment",
-			wantContain: "connection timeout",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := formatUserFriendlyError(tt.err, tt.operation)
-
-			if !strings.Contains(result, tt.wantContain) {
-				t.Errorf("formatUserFriendlyError() = %q, want to contain %q", result, tt.wantContain)
-			}
-		})
-	}
-}
-
 // Helper function
 func stringPtr(s string) *string {
 	return &s
