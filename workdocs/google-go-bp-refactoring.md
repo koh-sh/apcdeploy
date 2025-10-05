@@ -52,81 +52,81 @@
 
 ### タスクチェックリスト
 
-- [ ] **R1.1 重複箇所の特定と分析**
-  - [ ] 重複している`contains`関数の使用箇所を確認
-    - [ ] `/Users/koh/github/apcdeploy/internal/run/deploy_test.go:829`
-    - [ ] `/Users/koh/github/apcdeploy/internal/init/initializer_test.go`
-    - [ ] `/Users/koh/github/apcdeploy/internal/aws/testutil_test.go:4`
-  - [ ] 各ファイルでの使用パターンを確認
-  - [ ] 影響範囲の調査
+- [x] **R1.1 重複箇所の特定と分析**
+  - [x] 重複している`contains`関数の使用箇所を確認
+    - [x] `/Users/koh/github/apcdeploy/internal/run/deploy_test.go:829`
+    - [x] `/Users/koh/github/apcdeploy/internal/init/initializer_test.go`
+    - [x] `/Users/koh/github/apcdeploy/internal/aws/testutil_test.go:4`
+  - [x] 各ファイルでの使用パターンを確認
+  - [x] 影響範囲の調査
 
-- [ ] **R1.2 既存テストの確認（Before Refactoring）**
-  - [ ] `go test ./internal/run/...` を実行して現在のテスト状態を確認
-  - [ ] `go test ./internal/init/...` を実行
-  - [ ] `go test ./internal/aws/...` を実行
-  - [ ] すべてのテストが通過していることを確認
+- [x] **R1.2 既存テストの確認（Before Refactoring）**
+  - [x] `go test ./internal/run/...` を実行して現在のテスト状態を確認
+  - [x] `go test ./internal/init/...` を実行
+  - [x] `go test ./internal/aws/...` を実行
+  - [x] すべてのテストが通過していることを確認
 
-- [ ] **R1.3 `internal/run/deploy_test.go` のリファクタリング**
-  - [ ] テスト修正（`contains`関数削除前の準備）
-    - [ ] `contains`関数の使用箇所を特定
-    - [ ] `strings.Contains`に置き換えるテストケースを確認
-  - [ ] 実装修正
-    - [ ] `import "strings"` を追加
-    - [ ] `contains(s, substr)` を `strings.Contains(s, substr)` に置き換え
-    - [ ] カスタム`contains`関数を削除
-  - [ ] テスト実行
-    - [ ] `go test ./internal/run/... -v`
-    - [ ] すべてのテストがパスすることを確認
-  - [ ] リファクタリング
-    - [ ] コードの可読性を確認
+- [x] **R1.3 `internal/run/deploy_test.go` のリファクタリング**
+  - [x] テスト修正（`contains`関数削除前の準備）
+    - [x] `contains`関数の使用箇所を特定
+    - [x] `strings.Contains`に置き換えるテストケースを確認
+  - [x] 実装修正
+    - [x] `import "strings"` を追加
+    - [x] `contains(s, substr)` を `strings.Contains(s, substr)` に置き換え
+    - [x] カスタム`contains`関数を削除
+  - [x] テスト実行
+    - [x] `go test ./internal/run/... -v`
+    - [x] すべてのテストがパスすることを確認
+  - [x] リファクタリング
+    - [x] コードの可読性を確認
 
-- [ ] **R1.4 `internal/init/initializer_test.go` のリファクタリング**
-  - [ ] テスト修正
-    - [ ] `contains`関数の使用箇所を特定
-    - [ ] `strings.Contains`に置き換える
-  - [ ] 実装修正
-    - [ ] `import "strings"` を追加
-    - [ ] `contains(s, substr)` を `strings.Contains(s, substr)` に置き換え
-    - [ ] カスタム`contains`関数を削除
-  - [ ] テスト実行
-    - [ ] `go test ./internal/init/... -v`
-    - [ ] すべてのテストがパスすることを確認
-  - [ ] リファクタリング
+- [x] **R1.4 `internal/init/initializer_test.go` のリファクタリング**
+  - [x] テスト修正
+    - [x] `contains`関数の使用箇所を特定
+    - [x] `strings.Contains`に置き換える
+  - [x] 実装修正
+    - [x] `import "strings"` を追加
+    - [x] `contains(s, substr)` を `strings.Contains(s, substr)` に置き換え
+    - [x] カスタム`contains`関数を削除
+  - [x] テスト実行
+    - [x] `go test ./internal/init/... -v`
+    - [x] すべてのテストがパスすることを確認
+  - [x] リファクタリング
 
-- [ ] **R1.5 `internal/aws/testutil_test.go` のリファクタリング**
-  - [ ] ファイル全体の削除を検討
-    - [ ] このファイルは`contains`関数のみを含む
-    - [ ] 削除可能かどうか確認
-  - [ ] `internal/aws/resolver_test.go` の修正
-    - [ ] `contains`関数の使用箇所を特定
-    - [ ] `strings.Contains`に置き換える
-    - [ ] `import "strings"` を追加
-  - [ ] `internal/aws/errors_test.go` の修正（必要な場合）
-    - [ ] 同様に`strings.Contains`に置き換え
-  - [ ] `internal/aws/testutil_test.go` を削除
-  - [ ] テスト実行
-    - [ ] `go test ./internal/aws/... -v`
-    - [ ] すべてのテストがパスすることを確認
-  - [ ] リファクタリング
+- [x] **R1.5 `internal/aws/testutil_test.go` のリファクタリング**
+  - [x] ファイル全体の削除を検討
+    - [x] このファイルは`contains`関数のみを含む
+    - [x] 削除可能かどうか確認
+  - [x] `internal/aws/resolver_test.go` の修正
+    - [x] `contains`関数の使用箇所を特定
+    - [x] `strings.Contains`に置き換える
+    - [x] `import "strings"` を追加
+  - [x] `internal/aws/errors_test.go` の修正（必要な場合）
+    - [x] 同様に`strings.Contains`に置き換え
+  - [x] `internal/aws/testutil_test.go` を削除
+  - [x] テスト実行
+    - [x] `go test ./internal/aws/... -v`
+    - [x] すべてのテストがパスすることを確認
+  - [x] リファクタリング
 
-- [ ] **R1.6 Epic R1 完了確認（MUST）**
-  - [ ] 全テスト実行
-    - [ ] `make test` - すべてのテストがパス
-  - [ ] テストカバレッジ確認
-    - [ ] `go test -cover ./...`
-    - [ ] カバレッジが低下していないことを確認
-  - [ ] `make ci` 実行
-    - [ ] `make test` - すべてのテストがパス
-    - [ ] `make lint` - リンターエラーを修正
-    - [ ] `make modernize` - 最新化の問題を修正
-    - [ ] `make fmt` - フォーマット適用
-  - [ ] すべてのチェックがパスするまで修正を繰り返す
-  - [ ] 実装計画のチェックリストを更新
-  - [ ] Gitコミット・プッシュ
-    - [ ] `git add .`
-    - [ ] `git commit -m "refactor: replace custom contains with strings.Contains"`
-    - [ ] `git push origin main`
-    - [ ] チェックリスト更新をコミット・プッシュ
+- [x] **R1.6 Epic R1 完了確認（MUST）**
+  - [x] 全テスト実行
+    - [x] `make test` - すべてのテストがパス
+  - [x] テストカバレッジ確認
+    - [x] `go test -cover ./...`
+    - [x] カバレッジが低下していないことを確認
+  - [x] `make ci` 実行
+    - [x] `make test` - すべてのテストがパス
+    - [x] `make lint` - リンターエラーを修正
+    - [x] `make modernize` - 最新化の問題を修正
+    - [x] `make fmt` - フォーマット適用
+  - [x] すべてのチェックがパスするまで修正を繰り返す
+  - [x] 実装計画のチェックリストを更新
+  - [x] Gitコミット・プッシュ
+    - [x] `git add .`
+    - [x] `git commit -m "refactor: replace custom contains with strings.Contains"`
+    - [x] `git push origin main`
+    - [x] チェックリスト更新をコミット・プッシュ
 
 ---
 
