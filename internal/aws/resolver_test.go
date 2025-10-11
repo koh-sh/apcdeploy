@@ -27,10 +27,6 @@ func TestNewResolver(t *testing.T) {
 
 	resolver := NewResolver(client)
 
-	if resolver == nil {
-		t.Fatal("expected non-nil resolver")
-	}
-
 	if resolver.client == nil {
 		t.Error("resolver client should not be nil")
 	}
@@ -874,6 +870,43 @@ func TestResolveAll(t *testing.T) {
 			wantProfileType: config.ProfileTypeFreeform,
 			wantEnvID:       "env-789",
 			wantStrategyID:  "strategy-101",
+			wantErr:         false,
+		},
+		{
+			name:         "successful resolution without deployment strategy (empty string)",
+			appName:      "test-app",
+			profileName:  "test-profile",
+			envName:      "production",
+			strategyName: "", // Empty strategy - should skip resolution
+			mockApps: []types.Application{
+				{
+					Id:   aws.String("app-123"),
+					Name: aws.String("test-app"),
+				},
+			},
+			mockProfiles: []types.ConfigurationProfileSummary{
+				{
+					Id:   aws.String("prof-456"),
+					Name: aws.String("test-profile"),
+				},
+			},
+			mockProfile: &appconfig.GetConfigurationProfileOutput{
+				Id:   aws.String("prof-456"),
+				Name: aws.String("test-profile"),
+				Type: aws.String(config.ProfileTypeFreeform),
+			},
+			mockEnvs: []types.Environment{
+				{
+					Id:   aws.String("env-789"),
+					Name: aws.String("production"),
+				},
+			},
+			mockStrategies:  []types.DeploymentStrategy{}, // Should not be called
+			wantAppID:       "app-123",
+			wantProfileID:   "prof-456",
+			wantProfileType: config.ProfileTypeFreeform,
+			wantEnvID:       "env-789",
+			wantStrategyID:  "", // Empty strategy ID expected
 			wantErr:         false,
 		},
 	}

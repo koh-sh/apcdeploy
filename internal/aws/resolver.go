@@ -242,7 +242,9 @@ type ResolvedResources struct {
 	DeploymentStrategyID string
 }
 
-// ResolveAll resolves all AWS AppConfig resources (application, profile, environment, strategy) concurrently
+// ResolveAll resolves all AWS AppConfig resources (application, profile, environment, strategy).
+// If strategyName is empty, deployment strategy resolution is skipped (DeploymentStrategyID will be empty).
+// This is useful for commands like 'get' and 'init' that don't require a deployment strategy.
 func (r *Resolver) ResolveAll(ctx context.Context, appName, profileName, envName, strategyName string) (*ResolvedResources, error) {
 	// Resolve application first as other resources depend on it
 	appID, err := r.ResolveApplication(ctx, appName)
@@ -262,10 +264,13 @@ func (r *Resolver) ResolveAll(ctx context.Context, appName, profileName, envName
 		return nil, err
 	}
 
-	// Resolve deployment strategy (independent)
-	strategyID, err := r.ResolveDeploymentStrategy(ctx, strategyName)
-	if err != nil {
-		return nil, err
+	// Resolve deployment strategy (independent) - optional
+	var strategyID string
+	if strategyName != "" {
+		strategyID, err = r.ResolveDeploymentStrategy(ctx, strategyName)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &ResolvedResources{

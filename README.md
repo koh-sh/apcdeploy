@@ -8,6 +8,7 @@ A declarative CLI tool for managing AWS AppConfig deployments. Manage your AppCo
 
 - **Declarative Configuration**: Define your AppConfig resources in `apcdeploy.yml`
 - **Deployment Automation**: Deploy configuration changes with a single command
+- **Configuration Retrieval**: Fetch currently deployed configuration from AWS AppConfig
 - **Diff Previews**: See exactly what will change before deploying
 - **Status Monitoring**: Track deployment progress and completion
 - **Multiple Content Types**: Support for both Feature Flags and Freeform configuration profiles
@@ -196,4 +197,12 @@ Check deployment status:
 
 ```bash
 apcdeploy status -c apcdeploy.yml
+```
+
+### get
+
+Retrieve the currently deployed configuration:
+
+```bash
+apcdeploy get -c apcdeploy.yml
 ```

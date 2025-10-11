@@ -42,12 +42,12 @@ tool-install:
 	go get -tool github.com/spf13/cobra-cli
 
 e2e-setup:
-	cd e2e/terraform && terraform init && terraform apply
+	cd e2e/terraform && terraform init && terraform apply -auto-approve
 
 e2e-run:
 	./e2e/e2e-test.sh
 
 e2e-clean:
-	cd e2e/terraform && ./cleanup.sh && terraform destroy
+	cd e2e/terraform && ./cleanup.sh && terraform destroy -auto-approve
 
 e2e-full: e2e-setup e2e-run e2e-clean

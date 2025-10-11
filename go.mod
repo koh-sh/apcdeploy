@@ -6,6 +6,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.39.2
 	github.com/aws/aws-sdk-go-v2/config v1.31.12
 	github.com/aws/aws-sdk-go-v2/service/appconfig v1.42.6
+	github.com/aws/aws-sdk-go-v2/service/appconfigdata v1.23.5
 	github.com/aws/smithy-go v1.23.0
 	github.com/goccy/go-yaml v1.18.0
 	github.com/sergi/go-diff v1.4.0

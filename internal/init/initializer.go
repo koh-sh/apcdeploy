@@ -62,37 +62,25 @@ func (i *Initializer) resolveResources(ctx context.Context, opts *Options) (*Res
 
 	resolver := awsInternal.NewResolver(i.awsClient)
 
-	// Resolve Application
-	appID, err := resolver.ResolveApplication(ctx, opts.Application)
+	// Resolve resources (deployment strategy not needed at this stage)
+	resolved, err := resolver.ResolveAll(ctx, opts.Application, opts.Profile, opts.Environment, "")
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve application: %w", err)
-	}
-
-	// Resolve Configuration Profile
-	profileInfo, err := resolver.ResolveConfigurationProfile(ctx, appID, opts.Profile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve configuration profile: %w", err)
-	}
-
-	// Resolve Environment
-	envID, err := resolver.ResolveEnvironment(ctx, appID, opts.Environment)
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve environment: %w", err)
+		return nil, err
 	}
 
 	// Report success
-	i.reporter.Success(fmt.Sprintf("Application: %s (ID: %s)", opts.Application, appID))
-	i.reporter.Success(fmt.Sprintf("Configuration Profile: %s (ID: %s)", opts.Profile, profileInfo.ID))
-	i.reporter.Success(fmt.Sprintf("Environment: %s (ID: %s)", opts.Environment, envID))
-	i.reporter.Success(fmt.Sprintf("Profile Type: %s", profileInfo.Type))
+	i.reporter.Success(fmt.Sprintf("Application: %s (ID: %s)", opts.Application, resolved.ApplicationID))
+	i.reporter.Success(fmt.Sprintf("Configuration Profile: %s (ID: %s)", opts.Profile, resolved.Profile.ID))
+	i.reporter.Success(fmt.Sprintf("Environment: %s (ID: %s)", opts.Environment, resolved.EnvironmentID))
+	i.reporter.Success(fmt.Sprintf("Profile Type: %s", resolved.Profile.Type))
 
 	return &Result{
-		AppID:       appID,
+		AppID:       resolved.ApplicationID,
 		AppName:     opts.Application,
-		ProfileID:   profileInfo.ID,
+		ProfileID:   resolved.Profile.ID,
 		ProfileName: opts.Profile,
-		ProfileType: profileInfo.Type,
-		EnvID:       envID,
+		ProfileType: resolved.Profile.Type,
+		EnvID:       resolved.EnvironmentID,
 		EnvName:     opts.Environment,
 		ConfigFile:  opts.ConfigFile,
 	}, nil

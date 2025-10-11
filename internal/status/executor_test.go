@@ -23,6 +23,7 @@ func TestNewExecutor(t *testing.T) {
 
 	if executor == nil {
 		t.Fatal("expected executor to be non-nil")
+		return
 	}
 
 	if executor.reporter != reporter {
@@ -418,6 +419,7 @@ func TestGetDeploymentByIDSuccess(t *testing.T) {
 
 	if deployment == nil {
 		t.Fatal("expected deployment to be non-nil")
+		return
 	}
 
 	if deployment.DeploymentNumber != deploymentNumber {
@@ -496,6 +498,7 @@ func TestGetLatestDeploymentSuccess(t *testing.T) {
 
 	if deployment == nil {
 		t.Fatal("expected deployment to be non-nil")
+		return
 	}
 
 	if deployment.DeploymentNumber != deploymentNumber {

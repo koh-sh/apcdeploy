@@ -27,10 +27,6 @@ func TestNewConfigVersionFetcher(t *testing.T) {
 
 	fetcher := NewConfigVersionFetcher(client)
 
-	if fetcher == nil {
-		t.Fatal("expected non-nil fetcher")
-	}
-
 	if fetcher.client == nil {
 		t.Error("fetcher client should not be nil")
 	}
