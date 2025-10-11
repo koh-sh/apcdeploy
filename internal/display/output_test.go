@@ -25,9 +25,9 @@ func TestSuccess(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := Success(tt.message)
+			result := successMsg(tt.message)
 			if !strings.Contains(result, tt.contains) {
-				t.Errorf("Success() = %s, want to contain %s", result, tt.contains)
+				t.Errorf("successMsg() = %s, want to contain %s", result, tt.contains)
 			}
 		})
 	}
@@ -53,9 +53,9 @@ func TestError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := Error(tt.message)
+			result := errorMsg(tt.message)
 			if !strings.Contains(result, tt.contains) {
-				t.Errorf("Error() = %s, want to contain %s", result, tt.contains)
+				t.Errorf("errorMsg() = %s, want to contain %s", result, tt.contains)
 			}
 		})
 	}
@@ -81,9 +81,9 @@ func TestWarning(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := Warning(tt.message)
+			result := warningMsg(tt.message)
 			if !strings.Contains(result, tt.contains) {
-				t.Errorf("Warning() = %s, want to contain %s", result, tt.contains)
+				t.Errorf("warningMsg() = %s, want to contain %s", result, tt.contains)
 			}
 		})
 	}
@@ -109,9 +109,9 @@ func TestProgress(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := Progress(tt.message)
+			result := progressMsg(tt.message)
 			if !strings.Contains(result, tt.contains) {
-				t.Errorf("Progress() = %s, want to contain %s", result, tt.contains)
+				t.Errorf("progressMsg() = %s, want to contain %s", result, tt.contains)
 			}
 		})
 	}

@@ -18,8 +18,8 @@ func ShowDeploymentStatusSilent(deployment *aws.DeploymentDetails) {
 // ShowDeploymentStatus displays detailed deployment status information
 func ShowDeploymentStatus(deployment *aws.DeploymentDetails, cfg *config.Config, resources *aws.ResolvedResources) {
 	// Header
-	fmt.Println("\n" + Bold("Deployment Status"))
-	fmt.Println(Separator())
+	fmt.Println("\n" + bold("Deployment Status"))
+	fmt.Println(separator())
 
 	// Configuration information
 	fmt.Printf("  Application:   %s\n", cfg.Application)
@@ -58,7 +58,7 @@ func ShowDeploymentStatus(deployment *aws.DeploymentDetails, cfg *config.Config,
 	// Progress information (for in-progress deployments)
 	if deployment.State == types.DeploymentStateDeploying || deployment.State == types.DeploymentStateBaking {
 		fmt.Println()
-		fmt.Println(Bold("  Progress"))
+		fmt.Println(bold("  Progress"))
 		fmt.Printf("  Percentage:    %.1f%%\n", deployment.PercentageComplete)
 
 		if deployment.StartedAt != nil {
@@ -90,7 +90,7 @@ func ShowDeploymentStatus(deployment *aws.DeploymentDetails, cfg *config.Config,
 	// Rollback information
 	if deployment.State == types.DeploymentStateRolledBack {
 		fmt.Println()
-		fmt.Printf("  %s\n", Error("Deployment was rolled back"))
+		fmt.Printf("  %s\n", errorMsg("Deployment was rolled back"))
 
 		// Try to find rollback reason from event log
 		rollbackReason := getRollbackReason(deployment.EventLog)
@@ -106,13 +106,13 @@ func ShowDeploymentStatus(deployment *aws.DeploymentDetails, cfg *config.Config,
 func formatDeploymentState(state types.DeploymentState) string {
 	switch state {
 	case types.DeploymentStateComplete:
-		return Success("COMPLETE")
+		return successMsg("COMPLETE")
 	case types.DeploymentStateDeploying:
-		return Warning("DEPLOYING")
+		return warningMsg("DEPLOYING")
 	case types.DeploymentStateBaking:
-		return Warning("BAKING")
+		return warningMsg("BAKING")
 	case types.DeploymentStateRolledBack:
-		return Error("ROLLED_BACK")
+		return errorMsg("ROLLED_BACK")
 	default:
 		return string(state)
 	}

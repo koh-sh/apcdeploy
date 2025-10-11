@@ -8,8 +8,8 @@ import (
 	"github.com/koh-sh/apcdeploy/internal/config"
 )
 
-// DisplaySilent shows only the diff content in silent mode
-func DisplaySilent(result *Result) {
+// displaySilent shows only the diff content in silent mode
+func displaySilent(result *Result) {
 	// In silent mode:
 	// - No output if there are no changes
 	// - Only show the diff content if there are changes

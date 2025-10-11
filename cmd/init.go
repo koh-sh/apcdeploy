@@ -14,7 +14,6 @@ var (
 	initProfile    string
 	initEnv        string
 	initRegion     string
-	initConfig     string
 	initOutputData string
 	initForce      bool
 )
@@ -41,7 +40,6 @@ to select from available resources.`,
 	cmd.Flags().StringVar(&initProfile, "profile", "", "Configuration Profile name")
 	cmd.Flags().StringVar(&initEnv, "env", "", "Environment name")
 	cmd.Flags().StringVar(&initRegion, "region", "", "AWS region")
-	cmd.Flags().StringVarP(&initConfig, "config", "c", "apcdeploy.yml", "Output config file path")
 	cmd.Flags().StringVarP(&initOutputData, "output-data", "o", "", "Output data file path")
 	cmd.Flags().BoolVarP(&initForce, "force", "f", false, "Overwrite existing files")
 
@@ -57,14 +55,14 @@ func runInit(cmd *cobra.Command, args []string) error {
 		Profile:     initProfile,
 		Environment: initEnv,
 		Region:      initRegion,
-		ConfigFile:  initConfig,
+		ConfigFile:  configFile,
 		OutputData:  initOutputData,
 		Force:       initForce,
-		Silent:      IsSilent(),
+		Silent:      isSilent(),
 	}
 
 	// Create reporter and prompter
-	reporter := cli.GetReporter(IsSilent())
+	reporter := cli.GetReporter(isSilent())
 	prompter := &prompt.HuhPrompter{}
 
 	// Run initialization

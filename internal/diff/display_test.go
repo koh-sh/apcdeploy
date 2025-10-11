@@ -94,18 +94,18 @@ func TestDisplaySilent(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			output := captureOutput(func() {
-				DisplaySilent(tt.result)
+				displaySilent(tt.result)
 			})
 
 			if tt.wantOutput {
 				if output == "" {
-					t.Error("DisplaySilent() expected output but got empty string")
+					t.Error("displaySilent() expected output but got empty string")
 				}
 				if tt.wantText != "" && !strings.Contains(output, tt.wantText) {
-					t.Errorf("DisplaySilent() output missing %q\nGot:\n%s", tt.wantText, output)
+					t.Errorf("displaySilent() output missing %q\nGot:\n%s", tt.wantText, output)
 				}
 			} else if output != "" {
-				t.Errorf("DisplaySilent() expected no output but got:\n%s", output)
+				t.Errorf("displaySilent() expected no output but got:\n%s", output)
 			}
 		})
 	}

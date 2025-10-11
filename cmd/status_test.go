@@ -18,11 +18,6 @@ func TestStatusCommand(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "custom config file",
-			args:    []string{"--config", "custom.yml"},
-			wantErr: false,
-		},
-		{
 			name:    "with deployment ID",
 			args:    []string{"--deployment", "123"},
 			wantErr: false,
@@ -32,7 +27,7 @@ func TestStatusCommand(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Reset global flags for each test
-			statusConfigFile = "apcdeploy.yml"
+			configFile = "apcdeploy.yml"
 			statusDeploymentID = ""
 
 			cmd := newStatusCmd()
@@ -107,7 +102,7 @@ deployment_strategy: test-strategy
 			configPath := tt.setupFiles(t, tmpDir)
 
 			// Reset global flags
-			statusConfigFile = configPath
+			configFile = configPath
 			statusDeploymentID = ""
 
 			// Create command
@@ -144,7 +139,7 @@ func TestStatusCommandStructure(t *testing.T) {
 }
 
 func TestStatusCommandFlags(t *testing.T) {
-	statusConfigFile = "apcdeploy.yml"
+	configFile = "apcdeploy.yml"
 	statusDeploymentID = ""
 
 	cmd := newStatusCmd()
@@ -154,11 +149,6 @@ func TestStatusCommandFlags(t *testing.T) {
 		flagName     string
 		defaultValue string
 	}{
-		{
-			name:         "config flag has default",
-			flagName:     "config",
-			defaultValue: "apcdeploy.yml",
-		},
 		{
 			name:         "deployment flag has default",
 			flagName:     "deployment",

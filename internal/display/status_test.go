@@ -454,18 +454,18 @@ func TestBold(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := Bold(tt.text)
+			got := bold(tt.text)
 			if !strings.Contains(got, tt.want) {
-				t.Errorf("Bold() = %v, want to contain %v", got, tt.want)
+				t.Errorf("bold() = %v, want to contain %v", got, tt.want)
 			}
 		})
 	}
 }
 
 func TestSeparator(t *testing.T) {
-	result := Separator()
+	result := separator()
 	if len(result) == 0 {
-		t.Error("Separator() returned empty string")
+		t.Error("separator() returned empty string")
 	}
 }
 

@@ -18,11 +18,6 @@ func TestInitCommand(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "with optional config flag",
-			args:    []string{"--app", "test-app", "--profile", "test-profile", "--env", "test-env", "--region", "us-east-1", "--config", "custom.yml"},
-			wantErr: false,
-		},
-		{
 			name:    "with optional output-data flag",
 			args:    []string{"--app", "test-app", "--profile", "test-profile", "--env", "test-env", "--region", "us-east-1", "--output-data", "custom-data.json"},
 			wantErr: false,
@@ -41,7 +36,7 @@ func TestInitCommand(t *testing.T) {
 			initProfile = ""
 			initEnv = ""
 			initRegion = ""
-			initConfig = "apcdeploy.yml"
+			configFile = "apcdeploy.yml"
 			initOutputData = ""
 			initForce = false
 
@@ -72,39 +67,24 @@ func TestInitCommandInteractiveMode(t *testing.T) {
 }
 
 func TestInitCommandFlagDefaults(t *testing.T) {
-	tests := []struct {
-		name         string
-		args         []string
-		expectedFile string
-	}{
-		{
-			name:         "default config file",
-			args:         []string{"--app", "test-app", "--profile", "test-profile", "--env", "test-env"},
-			expectedFile: "apcdeploy.yml",
-		},
-		{
-			name:         "custom config file",
-			args:         []string{"--app", "test-app", "--profile", "test-profile", "--env", "test-env", "-c", "custom.yml"},
-			expectedFile: "custom.yml",
-		},
+	// Config flag is tested in root_test.go as a persistent flag
+	// Test init-specific flags
+	cmd := newInitCmd()
+
+	// Verify force flag exists with correct default
+	forceFlag := cmd.Flags().Lookup("force")
+	if forceFlag == nil {
+		t.Error("force flag not found")
+		return
+	}
+	if forceFlag.DefValue != "false" {
+		t.Errorf("force flag default = %v, want false", forceFlag.DefValue)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cmd := newInitCmd()
-			cmd.SetArgs(tt.args)
-
-			// Parse flags only (don't execute)
-			err := cmd.ParseFlags(tt.args)
-			if err != nil {
-				t.Fatalf("failed to parse flags: %v", err)
-			}
-
-			configFile, _ := cmd.Flags().GetString("config")
-			if configFile != tt.expectedFile {
-				t.Errorf("expected config file %q, got %q", tt.expectedFile, configFile)
-			}
-		})
+	// Verify output-data flag exists
+	outputFlag := cmd.Flags().Lookup("output-data")
+	if outputFlag == nil {
+		t.Error("output-data flag not found")
 	}
 }
 
@@ -186,7 +166,7 @@ func TestRunInitWithAllFlags(t *testing.T) {
 			initProfile = tt.profile
 			initEnv = tt.env
 			initRegion = tt.region
-			initConfig = tt.config
+			configFile = tt.config
 			initOutputData = tt.outputData
 			initForce = tt.force
 

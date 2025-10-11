@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 
-	"github.com/koh-sh/apcdeploy/internal/display"
 	"github.com/koh-sh/apcdeploy/internal/reporter"
 )
 
@@ -19,13 +18,13 @@ func NewReporter() *Reporter {
 }
 
 func (r *Reporter) Progress(message string) {
-	fmt.Println(display.Progress(message))
+	fmt.Printf("⏳ %s\n", message)
 }
 
 func (r *Reporter) Success(message string) {
-	fmt.Println(display.Success(message))
+	fmt.Printf("✓ %s\n", message)
 }
 
 func (r *Reporter) Warning(message string) {
-	fmt.Println(display.Warning(message))
+	fmt.Printf("⚠ %s\n", message)
 }
