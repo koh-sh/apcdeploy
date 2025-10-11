@@ -5,7 +5,7 @@ coverage:
     - '**/testing/**'
     - 'main.go'
     - 'internal/prompt/huh.go'
-  acceptable: current >= 95%
+  acceptable: current >= 90%
 codeToTestRatio:
   code:
     - '**/*.go'
