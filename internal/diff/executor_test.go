@@ -35,7 +35,6 @@ func TestExecutorLoadConfigurationError(t *testing.T) {
 
 	opts := &Options{
 		ConfigFile: "nonexistent.yml",
-		Region:     "us-east-1",
 	}
 
 	err := executor.Execute(context.Background(), opts)
@@ -146,7 +145,6 @@ region: us-east-1
 
 	opts := &Options{
 		ConfigFile: configPath,
-		Region:     "us-east-1",
 	}
 
 	err = executor.Execute(context.Background(), opts)
@@ -254,7 +252,6 @@ region: us-east-1
 
 	opts := &Options{
 		ConfigFile: configPath,
-		Region:     "us-east-1",
 	}
 
 	err = executor.Execute(context.Background(), opts)
@@ -273,53 +270,6 @@ region: us-east-1
 
 	if !hasWarning {
 		t.Error("expected warning about deployment in progress")
-	}
-}
-
-func TestExecutorRegionOverride(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "executor-region-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
-
-	configPath := filepath.Join(tempDir, "apcdeploy.yml")
-	configContent := `application: test-app
-configuration_profile: test-profile
-environment: test-env
-deployment_strategy: AppConfig.AllAtOnce
-data_file: data.json
-region: us-west-2
-`
-	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
-		t.Fatalf("Failed to write config: %v", err)
-	}
-
-	dataPath := filepath.Join(tempDir, "data.json")
-	if err := os.WriteFile(dataPath, []byte(`{"key": "value"}`), 0o644); err != nil {
-		t.Fatalf("Failed to write data: %v", err)
-	}
-
-	capturedRegion := ""
-	clientFactory := func(ctx context.Context, region string) (*awsInternal.Client, error) {
-		capturedRegion = region
-		// Return an error to stop execution early - we just want to verify region
-		return nil, os.ErrInvalid
-	}
-
-	reporter := &reportertest.MockReporter{}
-	executor := NewExecutorWithFactory(reporter, clientFactory)
-
-	// Test with region override
-	opts := &Options{
-		ConfigFile: configPath,
-		Region:     "ap-northeast-1",
-	}
-
-	_ = executor.Execute(context.Background(), opts)
-
-	if capturedRegion != "ap-northeast-1" {
-		t.Errorf("expected region to be overridden to ap-northeast-1, got: %s", capturedRegion)
 	}
 }
 
@@ -408,7 +358,6 @@ region: us-east-1
 
 	opts := &Options{
 		ConfigFile:  configPath,
-		Region:      "us-east-1",
 		ExitNonzero: true,
 	}
 
@@ -507,7 +456,6 @@ region: us-east-1
 
 	opts := &Options{
 		ConfigFile:  configPath,
-		Region:      "us-east-1",
 		ExitNonzero: true,
 	}
 

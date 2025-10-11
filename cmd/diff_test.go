@@ -20,18 +20,12 @@ func TestDiffCommand(t *testing.T) {
 			args:    []string{"--config", "custom.yml"},
 			wantErr: false,
 		},
-		{
-			name:    "custom region",
-			args:    []string{"--region", "us-west-2"},
-			wantErr: false,
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Reset global flags for each test
 			diffConfigFile = "apcdeploy.yml"
-			diffRegion = ""
 
 			cmd := newDiffCmd()
 			cmd.SetArgs(tt.args)
@@ -66,7 +60,6 @@ func TestDiffCommandStructure(t *testing.T) {
 
 func TestDiffCommandFlags(t *testing.T) {
 	diffConfigFile = "apcdeploy.yml"
-	diffRegion = ""
 
 	cmd := newDiffCmd()
 
@@ -79,11 +72,6 @@ func TestDiffCommandFlags(t *testing.T) {
 			name:         "config flag has default",
 			flagName:     "config",
 			defaultValue: "apcdeploy.yml",
-		},
-		{
-			name:         "region flag has default",
-			flagName:     "region",
-			defaultValue: "",
 		},
 	}
 
@@ -105,7 +93,6 @@ func TestDiffCommandFlags(t *testing.T) {
 func TestRunDiffInvalidConfig(t *testing.T) {
 	// Reset flags
 	diffConfigFile = "nonexistent.yml"
-	diffRegion = ""
 
 	err := runDiff(nil, nil)
 	if err == nil {
@@ -144,7 +131,6 @@ func TestDiffCommandExitNonzeroFlag(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Reset flags
 			diffConfigFile = "apcdeploy.yml"
-			diffRegion = ""
 			diffExitNonzero = false
 
 			cmd := newDiffCmd()

@@ -55,8 +55,9 @@ E2E tests require AWS credentials and use Terraform to provision resources:
 All commands follow the pattern: `cmd/<command>.go` → `internal/<command>/executor.go`
 
 1. **cmd/**: Cobra command definitions and CLI flag parsing
-   - `root.go`: Root command with global flags (`--config`, `--region`)
+   - `root.go`: Root command with global flags (`--config`)
    - Each command file (`init.go`, `run.go`, `diff.go`, `status.go`, `get.go`) handles CLI concerns only
+   - `init.go`: Has a local `--region` flag (required for initial setup)
 
 2. **internal/\<command\>/**: Business logic for each command
    - `executor.go`: Main execution logic

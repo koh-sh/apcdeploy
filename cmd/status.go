@@ -10,7 +10,6 @@ import (
 
 var (
 	statusConfigFile   string
-	statusRegion       string
 	statusDeploymentID string
 )
 
@@ -32,7 +31,6 @@ identified by deployment number.`,
 	}
 
 	cmd.Flags().StringVarP(&statusConfigFile, "config", "c", "apcdeploy.yml", "Path to configuration file")
-	cmd.Flags().StringVar(&statusRegion, "region", "", "AWS region (overrides config file)")
 	cmd.Flags().StringVar(&statusDeploymentID, "deployment", "", "Deployment number to check (defaults to latest)")
 
 	return cmd
@@ -44,7 +42,6 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	// Create options
 	opts := &status.Options{
 		ConfigFile:   statusConfigFile,
-		Region:       statusRegion,
 		DeploymentID: statusDeploymentID,
 	}
 

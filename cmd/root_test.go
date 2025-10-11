@@ -67,12 +67,6 @@ func TestGlobalFlags(t *testing.T) {
 	if configFlag == nil {
 		t.Error("config flag not found")
 	}
-
-	// Test --region flag
-	regionFlag := rootCmd.PersistentFlags().Lookup("region")
-	if regionFlag == nil {
-		t.Error("region flag not found")
-	}
 }
 
 func TestExecute(t *testing.T) {

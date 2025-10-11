@@ -12,7 +12,6 @@ import (
 
 var (
 	diffConfigFile  string
-	diffRegion      string
 	diffExitNonzero bool
 )
 
@@ -34,7 +33,6 @@ and displays the differences in unified diff format.`,
 	}
 
 	cmd.Flags().StringVarP(&diffConfigFile, "config", "c", "apcdeploy.yml", "Path to configuration file")
-	cmd.Flags().StringVar(&diffRegion, "region", "", "AWS region (overrides config file)")
 	cmd.Flags().BoolVar(&diffExitNonzero, "exit-nonzero", false, "Exit with code 1 if differences exist")
 
 	return cmd
@@ -46,7 +44,6 @@ func runDiff(cmd *cobra.Command, args []string) error {
 	// Create options
 	opts := &diff.Options{
 		ConfigFile:  diffConfigFile,
-		Region:      diffRegion,
 		ExitNonzero: diffExitNonzero,
 	}
 

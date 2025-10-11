@@ -15,7 +15,6 @@ var (
 
 	// Global flags
 	configFile string
-	region     string
 )
 
 // NewRootCommand creates and returns the root command
@@ -30,7 +29,6 @@ It provides commands to initialize, deploy, diff, and check the status of config
 
 	// Global flags
 	rootCmd.PersistentFlags().StringVarP(&configFile, "config", "c", "apcdeploy.yml", "config file path")
-	rootCmd.PersistentFlags().StringVar(&region, "region", "", "AWS region (overrides config file)")
 
 	// Add subcommands
 	rootCmd.AddCommand(InitCommand())
