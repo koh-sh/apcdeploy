@@ -42,34 +42,15 @@ func NewWithClient(cfg *config.Config, awsClient *aws.Client) *Getter {
 //   - *aws.ResolvedResources: Struct containing resolved resource IDs
 //   - error: Any error during resolution process
 func (g *Getter) ResolveResources(ctx context.Context) (*aws.ResolvedResources, error) {
-	// Create a resolver
 	resolver := aws.NewResolver(g.awsClient)
 
-	// Resolve application first as other resources depend on it
-	appID, err := resolver.ResolveApplication(ctx, g.cfg.Application)
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve application: %w", err)
-	}
-
-	// Resolve profile (needs appID)
-	profile, err := resolver.ResolveConfigurationProfile(ctx, appID, g.cfg.ConfigurationProfile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve configuration profile: %w", err)
-	}
-
-	// Resolve environment (needs appID)
-	envID, err := resolver.ResolveEnvironment(ctx, appID, g.cfg.Environment)
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve environment: %w", err)
-	}
-
-	// Return resolved resources (deployment strategy is empty as it's not needed)
-	return &aws.ResolvedResources{
-		ApplicationID:        appID,
-		Profile:              profile,
-		EnvironmentID:        envID,
-		DeploymentStrategyID: "", // Not needed for get command
-	}, nil
+	// Resolve resources (deployment strategy not needed for get command)
+	return resolver.ResolveAll(ctx,
+		g.cfg.Application,
+		g.cfg.ConfigurationProfile,
+		g.cfg.Environment,
+		"", // Deployment strategy not needed for get command
+	)
 }
 
 // GetConfiguration retrieves the latest configuration from AppConfig using the appconfigdata API.

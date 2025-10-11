@@ -15,6 +15,46 @@ import (
 	"github.com/koh-sh/apcdeploy/internal/config"
 )
 
+func TestNew(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		region  string
+		wantErr bool
+	}{
+		{
+			name:    "valid region",
+			region:  "us-east-1",
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			cfg := &config.Config{
+				Application:          "test-app",
+				ConfigurationProfile: "test-profile",
+				Environment:          "test-env",
+				Region:               tt.region,
+				DataFile:             "data.json",
+			}
+
+			getter, err := New(ctx, cfg)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("New() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if !tt.wantErr && getter == nil {
+				t.Error("Expected getter to be non-nil")
+			}
+			if !tt.wantErr && getter.awsClient == nil {
+				t.Error("Expected awsClient to be non-nil")
+			}
+		})
+	}
+}
+
 func TestNewWithClient(t *testing.T) {
 	t.Parallel()
 
@@ -145,8 +185,8 @@ func TestResolveResourcesApplicationError(t *testing.T) {
 		t.Fatal("expected error")
 	}
 
-	if !strings.Contains(err.Error(), "failed to resolve application") {
-		t.Errorf("expected 'failed to resolve application' in error, got: %v", err)
+	if !strings.Contains(err.Error(), "failed to list applications") {
+		t.Errorf("expected 'failed to list applications' in error, got: %v", err)
 	}
 }
 
@@ -181,8 +221,8 @@ func TestResolveResourcesProfileError(t *testing.T) {
 		t.Fatal("expected error")
 	}
 
-	if !strings.Contains(err.Error(), "failed to resolve configuration profile") {
-		t.Errorf("expected 'failed to resolve configuration profile' in error, got: %v", err)
+	if !strings.Contains(err.Error(), "failed to list configuration profiles") {
+		t.Errorf("expected 'failed to list configuration profiles' in error, got: %v", err)
 	}
 }
 
@@ -228,8 +268,8 @@ func TestResolveResourcesEnvironmentError(t *testing.T) {
 		t.Fatal("expected error")
 	}
 
-	if !strings.Contains(err.Error(), "failed to resolve environment") {
-		t.Errorf("expected 'failed to resolve environment' in error, got: %v", err)
+	if !strings.Contains(err.Error(), "failed to list environments") {
+		t.Errorf("expected 'failed to list environments' in error, got: %v", err)
 	}
 }
 

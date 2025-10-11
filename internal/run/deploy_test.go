@@ -352,6 +352,7 @@ func TestNewWithClient(t *testing.T) {
 
 	if deployer == nil {
 		t.Fatal("expected deployer to be non-nil")
+		return
 	}
 
 	if deployer.cfg != cfg {

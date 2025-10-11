@@ -21,6 +21,7 @@ func TestNewExecutor(t *testing.T) {
 
 	if executor == nil {
 		t.Fatal("expected executor to be non-nil")
+		return
 	}
 
 	if executor.reporter != reporter {

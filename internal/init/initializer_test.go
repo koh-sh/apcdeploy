@@ -96,7 +96,7 @@ func TestInitializer_ResolveResources(t *testing.T) {
 				}
 			},
 			wantErr:     true,
-			errContains: "failed to resolve application",
+			errContains: "application not found",
 		},
 	}
 
