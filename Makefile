@@ -1,7 +1,8 @@
-.PHONY: test fmt cov tidy lint lint-fix build modernize modernize-fix ci tool-install e2e-setup e2e-run e2e-clean e2e-full
+.PHONY: test fmt cov cov-check tidy lint lint-fix build modernize modernize-fix ci tool-install e2e-setup e2e-run e2e-clean e2e-full
 
 COVFILE = coverage.out
 COVHTML = cover.html
+GITHUB_REPOSITORY = koh-sh/apcdeploy
 
 test:
 	go test ./... -json | go tool tparse -all
@@ -12,6 +13,11 @@ fmt:
 cov:
 	go test -cover ./... -coverprofile=$(COVFILE)
 	go tool cover -html=$(COVFILE) -o $(COVHTML)
+	rm $(COVFILE)
+
+cov-check:
+	go test -cover ./... -coverprofile=$(COVFILE)
+	CI=1 GITHUB_REPOSITORY=$(GITHUB_REPOSITORY) octocov
 	rm $(COVFILE)
 
 tidy:
@@ -26,7 +32,7 @@ lint-fix:
 build:
 	go build
 
-ci: fmt modernize-fix lint-fix test build
+ci: fmt modernize-fix lint-fix test build cov-check
 
 # Go Modernize
 modernize:
@@ -40,6 +46,7 @@ tool-install:
 	go get -tool github.com/golangci/golangci-lint/v2/cmd/golangci-lint
 	go get -tool github.com/mfridman/tparse
 	go get -tool github.com/spf13/cobra-cli
+	brew install k1LoW/tap/octocov
 
 e2e-setup:
 	cd e2e/terraform && terraform init && terraform apply -auto-approve
