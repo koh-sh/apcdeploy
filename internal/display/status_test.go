@@ -28,6 +28,74 @@ func captureOutput(f func()) string {
 	return buf.String()
 }
 
+func TestShowDeploymentStatusSilent(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name       string
+		deployment *aws.DeploymentDetails
+		want       string
+	}{
+		{
+			name: "completed deployment",
+			deployment: &aws.DeploymentDetails{
+				State: types.DeploymentStateComplete,
+			},
+			want: "COMPLETE",
+		},
+		{
+			name: "deploying deployment",
+			deployment: &aws.DeploymentDetails{
+				State: types.DeploymentStateDeploying,
+			},
+			want: "DEPLOYING",
+		},
+		{
+			name: "baking deployment",
+			deployment: &aws.DeploymentDetails{
+				State: types.DeploymentStateBaking,
+			},
+			want: "BAKING",
+		},
+		{
+			name: "rolled back deployment",
+			deployment: &aws.DeploymentDetails{
+				State: types.DeploymentStateRolledBack,
+			},
+			want: "ROLLED_BACK",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			output := captureOutput(func() {
+				ShowDeploymentStatusSilent(tt.deployment)
+			})
+
+			// Verify only the status is shown
+			if !strings.Contains(output, tt.want) {
+				t.Errorf("ShowDeploymentStatusSilent() = %q, want to contain %q", output, tt.want)
+			}
+
+			// Verify no verbose information is shown
+			verboseKeywords := []string{
+				"Deployment Status",
+				"Application:",
+				"Profile:",
+				"Environment:",
+				"Deployment #:",
+				"Version:",
+				"Progress",
+			}
+			for _, keyword := range verboseKeywords {
+				if strings.Contains(output, keyword) {
+					t.Errorf("ShowDeploymentStatusSilent() should not contain verbose keyword %q\nGot:\n%s", keyword, output)
+				}
+			}
+		})
+	}
+}
+
 func TestShowDeploymentStatus(t *testing.T) {
 	tests := []struct {
 		name       string

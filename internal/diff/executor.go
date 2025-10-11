@@ -103,7 +103,11 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	}
 
 	// Step 10: Display diff
-	display(diffResult, cfg, resources, deployment)
+	if opts.Silent {
+		DisplaySilent(diffResult)
+	} else {
+		display(diffResult, cfg, resources, deployment)
+	}
 
 	// Step 11: Return error if differences found and ExitNonzero is set
 	if opts.ExitNonzero && diffResult.HasChanges {

@@ -50,8 +50,10 @@ func (i *Initializer) Run(ctx context.Context, opts *Options) (*Result, error) {
 		return nil, err
 	}
 
-	// Show next steps
-	i.showNextSteps()
+	// Show next steps (unless in silent mode)
+	if !opts.Silent {
+		i.showNextSteps()
+	}
 
 	return result, nil
 }

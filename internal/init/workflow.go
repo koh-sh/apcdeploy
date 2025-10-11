@@ -114,6 +114,7 @@ func (w *InitWorkflow) Run(ctx context.Context, opts *Options) error {
 		ConfigFile:  opts.ConfigFile,
 		OutputData:  opts.OutputData,
 		Force:       opts.Force,
+		Silent:      opts.Silent,
 	}
 
 	// Step 8: Run existing initialization logic

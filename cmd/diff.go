@@ -45,10 +45,11 @@ func runDiff(cmd *cobra.Command, args []string) error {
 	opts := &diff.Options{
 		ConfigFile:  diffConfigFile,
 		ExitNonzero: diffExitNonzero,
+		Silent:      IsSilent(),
 	}
 
 	// Create reporter
-	reporter := cli.NewReporter()
+	reporter := cli.GetReporter(IsSilent())
 
 	// Run diff
 	executor := diff.NewExecutor(reporter)

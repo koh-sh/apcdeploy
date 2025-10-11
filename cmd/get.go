@@ -41,10 +41,11 @@ func runGet(cmd *cobra.Command, args []string) error {
 	// Create options
 	opts := &get.Options{
 		ConfigFile: getConfigFile,
+		Silent:     IsSilent(),
 	}
 
 	// Create reporter
-	reporter := cli.NewReporter()
+	reporter := cli.GetReporter(IsSilent())
 
 	// Get configuration
 	executor := get.NewExecutor(reporter)

@@ -15,6 +15,7 @@ var (
 
 	// Global flags
 	configFile string
+	silent     bool
 )
 
 // NewRootCommand creates and returns the root command
@@ -29,6 +30,7 @@ It provides commands to initialize, deploy, diff, and check the status of config
 
 	// Global flags
 	rootCmd.PersistentFlags().StringVarP(&configFile, "config", "c", "apcdeploy.yml", "config file path")
+	rootCmd.PersistentFlags().BoolVarP(&silent, "silent", "s", false, "suppress verbose output, show only essential information")
 
 	// Add subcommands
 	rootCmd.AddCommand(InitCommand())
@@ -55,10 +57,20 @@ func Execute() {
 	rootCmd.SilenceErrors = true
 
 	if err := rootCmd.Execute(); err != nil {
-		// Print error with blank lines before and after for better visibility
-		fmt.Fprintln(os.Stderr)
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		fmt.Fprintln(os.Stderr)
+		// Print error message (only when not in silent mode or always show errors)
+		if silent {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		} else {
+			// Print error with blank lines before and after for better visibility
+			fmt.Fprintln(os.Stderr)
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			fmt.Fprintln(os.Stderr)
+		}
 		os.Exit(1)
 	}
+}
+
+// IsSilent returns whether silent mode is enabled
+func IsSilent() bool {
+	return silent
 }

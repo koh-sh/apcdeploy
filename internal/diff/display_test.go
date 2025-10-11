@@ -1,6 +1,10 @@
 package diff
 
 import (
+	"bytes"
+	"io"
+	"os"
+	"strings"
 	"testing"
 )
 
@@ -43,6 +47,66 @@ func Test_displayColorizedDiff(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Just verify it doesn't panic
 			displayColorizedDiff(tt.diff)
+		})
+	}
+}
+
+func TestDisplaySilent(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name       string
+		result     *Result
+		wantOutput bool
+		wantText   string
+	}{
+		{
+			name: "no changes - should produce no output",
+			result: &Result{
+				HasChanges:  false,
+				UnifiedDiff: "",
+				FileName:    "data.json",
+			},
+			wantOutput: false,
+		},
+		{
+			name: "has changes - should show diff only",
+			result: &Result{
+				HasChanges:  true,
+				UnifiedDiff: "+added line\n-removed line",
+				FileName:    "data.json",
+			},
+			wantOutput: true,
+			wantText:   "added line",
+		},
+		{
+			name: "has changes with multiple lines",
+			result: &Result{
+				HasChanges:  true,
+				UnifiedDiff: "@@ -1,3 +1,3 @@\n context\n+new line\n-old line",
+				FileName:    "config.yaml",
+			},
+			wantOutput: true,
+			wantText:   "new line",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			output := captureOutput(func() {
+				DisplaySilent(tt.result)
+			})
+
+			if tt.wantOutput {
+				if output == "" {
+					t.Error("DisplaySilent() expected output but got empty string")
+				}
+				if tt.wantText != "" && !strings.Contains(output, tt.wantText) {
+					t.Errorf("DisplaySilent() output missing %q\nGot:\n%s", tt.wantText, output)
+				}
+			} else if output != "" {
+				t.Errorf("DisplaySilent() expected no output but got:\n%s", output)
+			}
 		})
 	}
 }
@@ -103,4 +167,20 @@ func Test_countChanges(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Helper functions
+func captureOutput(f func()) string {
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	f()
+
+	w.Close()
+	os.Stdout = old
+
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+	return buf.String()
 }

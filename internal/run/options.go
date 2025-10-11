@@ -6,4 +6,5 @@ type Options struct {
 	Wait       bool
 	Timeout    int
 	Force      bool
+	Silent     bool
 }

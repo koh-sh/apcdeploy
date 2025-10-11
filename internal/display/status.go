@@ -9,6 +9,12 @@ import (
 	"github.com/koh-sh/apcdeploy/internal/config"
 )
 
+// ShowDeploymentStatusSilent displays only the deployment status in silent mode
+func ShowDeploymentStatusSilent(deployment *aws.DeploymentDetails) {
+	// In silent mode, only show the status
+	fmt.Println(deployment.State)
+}
+
 // ShowDeploymentStatus displays detailed deployment status information
 func ShowDeploymentStatus(deployment *aws.DeploymentDetails, cfg *config.Config, resources *aws.ResolvedResources) {
 	// Header
