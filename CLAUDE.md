@@ -36,7 +36,17 @@ When implementing new features or fixing bugs, follow these absolute rules:
 ./apcdeploy diff -c apcdeploy.yml
 ./apcdeploy run -c apcdeploy.yml --wait
 ./apcdeploy status -c apcdeploy.yml
+./apcdeploy get -c apcdeploy.yml
 ```
+
+### E2E Testing
+
+E2E tests require AWS credentials and use Terraform to provision resources:
+
+- **Setup resources**: `make e2e-setup` (provisions AWS resources via Terraform)
+- **Run tests**: `make e2e-run` (executes e2e test script)
+- **Clean up**: `make e2e-clean` (destroys test resources)
+- **Full workflow**: `make e2e-full` (setup, test, cleanup in one command)
 
 ## Architecture
 
@@ -46,7 +56,7 @@ All commands follow the pattern: `cmd/<command>.go` → `internal/<command>/exec
 
 1. **cmd/**: Cobra command definitions and CLI flag parsing
    - `root.go`: Root command with global flags (`--config`, `--region`)
-   - Each command file (`init.go`, `run.go`, `diff.go`, `status.go`) handles CLI concerns only
+   - Each command file (`init.go`, `run.go`, `diff.go`, `status.go`, `get.go`) handles CLI concerns only
 
 2. **internal/\<command\>/**: Business logic for each command
    - `executor.go`: Main execution logic
@@ -106,6 +116,13 @@ Progress reporting interface used across all commands:
 2. Auto-detect ContentType from configuration profile
 3. Generate `apcdeploy.yml` with resolved settings
 4. Save data file with appropriate extension (`.json`, `.yaml`, `.txt`)
+
+#### Get Flow (get command)
+
+1. Load local config (`apcdeploy.yml`)
+2. Resolve resource names to AWS IDs
+3. Fetch latest deployed configuration from AppConfig
+4. Output configuration to stdout (respects content type formatting)
 
 ### Testing Patterns
 
