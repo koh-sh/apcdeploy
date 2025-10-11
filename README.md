@@ -4,6 +4,8 @@ A declarative CLI tool for managing AWS AppConfig deployments. Manage your AppCo
 
 Note: This tool only supports AWS AppConfig hosted configuration store. You must create AppConfig resources (application, configuration profile, environment, deployment strategy) before using this tool.
 
+https://github.com/user-attachments/assets/392b7240-a406-40c0-9bc3-8f953d1b1d3f
+
 ## Features
 
 - **Declarative Configuration**: Define your AppConfig resources in `apcdeploy.yml`
