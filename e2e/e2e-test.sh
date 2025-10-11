@@ -130,7 +130,6 @@ $APCDEPLOY status 2>&1 | grep -q "No deploy" || echo "⚠️  Deployment may exi
 
 echo '{"e":"1"}' > data.json
 if $APCDEPLOY run --wait --timeout -1; then exit 1; fi
-if $APCDEPLOY init --app "$APP" --profile json-freeform; then exit 1; fi
 
 rm data.txt data.yaml data.json apcdeploy.yml apcdeploy
 echo "✅ All tests passed"

@@ -3,9 +3,9 @@ package cmd
 import (
 	"context"
 
-	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/cli"
 	initPkg "github.com/koh-sh/apcdeploy/internal/init"
+	"github.com/koh-sh/apcdeploy/internal/prompt"
 	"github.com/spf13/cobra"
 )
 
@@ -28,42 +28,28 @@ func newInitCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Initialize apcdeploy configuration from existing AppConfig resources",
-		Long: `Initialize apcdeploy configuration by fetching an existing AWS AppConfig
-configuration and generating apcdeploy.yml and data files.`,
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			// Show usage help when required flags are missing
-			if initApp == "" || initProfile == "" || initEnv == "" {
-				cmd.SilenceUsage = false
-			}
-			return nil
-		},
+		Long: `Initialize apcdeploy configuration by fetching existing AWS AppConfig resources
+and generating apcdeploy.yml and data files.
+
+Flags can be provided to skip interactive prompts. If omitted, you will be prompted
+to select from available resources.`,
 		RunE:         runInit,
-		SilenceUsage: true, // Don't show usage on runtime errors (e.g., file exists)
+		SilenceUsage: true, // Don't show usage on runtime errors
 	}
 
-	cmd.Flags().StringVar(&initApp, "app", "", "Application name (required)")
-	cmd.Flags().StringVar(&initProfile, "profile", "", "Configuration Profile name (required)")
-	cmd.Flags().StringVar(&initEnv, "env", "", "Environment name (required)")
-	cmd.Flags().StringVar(&initRegion, "region", "", "AWS region (optional, uses default from AWS config)")
+	cmd.Flags().StringVar(&initApp, "app", "", "Application name")
+	cmd.Flags().StringVar(&initProfile, "profile", "", "Configuration Profile name")
+	cmd.Flags().StringVar(&initEnv, "env", "", "Environment name")
+	cmd.Flags().StringVar(&initRegion, "region", "", "AWS region")
 	cmd.Flags().StringVarP(&initConfig, "config", "c", "apcdeploy.yml", "Output config file path")
-	cmd.Flags().StringVar(&initOutputData, "output-data", "", "Output data file path (optional, auto-detected from ContentType)")
-	cmd.Flags().BoolVar(&initForce, "force", false, "Overwrite existing files if they already exist")
-
-	cmd.MarkFlagRequired("app")
-	cmd.MarkFlagRequired("profile")
-	cmd.MarkFlagRequired("env")
+	cmd.Flags().StringVarP(&initOutputData, "output-data", "o", "", "Output data file path")
+	cmd.Flags().BoolVarP(&initForce, "force", "f", false, "Overwrite existing files")
 
 	return cmd
 }
 
 func runInit(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
-
-	// Create AWS client
-	awsClient, err := awsInternal.NewClient(ctx, initRegion)
-	if err != nil {
-		return err
-	}
 
 	// Create options
 	opts := &initPkg.Options{
@@ -76,11 +62,12 @@ func runInit(cmd *cobra.Command, args []string) error {
 		Force:       initForce,
 	}
 
-	// Create reporter
+	// Create reporter and prompter
 	reporter := cli.NewReporter()
+	prompter := &prompt.HuhPrompter{}
 
 	// Run initialization
-	initializer := initPkg.New(awsClient, reporter)
-	_, err = initializer.Run(ctx, opts)
+	executor := initPkg.NewExecutor(reporter, prompter)
+	_, err := executor.Execute(ctx, opts)
 	return err
 }

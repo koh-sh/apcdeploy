@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"path/filepath"
 	"testing"
 
 	"github.com/koh-sh/apcdeploy/internal/cli"
@@ -66,52 +65,10 @@ func TestInitCommandSilenceUsage(t *testing.T) {
 	}
 }
 
-func TestInitCommandRequiredFlags(t *testing.T) {
-	tests := []struct {
-		name    string
-		args    []string
-		wantErr bool
-		errMsg  string
-	}{
-		{
-			name:    "missing required app flag",
-			args:    []string{"--profile", "test-profile", "--env", "test-env"},
-			wantErr: true,
-			errMsg:  "required flag(s) \"app\" not set",
-		},
-		{
-			name:    "missing required profile flag",
-			args:    []string{"--app", "test-app", "--env", "test-env"},
-			wantErr: true,
-			errMsg:  "required flag(s) \"profile\" not set",
-		},
-		{
-			name:    "missing required env flag",
-			args:    []string{"--app", "test-app", "--profile", "test-profile"},
-			wantErr: true,
-			errMsg:  "required flag(s) \"env\" not set",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Reset command flags for each test
-			initCmd := newInitCmd()
-			initCmd.SetArgs(tt.args)
-
-			err := initCmd.Execute()
-
-			if tt.wantErr {
-				if err == nil {
-					t.Errorf("expected error but got none")
-				} else if tt.errMsg != "" && err.Error() != tt.errMsg {
-					t.Errorf("expected error message %q, got %q", tt.errMsg, err.Error())
-				}
-			} else if err != nil && !tt.wantErr {
-				t.Errorf("unexpected error: %v", err)
-			}
-		})
-	}
+func TestInitCommandInteractiveMode(t *testing.T) {
+	t.Skip("Interactive mode tests require TTY and would hang in automated test environments")
+	// Note: Interactive mode is tested via e2e tests and manual testing.
+	// Unit tests cannot properly test TTY interactions without mocking the entire flow.
 }
 
 func TestInitCommandFlagDefaults(t *testing.T) {
@@ -152,28 +109,9 @@ func TestInitCommandFlagDefaults(t *testing.T) {
 }
 
 func TestInitCommandIntegration(t *testing.T) {
-	// This test verifies the integration flow
-	// Without real AWS credentials or mocks, it will fail at AWS client initialization
-
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, "apcdeploy.yml")
-
-	cmd := newInitCmd()
-	cmd.SetArgs([]string{
-		"--app", "test-app",
-		"--profile", "test-profile",
-		"--env", "test-env",
-		"--config", configPath,
-	})
-
-	err := cmd.Execute()
-
-	// We expect an error because no region is specified and no AWS credentials are available
-	if err == nil {
-		t.Error("expected error but got none")
-	}
-	// The error should be about missing region or AWS configuration
-	// This is expected behavior in a test environment
+	t.Skip("Integration tests require TTY and AWS credentials, tested via e2e tests")
+	// Note: This test would attempt to open a TTY for region selection
+	// when --region flag is not provided. Integration is tested in e2e/e2e-test.sh
 }
 
 func TestCliReporter(t *testing.T) {
@@ -216,46 +154,49 @@ func TestCliReporter(t *testing.T) {
 	}
 }
 
-func TestRunInit(t *testing.T) {
+func TestRunInitWithAllFlags(t *testing.T) {
 	tests := []struct {
-		name    string
-		setup   func(t *testing.T)
-		wantErr bool
+		name        string
+		app         string
+		profile     string
+		env         string
+		region      string
+		config      string
+		outputData  string
+		force       bool
+		expectError bool
 	}{
 		{
-			name: "no region specified",
-			setup: func(t *testing.T) {
-				initApp = "test-app"
-				initProfile = "test-profile"
-				initEnv = "test-env"
-				initRegion = ""
-				initConfig = "apcdeploy.yml"
-				initOutputData = ""
-			},
-			wantErr: true,
-		},
-		{
-			name: "valid flags but AWS error",
-			setup: func(t *testing.T) {
-				tmpDir := t.TempDir()
-				initApp = "test-app"
-				initProfile = "test-profile"
-				initEnv = "test-env"
-				initRegion = "us-east-1"
-				initConfig = filepath.Join(tmpDir, "apcdeploy.yml")
-				initOutputData = ""
-			},
-			wantErr: true, // Will fail due to AWS credentials/connection
+			name:        "all flags provided",
+			app:         "test-app",
+			profile:     "test-profile",
+			env:         "test-env",
+			region:      "us-east-1",
+			config:      "apcdeploy.yml",
+			outputData:  "data.json",
+			force:       false,
+			expectError: true, // AWS client creation will fail without credentials
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.setup(t)
+			// Set global flags
+			initApp = tt.app
+			initProfile = tt.profile
+			initEnv = tt.env
+			initRegion = tt.region
+			initConfig = tt.config
+			initOutputData = tt.outputData
+			initForce = tt.force
 
 			err := runInit(nil, nil)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("runInit() error = %v, wantErr %v", err, tt.wantErr)
+
+			if tt.expectError && err == nil {
+				t.Error("expected error due to AWS client creation without credentials")
+			}
+			if !tt.expectError && err != nil {
+				t.Errorf("unexpected error: %v", err)
 			}
 		})
 	}

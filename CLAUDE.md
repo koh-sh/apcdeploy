@@ -32,7 +32,13 @@ When implementing new features or fixing bugs, follow these absolute rules:
 ### Testing the CLI
 
 ```bash
-./apcdeploy init --app my-app --profile my-profile --env production
+# Interactive mode (recommended for init)
+./apcdeploy init
+
+# Non-interactive mode with flags
+./apcdeploy init --region us-east-1 --app my-app --profile my-profile --env production
+
+# Other commands
 ./apcdeploy diff -c apcdeploy.yml
 ./apcdeploy run -c apcdeploy.yml --wait
 ./apcdeploy status -c apcdeploy.yml
@@ -57,11 +63,12 @@ All commands follow the pattern: `cmd/<command>.go` → `internal/<command>/exec
 1. **cmd/**: Cobra command definitions and CLI flag parsing
    - `root.go`: Root command with global flags (`--config`)
    - Each command file (`init.go`, `run.go`, `diff.go`, `status.go`, `get.go`) handles CLI concerns only
-   - `init.go`: Has a local `--region` flag (required for initial setup)
+   - `init.go`: Supports interactive mode for resource selection; all flags are optional
 
 2. **internal/\<command\>/**: Business logic for each command
-   - `executor.go`: Main execution logic
+   - `executor.go`: Main execution logic using Factory pattern for testability
    - `options.go`: Command-specific options struct
+   - `workflow.go` (init command): Handles initialization workflow including interactive prompts
    - Executors accept a `reporter.ProgressReporter` for user feedback
 
 ### Core Packages
@@ -93,6 +100,14 @@ Progress reporting interface used across all commands:
 - `ProgressReporter`: Interface with `Progress()`, `Success()`, `Warning()` methods
 - `internal/cli/reporter.go`: Console implementation with colored output using lipgloss
 
+#### internal/prompt
+
+Interactive prompt interface for user input:
+
+- `Prompter`: Interface with `Select()` method for interactive selection
+- `internal/prompt/huh.go`: Implementation using `huh` library for terminal UI
+- `internal/prompt/testing/mock.go`: Mock implementation for unit tests
+
 ### Key Workflows
 
 #### Deployment Flow (run command)
@@ -113,10 +128,17 @@ Progress reporting interface used across all commands:
 
 #### Initialization (init command)
 
-1. Fetch existing AppConfig configuration from AWS
-2. Auto-detect ContentType from configuration profile
-3. Generate `apcdeploy.yml` with resolved settings
-4. Save data file with appropriate extension (`.json`, `.yaml`, `.txt`)
+1. If flags are omitted, use interactive prompts to select:
+   - AWS region (with account ID detection)
+   - Application
+   - Configuration profile
+   - Environment
+2. Fetch existing AppConfig configuration from AWS
+3. Auto-detect ContentType from configuration profile
+4. Generate `apcdeploy.yml` with resolved settings
+5. Save data file with appropriate extension (`.json`, `.yaml`, `.txt`)
+
+Interactive mode uses `huh` library for terminal UI prompts.
 
 #### Get Flow (get command)
 
@@ -127,11 +149,14 @@ Progress reporting interface used across all commands:
 
 ### Testing Patterns
 
+- **Table-driven tests**: All tests should use table-driven test pattern for consistency
 - All AWS interactions use the `AppConfigAPI` interface defined in `internal/aws/interface.go`
 - Mock implementations in `internal/aws/mock/` for unit tests
 - Test files follow `*_test.go` naming convention alongside implementation files
 - Use `t.Parallel()` where appropriate for faster test execution
 - Reporter is mocked in tests via `internal/reporter/testing/mock.go`
+- Prompter is mocked in tests via `internal/prompt/testing/mock.go`
+- Factory pattern enables dependency injection for testing (see `internal/init/executor.go`)
 
 ### Important Constants
 

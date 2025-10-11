@@ -2,7 +2,7 @@
 
 A declarative CLI tool for managing AWS AppConfig deployments. Manage your AppConfig applications, configuration profiles, and environments as code using a simple YAML configuration file.
 
-**Note**: This tool only supports AWS AppConfig hosted configuration store. You must create AppConfig resources (application, configuration profile, environment, deployment strategy) before using this tool.
+Note: This tool only supports AWS AppConfig hosted configuration store. You must create AppConfig resources (application, configuration profile, environment, deployment strategy) before using this tool.
 
 ## Features
 
@@ -43,14 +43,26 @@ This tutorial walks you through the complete workflow: initializing from existin
 
 ### Step 1: Initialize from Existing Resources
 
-Generate an `apcdeploy.yml` file from your existing AppConfig resources:
+Generate an `apcdeploy.yml` file from your existing AppConfig resources using the interactive mode:
+
+```bash
+apcdeploy init
+```
+
+The command will guide you through:
+1. Selecting an AWS region
+2. Choosing an application
+3. Selecting a configuration profile
+4. Choosing an environment
+
+Alternatively, you can skip the interactive prompts by providing flags:
 
 ```bash
 apcdeploy init \
+  --region us-west-2 \
   --app my-application \
   --profile my-config-profile \
-  --env production \
-  --region us-west-2
+  --env production
 ```
 
 This creates two files:
@@ -58,7 +70,7 @@ This creates two files:
 - `apcdeploy.yml`: Your deployment configuration
 - `data.json` (or `.yaml`/`.txt`): Your current configuration content
 
-**Example `apcdeploy.yml`:**
+Example `apcdeploy.yml`:
 
 ```yaml
 application: my-application
@@ -78,7 +90,7 @@ Edit your configuration file (`data.json`, `data.yaml`, etc.):
 vim data.json
 ```
 
-**Example change:**
+Example change:
 
 ```json
 {
@@ -150,9 +162,9 @@ region: us-west-2
 
 ### Supported Content Types
 
-- **JSON**: `.json` files (validated and auto-formatted)
-- **YAML**: `.yaml` or `.yml` files (validated and auto-formatted)
-- **Plain Text**: `.txt` files or any other extension
+- JSON: `.json` files (validated and auto-formatted)
+- YAML: `.yaml` or `.yml` files (validated and auto-formatted)
+- Plain Text: `.txt` files or any other extension
 
 For FeatureFlags profiles, metadata fields (`_createdAt`, `_updatedAt`) are automatically ignored during diff and deployment comparisons.
 
@@ -163,8 +175,28 @@ For FeatureFlags profiles, metadata fields (`_createdAt`, `_updatedAt`) are auto
 Initialize a new `apcdeploy.yml` from existing AWS resources:
 
 ```bash
-apcdeploy init --app <application> --profile <profile> --env <environment>
+apcdeploy init
 ```
+
+Flags are optional. If omitted, you will be prompted interactively to select from available resources.
+
+```bash
+apcdeploy init \
+  --region <region> \
+  --app <application> \
+  --profile <profile> \
+  --env <environment>
+```
+
+Options:
+
+- `--region`: AWS region
+- `--app`: Application name
+- `--profile`: Configuration profile name
+- `--env`: Environment name
+- `-c, --config`: Output config file path (default: `apcdeploy.yml`)
+- `-o, --output-data`: Output data file path (auto-detected from content type if omitted)
+- `-f, --force`: Overwrite existing files
 
 ### run
 
