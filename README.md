@@ -210,13 +210,16 @@ Options:
 Deploy configuration changes:
 
 ```bash
-apcdeploy run -c apcdeploy.yml [--wait] [--force]
+apcdeploy run -c apcdeploy.yml [--wait-deploy|--wait-bake] [--force]
 ```
 
 Options:
 
-- `--wait`: Wait for deployment to complete
+- `--wait-deploy`: Wait for deployment phase to complete (until baking starts)
+- `--wait-bake`: Wait for complete deployment including baking phase
 - `--force`: Deploy even if content hasn't changed
+
+Note: `--wait-deploy` and `--wait-bake` are mutually exclusive.
 
 ### diff
 

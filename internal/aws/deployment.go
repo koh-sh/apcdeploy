@@ -104,12 +104,14 @@ func extractRollbackReason(eventLog []types.DeploymentEvent) string {
 	return ""
 }
 
-// WaitForDeployment waits for a deployment to complete
-func (c *Client) WaitForDeployment(
+// waitForDeploymentWithCondition is a generic wait function that polls deployment status
+// until the provided checkComplete function returns true or an error occurs
+func (c *Client) waitForDeploymentWithCondition(
 	ctx context.Context,
 	applicationID, environmentID string,
 	deploymentNumber int32,
 	timeout time.Duration,
+	checkComplete func(types.DeploymentState) bool,
 ) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -134,19 +136,30 @@ func (c *Client) WaitForDeployment(
 			return false, wrapAWSError(err, "failed to get deployment status")
 		}
 
+		// Check deployment state
 		switch output.State {
-		case types.DeploymentStateComplete:
-			return true, nil
+		case types.DeploymentStateComplete, types.DeploymentStateBaking:
+			// Check if deployment is complete based on the provided condition
+			if checkComplete(output.State) {
+				return true, nil
+			}
+			// Still in progress (e.g., BAKING when waiting for COMPLETE)
+			return false, nil
+
 		case types.DeploymentStateRolledBack:
-			// Try to get rollback reason from event log
+			// Handle rollback state
 			reason := extractRollbackReason(output.EventLog)
 			if reason != "" {
 				return false, fmt.Errorf("deployment was rolled back: %s", reason)
 			}
 			return false, fmt.Errorf("deployment was rolled back")
-		case types.DeploymentStateDeploying, types.DeploymentStateBaking:
+
+		case types.DeploymentStateDeploying:
+			// Still deploying
 			return false, nil
+
 		default:
+			// Unexpected state
 			return false, fmt.Errorf("unexpected deployment state: %s", output.State)
 		}
 	}
@@ -167,6 +180,47 @@ func (c *Client) WaitForDeployment(
 			}
 		}
 	}
+}
+
+// WaitForDeployment waits for a deployment to complete
+func (c *Client) WaitForDeployment(
+	ctx context.Context,
+	applicationID, environmentID string,
+	deploymentNumber int32,
+	timeout time.Duration,
+) error {
+	// Use WaitForDeploymentPhase with waitForBaking=true to wait for full completion
+	return c.WaitForDeploymentPhase(ctx, applicationID, environmentID, deploymentNumber, true, timeout)
+}
+
+// WaitForDeploymentPhase waits for a deployment to reach a specific phase
+// If waitForBaking is false, it waits until the deployment enters BAKING state (deploy phase complete)
+// If waitForBaking is true, it waits until the deployment reaches COMPLETE state (baking phase complete)
+func (c *Client) WaitForDeploymentPhase(
+	ctx context.Context,
+	applicationID, environmentID string,
+	deploymentNumber int32,
+	waitForBaking bool,
+	timeout time.Duration,
+) error {
+	return c.waitForDeploymentWithCondition(
+		ctx,
+		applicationID,
+		environmentID,
+		deploymentNumber,
+		timeout,
+		func(state types.DeploymentState) bool {
+			// Always complete if deployment is COMPLETE
+			if state == types.DeploymentStateComplete {
+				return true
+			}
+			// If waiting for deploy phase only, BAKING means deploy is complete
+			if state == types.DeploymentStateBaking && !waitForBaking {
+				return true
+			}
+			return false
+		},
+	)
 }
 
 // DeploymentInfo contains information about a deployment

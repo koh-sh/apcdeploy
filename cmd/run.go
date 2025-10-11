@@ -8,9 +8,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	// DefaultDeploymentTimeout is the default timeout for deployments in seconds
+	DefaultDeploymentTimeout = 600
+)
+
 var (
 	runConfigFile string
-	runWait       bool
+	runWaitDeploy bool
+	runWaitBake   bool
 	runTimeout    int
 	runForce      bool
 )
@@ -31,14 +37,15 @@ This command will:
 2. Validate the configuration data
 3. Create a new hosted configuration version
 4. Start a deployment to the specified environment
-5. Optionally wait for the deployment to complete`,
+5. Optionally wait for the deployment phase (--wait-deploy) or full completion (--wait-bake)`,
 		RunE:         runRun,
 		SilenceUsage: true, // Don't show usage on runtime errors
 	}
 
 	cmd.Flags().StringVarP(&runConfigFile, "config", "c", "apcdeploy.yml", "Path to configuration file")
-	cmd.Flags().BoolVar(&runWait, "wait", false, "Wait for deployment to complete")
-	cmd.Flags().IntVar(&runTimeout, "timeout", 600, "Timeout in seconds for deployment")
+	cmd.Flags().BoolVar(&runWaitDeploy, "wait-deploy", false, "Wait for deployment phase to complete (until baking starts)")
+	cmd.Flags().BoolVar(&runWaitBake, "wait-bake", false, "Wait for complete deployment including baking phase")
+	cmd.Flags().IntVar(&runTimeout, "timeout", DefaultDeploymentTimeout, "Timeout in seconds for deployment")
 	cmd.Flags().BoolVar(&runForce, "force", false, "Force deployment even when there are no changes")
 
 	return cmd
@@ -50,7 +57,8 @@ func runRun(cmd *cobra.Command, args []string) error {
 	// Create options
 	opts := &run.Options{
 		ConfigFile: runConfigFile,
-		Wait:       runWait,
+		WaitDeploy: runWaitDeploy,
+		WaitBake:   runWaitBake,
 		Timeout:    runTimeout,
 		Force:      runForce,
 		Silent:     IsSilent(),

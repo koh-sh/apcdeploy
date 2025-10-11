@@ -3,7 +3,8 @@ package run
 // Options contains the configuration options for deployment
 type Options struct {
 	ConfigFile string
-	Wait       bool
+	WaitDeploy bool
+	WaitBake   bool
 	Timeout    int
 	Force      bool
 	Silent     bool
