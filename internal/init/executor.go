@@ -35,13 +35,14 @@ func NewExecutorWithFactory(rep reporter.ProgressReporter, prom prompt.Prompter,
 }
 
 // Execute performs the complete initialization workflow
-func (e *Executor) Execute(ctx context.Context, opts *Options) (*Result, error) {
+func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	// Create workflow with all dependencies
 	workflow, err := e.initializerFactory(ctx, opts, e.prompter, e.reporter)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create init workflow: %w", err)
+		return fmt.Errorf("failed to create init workflow: %w", err)
 	}
 
 	// Run initialization
-	return workflow.Run(ctx, opts)
+	_, err = workflow.Run(ctx, opts)
+	return err
 }

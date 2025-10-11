@@ -68,6 +68,5 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	// Run initialization
 	executor := initPkg.NewExecutor(reporter, prompter)
-	_, err := executor.Execute(ctx, opts)
-	return err
+	return executor.Execute(ctx, opts)
 }

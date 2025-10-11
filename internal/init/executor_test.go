@@ -178,24 +178,9 @@ func TestExecutorFullWorkflowWithMock(t *testing.T) {
 		Force:       false,
 	}
 
-	result, err := executor.Execute(context.Background(), opts)
+	err = executor.Execute(context.Background(), opts)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if result == nil {
-		t.Fatal("expected non-nil result")
-	}
-
-	// Verify result
-	if result.AppName != "test-app" {
-		t.Errorf("expected AppName='test-app', got %q", result.AppName)
-	}
-	if result.ProfileName != "test-profile" {
-		t.Errorf("expected ProfileName='test-profile', got %q", result.ProfileName)
-	}
-	if result.EnvName != "test-env" {
-		t.Errorf("expected EnvName='test-env', got %q", result.EnvName)
 	}
 
 	// Verify files were created
@@ -356,13 +341,9 @@ func TestExecutorWithInteractiveSelection(t *testing.T) {
 		Force:       false,
 	}
 
-	result, err := executor.Execute(context.Background(), opts)
+	err = executor.Execute(context.Background(), opts)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if result == nil {
-		t.Fatal("expected non-nil result")
 	}
 
 	// Verify interactive selection was triggered
@@ -405,7 +386,7 @@ func TestExecutorFactoryError(t *testing.T) {
 		ConfigFile:  "apcdeploy.yml",
 	}
 
-	_, err := executor.Execute(context.Background(), opts)
+	err := executor.Execute(context.Background(), opts)
 
 	if err == nil {
 		t.Fatal("expected error from factory")

@@ -27,6 +27,28 @@ func NewInteractiveSelector(p prompt.Prompter, r reporter.ProgressReporter) *Int
 	}
 }
 
+// handlePromptError wraps prompt errors with user-friendly messages
+func handlePromptError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, huh.ErrUserAborted) {
+		return errors.New("operation cancelled")
+	}
+	return err
+}
+
+// promptAndReport handles the common pattern of prompting user and reporting success
+func (s *InteractiveSelector) promptAndReport(promptMsg string, options []string, successTemplate string) (string, error) {
+	selected, err := s.prompter.Select(promptMsg, options)
+	if err != nil {
+		return "", handlePromptError(err)
+	}
+
+	s.reporter.Success(fmt.Sprintf(successTemplate, selected))
+	return selected, nil
+}
+
 // SelectRegion prompts user to select a region or returns provided region
 func (s *InteractiveSelector) SelectRegion(ctx context.Context, accountClient awsInternal.AccountAPI, providedRegion string) (string, error) {
 	// Skip prompt if region is provided
@@ -48,16 +70,11 @@ func (s *InteractiveSelector) SelectRegion(ctx context.Context, accountClient aw
 	}
 
 	// Prompt user to select
-	selected, err := s.prompter.Select("Select AWS region:", regions)
-	if err != nil {
-		if errors.Is(err, huh.ErrUserAborted) {
-			return "", errors.New("operation cancelled")
-		}
-		return "", err
-	}
-
-	s.reporter.Success(fmt.Sprintf("Selected region: %s", selected))
-	return selected, nil
+	return s.promptAndReport(
+		"Select AWS region:",
+		regions,
+		"Selected region: %s",
+	)
 }
 
 // SelectApplication prompts user to select an application or returns provided app
@@ -90,16 +107,11 @@ func (s *InteractiveSelector) SelectApplication(ctx context.Context, client *aws
 	sort.Strings(apps)
 
 	// Prompt user to select
-	selected, err := s.prompter.Select("Select application:", apps)
-	if err != nil {
-		if errors.Is(err, huh.ErrUserAborted) {
-			return "", errors.New("operation cancelled")
-		}
-		return "", err
-	}
-
-	s.reporter.Success(fmt.Sprintf("Selected application: %s", selected))
-	return selected, nil
+	return s.promptAndReport(
+		"Select application:",
+		apps,
+		"Selected application: %s",
+	)
 }
 
 // SelectConfigurationProfile prompts user to select a profile or returns provided profile
@@ -134,16 +146,11 @@ func (s *InteractiveSelector) SelectConfigurationProfile(ctx context.Context, cl
 	sort.Strings(profiles)
 
 	// Prompt user to select
-	selected, err := s.prompter.Select("Select configuration profile:", profiles)
-	if err != nil {
-		if errors.Is(err, huh.ErrUserAborted) {
-			return "", errors.New("operation cancelled")
-		}
-		return "", err
-	}
-
-	s.reporter.Success(fmt.Sprintf("Selected configuration profile: %s", selected))
-	return selected, nil
+	return s.promptAndReport(
+		"Select configuration profile:",
+		profiles,
+		"Selected configuration profile: %s",
+	)
 }
 
 // SelectEnvironment prompts user to select an environment or returns provided env
@@ -178,14 +185,9 @@ func (s *InteractiveSelector) SelectEnvironment(ctx context.Context, client *aws
 	sort.Strings(envs)
 
 	// Prompt user to select
-	selected, err := s.prompter.Select("Select environment:", envs)
-	if err != nil {
-		if errors.Is(err, huh.ErrUserAborted) {
-			return "", errors.New("operation cancelled")
-		}
-		return "", err
-	}
-
-	s.reporter.Success(fmt.Sprintf("Selected environment: %s", selected))
-	return selected, nil
+	return s.promptAndReport(
+		"Select environment:",
+		envs,
+		"Selected environment: %s",
+	)
 }

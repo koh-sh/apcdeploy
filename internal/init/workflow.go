@@ -23,23 +23,9 @@ type InitWorkflow struct {
 // NewInitWorkflow creates a new InitWorkflow
 func NewInitWorkflow(ctx context.Context, opts *Options, prompter prompt.Prompter, reporter reporter.ProgressReporter) (*InitWorkflow, error) {
 	// Step 1: Region selection (needed before creating AWS client)
-	selectedRegion := opts.Region
-	if selectedRegion == "" {
-		// Create Account client for region listing
-		accountCfg, err := config.LoadDefaultConfig(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load AWS config: %w", err)
-		}
-		accountClient := account.NewFromConfig(accountCfg)
-
-		// Create interactive selector
-		selector := NewInteractiveSelector(prompter, reporter)
-
-		// Select region interactively
-		selectedRegion, err = selector.SelectRegion(ctx, accountClient, opts.Region)
-		if err != nil {
-			return nil, err
-		}
+	selectedRegion, err := selectOrUseRegion(ctx, opts.Region, prompter, reporter)
+	if err != nil {
+		return nil, err
 	}
 
 	// Step 2: Create AWS AppConfig client with selected/provided region
@@ -49,6 +35,25 @@ func NewInitWorkflow(ctx context.Context, opts *Options, prompter prompt.Prompte
 	}
 
 	return NewInitWorkflowWithClient(awsClient, prompter, reporter), nil
+}
+
+// selectOrUseRegion returns the provided region or prompts user to select one
+func selectOrUseRegion(ctx context.Context, providedRegion string, prompter prompt.Prompter, reporter reporter.ProgressReporter) (string, error) {
+	// Return provided region if available
+	if providedRegion != "" {
+		return providedRegion, nil
+	}
+
+	// Create Account client for region listing
+	accountCfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to load AWS config: %w", err)
+	}
+	accountClient := account.NewFromConfig(accountCfg)
+
+	// Create interactive selector and prompt for region
+	selector := NewInteractiveSelector(prompter, reporter)
+	return selector.SelectRegion(ctx, accountClient, providedRegion)
 }
 
 // NewInitWorkflowWithClient creates a new InitWorkflow with a provided AWS client
