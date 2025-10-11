@@ -29,6 +29,11 @@ echo "Test verbose output (without --silent) to verify detailed logging works"
 $APCDEPLOY diff | grep -q "Resolving resources"
 $APCDEPLOY diff | grep -q "Fetching latest deployment"
 $APCDEPLOY diff | grep -q "v"
+echo "Test silent mode suppresses verbose output"
+if $APCDEPLOY diff --silent 2>&1 | grep -q "Resolving resources"; then
+    echo "ERROR: Silent mode should not show progress messages"
+    exit 1
+fi
 echo "Rest of tests use --silent for cleaner output"
 $APCDEPLOY run --wait --silent
 $APCDEPLOY status --silent | grep -q "COMPLETE"

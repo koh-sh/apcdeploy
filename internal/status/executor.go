@@ -76,8 +76,8 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 
 	// Step 5: Display status
 	if deploymentInfo == nil {
+		e.reporter.Warning("No deployments found")
 		if !opts.Silent {
-			e.reporter.Warning("No deployments found")
 			fmt.Println("\nNo deployments have been created yet for this configuration.")
 			fmt.Println("\nNext steps:")
 			fmt.Println("  1. Review your configuration file")
