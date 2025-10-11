@@ -8,6 +8,16 @@ import (
 	"github.com/koh-sh/apcdeploy/internal/config"
 )
 
+// DisplaySilent shows only the diff content in silent mode
+func DisplaySilent(result *Result) {
+	// In silent mode:
+	// - No output if there are no changes
+	// - Only show the diff content if there are changes
+	if result.HasChanges {
+		displayColorizedDiff(result.UnifiedDiff)
+	}
+}
+
 // display shows the diff result in a user-friendly format
 func display(result *Result, cfg *config.Config, resources *aws.ResolvedResources, deployment *aws.DeploymentInfo) {
 	// Display header

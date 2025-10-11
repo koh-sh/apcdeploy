@@ -170,6 +170,13 @@ For FeatureFlags profiles, metadata fields (`_createdAt`, `_updatedAt`) are auto
 
 ## Commands
 
+### Global Flags
+
+All commands support these global flags:
+
+- `-c, --config`: Config file path (default: `apcdeploy.yml`)
+- `-s, --silent`: Suppress verbose output, show only essential information (useful for CI/CD and scripting)
+
 ### init
 
 Initialize a new `apcdeploy.yml` from existing AWS resources:

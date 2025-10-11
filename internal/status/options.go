@@ -6,4 +6,6 @@ type Options struct {
 	ConfigFile string
 	// DeploymentID is the deployment number to check (optional, defaults to latest)
 	DeploymentID string
+	// Silent indicates whether to suppress verbose output
+	Silent bool
 }

@@ -43,10 +43,11 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	opts := &status.Options{
 		ConfigFile:   statusConfigFile,
 		DeploymentID: statusDeploymentID,
+		Silent:       IsSilent(),
 	}
 
 	// Create reporter
-	reporter := cli.NewReporter()
+	reporter := cli.GetReporter(IsSilent())
 
 	// Run status check
 	executor := status.NewExecutor(reporter)

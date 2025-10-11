@@ -60,10 +60,11 @@ func runInit(cmd *cobra.Command, args []string) error {
 		ConfigFile:  initConfig,
 		OutputData:  initOutputData,
 		Force:       initForce,
+		Silent:      IsSilent(),
 	}
 
 	// Create reporter and prompter
-	reporter := cli.NewReporter()
+	reporter := cli.GetReporter(IsSilent())
 	prompter := &prompt.HuhPrompter{}
 
 	// Run initialization

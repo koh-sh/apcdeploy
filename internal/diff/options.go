@@ -6,4 +6,6 @@ type Options struct {
 	ConfigFile string
 	// ExitNonzero indicates whether to exit with code 1 if differences exist
 	ExitNonzero bool
+	// Silent indicates whether to suppress verbose output
+	Silent bool
 }

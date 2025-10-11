@@ -20,116 +20,120 @@ function title() {
 
 cd "$WORKDIR"
 
-# Basic workflow: init -> diff -> run -> status -> get -> update -> run
+echo "Basic workflow: init -> diff -> run -> status -> get -> update -> run"
 title "========== S1: Workflow =========="
-$APCDEPLOY init --app "$APP" --profile json-freeform --env dev --region "$REGION" --force
+$APCDEPLOY init --silent --app "$APP" --profile json-freeform --env dev --region "$REGION" --force
 use_strategy
 echo '{"v":"1"}' > data.json
+echo "Test verbose output (without --silent) to verify detailed logging works"
+$APCDEPLOY diff | grep -q "Resolving resources"
+$APCDEPLOY diff | grep -q "Fetching latest deployment"
 $APCDEPLOY diff | grep -q "v"
-$APCDEPLOY run --wait
-$APCDEPLOY status | grep -q "COMPLETE"
-$APCDEPLOY get | grep -q '"v":"1"'
+echo "Rest of tests use --silent for cleaner output"
+$APCDEPLOY run --wait --silent
+$APCDEPLOY status --silent | grep -q "COMPLETE"
+$APCDEPLOY get --silent | grep -q '"v":"1"'
 echo '{"v":"2"}' > data.json
-$APCDEPLOY run --wait
-$APCDEPLOY get | grep -q '"v":"2"'
+$APCDEPLOY run --wait --silent
+$APCDEPLOY get --silent | grep -q '"v":"2"'
 
-# Support for different content types: FeatureFlags, YAML, text
+echo "Support for different content types: FeatureFlags, YAML, text"
 title "========== S2: Content Types =========="
-$APCDEPLOY init --app "$APP" --profile json-featureflags --env dev --region "$REGION" --force
+$APCDEPLOY init --silent --app "$APP" --profile json-featureflags --env dev --region "$REGION" --force
 use_strategy
 echo '{"version":"1","flags":{"test":{"name":"test"}}}' > data.json
-$APCDEPLOY run --wait
+$APCDEPLOY run --wait --silent
 
-$APCDEPLOY init --app "$APP" --profile yaml-config --env dev --region "$REGION" --force
+$APCDEPLOY init --silent --app "$APP" --profile yaml-config --env dev --region "$REGION" --force
 use_strategy
 sed -i '' 's/data.json/data.yaml/' apcdeploy.yml
 echo -e "v: 1\nk: v" > data.yaml
-$APCDEPLOY run --wait
+$APCDEPLOY run --wait --silent
 
-$APCDEPLOY init --app "$APP" --profile text-config --env dev --region "$REGION" --force
+$APCDEPLOY init --silent --app "$APP" --profile text-config --env dev --region "$REGION" --force
 use_strategy
 sed -i '' 's/data.json/data.txt/' apcdeploy.yml
 echo "text" > data.txt
-$APCDEPLOY run --wait
+$APCDEPLOY run --wait --silent
 
-# Deployment control: skip unchanged, force deploy, async run
+echo "Deployment control: skip unchanged, force deploy, async run"
 title "========== S3: Deployment Control =========="
-$APCDEPLOY init --app "$APP" --profile json-freeform --env staging --region "$REGION" --force
+$APCDEPLOY init --silent --app "$APP" --profile json-freeform --env staging --region "$REGION" --force
 use_strategy
 echo '{"t":"1"}' > data.json
-$APCDEPLOY run --wait
-$APCDEPLOY run | grep -q "No changes"
-$APCDEPLOY run --force --wait
+$APCDEPLOY run --wait --silent
+$APCDEPLOY run --silent
+$APCDEPLOY run --force --wait --silent
 echo '{"t":"2"}' > data.json
-$APCDEPLOY run
+$APCDEPLOY run --silent
 
-# Config file generation and deployment strategy verification
+echo "Config file generation and deployment strategy verification"
 title "========== S4: Config =========="
-$APCDEPLOY init --app "$APP" --profile yaml-config --env dev --region "$REGION" --force
+$APCDEPLOY init --silent --app "$APP" --profile yaml-config --env dev --region "$REGION" --force
 grep -q "region: $REGION" apcdeploy.yml
 use_strategy
 sed -i '' 's/data.json/data.yaml/' apcdeploy.yml
 echo "t: 1" > data.yaml
-$APCDEPLOY run --wait
-$APCDEPLOY status | grep -q "E2E-Test-Strategy"
+$APCDEPLOY run --wait --silent
+$APCDEPLOY status --silent | grep -q "COMPLETE"
 
-# CI mode: diff --exit-nonzero for detecting changes
+echo "CI mode: diff --exit-nonzero for detecting changes"
 title "========== S5: CI =========="
-$APCDEPLOY init --app "$APP" --profile text-config --env dev --region "$REGION" --force
+$APCDEPLOY init --silent --app "$APP" --profile text-config --env dev --region "$REGION" --force
 use_strategy
 sed -i '' 's/data.json/data.txt/' apcdeploy.yml
 date > data.txt
 cat data.txt
-if $APCDEPLOY diff --exit-nonzero; then exit 1; fi
-$APCDEPLOY run --wait --timeout 300
-$APCDEPLOY diff --exit-nonzero
+if $APCDEPLOY diff --silent --exit-nonzero; then exit 1; fi
+$APCDEPLOY run --wait --timeout 300 --silent
+$APCDEPLOY diff --silent --exit-nonzero
 
-# Error handling: non-existent resources (app/profile/env)
+echo "Error handling: non-existent resources (app/profile/env)"
 title "========== E1: Resource Errors =========="
-if $APCDEPLOY init --app xxx --profile test --env dev --region "$REGION"; then exit 1; fi
-if $APCDEPLOY init --app "$APP" --profile xxx --env dev --region "$REGION"; then exit 1; fi
-if $APCDEPLOY init --app "$APP" --profile json-freeform --env xxx --region "$REGION"; then exit 1; fi
+if $APCDEPLOY init --silent --app xxx --profile test --env dev --region "$REGION"; then exit 1; fi
+if $APCDEPLOY init --silent --app "$APP" --profile xxx --env dev --region "$REGION"; then exit 1; fi
+if $APCDEPLOY init --silent --app "$APP" --profile json-freeform --env xxx --region "$REGION"; then exit 1; fi
 
-# Validation errors: invalid JSON syntax
+echo "Validation errors: invalid JSON syntax"
 title "========== E2: Validation =========="
-$APCDEPLOY init --app "$APP" --profile json-freeform --env dev --region "$REGION" --force
+$APCDEPLOY init --silent --app "$APP" --profile json-freeform --env dev --region "$REGION" --force
 echo '{"bad": json}' > data.json
-if $APCDEPLOY run; then exit 1; fi
+if $APCDEPLOY run --silent; then exit 1; fi
 
-# Constraint errors: concurrent deployment, timeout
+echo "Constraint errors: concurrent deployment, timeout"
 title "========== E3: Constraints =========="
-$APCDEPLOY init --app "$APP" --profile error-test --env dev --region "$REGION" --force
+$APCDEPLOY init --silent --app "$APP" --profile error-test --env dev --region "$REGION" --force
 use_slow_strategy
 echo '{"c":"1"}' > data.json
-$APCDEPLOY run >/dev/null 2>&1 &
+$APCDEPLOY run --silent >/dev/null 2>&1 &
 sleep 2
-if $APCDEPLOY run; then exit 1; fi
+if $APCDEPLOY run --silent; then exit 1; fi
 wait || true
 
 echo '{"c":"2"}' > data.json
-if $APCDEPLOY run --wait --timeout 5; then exit 1; fi
+if $APCDEPLOY run --wait --timeout 5 --silent; then exit 1; fi
 
-# File errors: missing config, invalid config, file exists
+echo "File errors: missing config, invalid config, file exists"
 title "========== E4: File Errors =========="
-if $APCDEPLOY run --config xxx.yml; then exit 1; fi
+if $APCDEPLOY run --config xxx.yml --silent; then exit 1; fi
 
-$APCDEPLOY init --app "$APP" --profile json-freeform --env dev --region "$REGION" --force
+$APCDEPLOY init --silent --app "$APP" --profile json-freeform --env dev --region "$REGION" --force
 sed -i '' '/application:/d' apcdeploy.yml
-if $APCDEPLOY run; then exit 1; fi
+if $APCDEPLOY run --silent; then exit 1; fi
 
-$APCDEPLOY init --app "$APP" --profile json-freeform --env dev --region "$REGION" --force
-if $APCDEPLOY init --app "$APP" --profile json-freeform --env dev --region "$REGION"; then exit 1; fi
-$APCDEPLOY init --app "$APP" --profile json-freeform --env dev --region "$REGION" --force
+$APCDEPLOY init --silent --app "$APP" --profile json-freeform --env dev --region "$REGION" --force
+if $APCDEPLOY init --silent --app "$APP" --profile json-freeform --env dev --region "$REGION"; then exit 1; fi
+$APCDEPLOY init --silent --app "$APP" --profile json-freeform --env dev --region "$REGION" --force
 
-# Edge cases: no deployment history, invalid timeout, missing required flags
+echo "Edge cases: no deployment history, invalid timeout, missing required flags"
 title "========== E5: Edge Cases =========="
-$APCDEPLOY init --app "$APP" --profile error-test --env staging --region "$REGION" --force
+$APCDEPLOY init --silent --app "$APP" --profile error-test --env staging --region "$REGION" --force
 use_strategy
-$APCDEPLOY diff 2>&1 | grep -q "No deployment" || echo "⚠️  Deployment may exist"
-$APCDEPLOY status 2>&1 | grep -q "No deploy" || echo "⚠️  Deployment may exist"
+$APCDEPLOY diff --silent 2>&1 | grep -q "No deployment" || echo "⚠️  Deployment may exist"
+$APCDEPLOY status --silent 2>&1 | grep -q "No deploy" || echo "⚠️  Deployment may exist"
 
 echo '{"e":"1"}' > data.json
-if $APCDEPLOY run --wait --timeout -1; then exit 1; fi
+if $APCDEPLOY run --wait --timeout -1 --silent; then exit 1; fi
 
 rm data.txt data.yaml data.json apcdeploy.yml apcdeploy
 echo "✅ All tests passed"

@@ -53,10 +53,11 @@ func runRun(cmd *cobra.Command, args []string) error {
 		Wait:       runWait,
 		Timeout:    runTimeout,
 		Force:      runForce,
+		Silent:     IsSilent(),
 	}
 
 	// Create reporter
-	reporter := cli.NewReporter()
+	reporter := cli.GetReporter(IsSilent())
 
 	// Run deployment
 	executor := run.NewExecutor(reporter)

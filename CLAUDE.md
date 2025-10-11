@@ -43,6 +43,10 @@ When implementing new features or fixing bugs, follow these absolute rules:
 ./apcdeploy run -c apcdeploy.yml --wait
 ./apcdeploy status -c apcdeploy.yml
 ./apcdeploy get -c apcdeploy.yml
+
+# Silent mode (suppress verbose output)
+./apcdeploy diff -c apcdeploy.yml --silent
+./apcdeploy status -c apcdeploy.yml --silent
 ```
 
 ### E2E Testing
@@ -61,7 +65,7 @@ E2E tests require AWS credentials and use Terraform to provision resources:
 All commands follow the pattern: `cmd/<command>.go` → `internal/<command>/executor.go`
 
 1. **cmd/**: Cobra command definitions and CLI flag parsing
-   - `root.go`: Root command with global flags (`--config`)
+   - `root.go`: Root command with global flags (`--config`, `--silent`)
    - Each command file (`init.go`, `run.go`, `diff.go`, `status.go`, `get.go`) handles CLI concerns only
    - `init.go`: Supports interactive mode for resource selection; all flags are optional
 
@@ -99,6 +103,8 @@ Progress reporting interface used across all commands:
 
 - `ProgressReporter`: Interface with `Progress()`, `Success()`, `Warning()` methods
 - `internal/cli/reporter.go`: Console implementation with colored output using lipgloss
+- `internal/cli/silent_reporter.go`: Silent implementation that suppresses all output (for `--silent` flag)
+- `internal/cli/factory.go`: Factory function `GetReporter()` to select appropriate reporter
 
 #### internal/prompt
 
@@ -177,6 +183,37 @@ environment: <name>
 deployment_strategy: <strategy-name>  # optional, defaults to AppConfig.Linear50PercentEvery30Seconds
 data_file: <path>  # relative to apcdeploy.yml or absolute
 region: <aws-region>  # optional, uses AWS SDK default if omitted
+```
+
+## Silent Mode
+
+The `--silent` (or `-s`) flag is a global flag that suppresses verbose output and shows only essential information.
+
+### Behavior
+
+- **Suppressed**: Progress messages, success messages, warnings
+- **Always shown**: Error messages (via stderr), final results (diff output, status, etc.)
+- **Use cases**: CI/CD pipelines, scripting, machine-readable output
+
+### Implementation
+
+- Silent mode is implemented via the `reporter.ProgressReporter` interface
+- `internal/cli/factory.go` provides `GetReporter()` to select the appropriate reporter
+- When `--silent` is set, `SilentReporter` is used, which has no-op implementations for all methods
+- Each command's Options struct includes a `Silent` field for conditional display logic
+- Commands like `diff` and `status` use `opts.Silent` to choose between verbose and silent display functions
+
+### Examples
+
+```bash
+# Show only the diff without metadata
+./apcdeploy diff -c apcdeploy.yml --silent
+
+# Show only the deployment status
+./apcdeploy status -c apcdeploy.yml --silent
+
+# Suppress progress messages during deployment
+./apcdeploy run -c apcdeploy.yml --wait --silent
 ```
 
 ## Go Version and Tools
