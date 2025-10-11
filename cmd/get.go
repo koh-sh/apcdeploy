@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var getConfigFile string
+// No local variables needed - using global configFile from root
 
 // GetCommand returns the get command
 func GetCommand() *cobra.Command {
@@ -30,8 +30,6 @@ This command will:
 		SilenceUsage: true, // Don't show usage on runtime errors
 	}
 
-	cmd.Flags().StringVarP(&getConfigFile, "config", "c", "apcdeploy.yml", "Path to configuration file")
-
 	return cmd
 }
 
@@ -40,12 +38,12 @@ func runGet(cmd *cobra.Command, args []string) error {
 
 	// Create options
 	opts := &get.Options{
-		ConfigFile: getConfigFile,
-		Silent:     IsSilent(),
+		ConfigFile: configFile,
+		Silent:     isSilent(),
 	}
 
 	// Create reporter
-	reporter := cli.GetReporter(IsSilent())
+	reporter := cli.GetReporter(isSilent())
 
 	// Get configuration
 	executor := get.NewExecutor(reporter)

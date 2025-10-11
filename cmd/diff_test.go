@@ -11,22 +11,19 @@ func TestDiffCommand(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:    "no config file specified uses default",
+			name:    "no flags specified",
 			args:    []string{},
 			wantErr: false,
 		},
 		{
-			name:    "custom config file",
-			args:    []string{"--config", "custom.yml"},
+			name:    "exit-nonzero flag",
+			args:    []string{"--exit-nonzero"},
 			wantErr: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Reset global flags for each test
-			diffConfigFile = "apcdeploy.yml"
-
 			cmd := newDiffCmd()
 			cmd.SetArgs(tt.args)
 
@@ -59,40 +56,19 @@ func TestDiffCommandStructure(t *testing.T) {
 }
 
 func TestDiffCommandFlags(t *testing.T) {
-	diffConfigFile = "apcdeploy.yml"
-
+	// Config flag is tested in root_test.go as a persistent flag
 	cmd := newDiffCmd()
 
-	tests := []struct {
-		name         string
-		flagName     string
-		defaultValue string
-	}{
-		{
-			name:         "config flag has default",
-			flagName:     "config",
-			defaultValue: "apcdeploy.yml",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			flag := cmd.Flags().Lookup(tt.flagName)
-			if flag == nil {
-				t.Errorf("Flag %s not found", tt.flagName)
-				return
-			}
-
-			if flag.DefValue != tt.defaultValue {
-				t.Errorf("Flag %s default = %v, want %v", tt.flagName, flag.DefValue, tt.defaultValue)
-			}
-		})
+	// Test exit-nonzero flag
+	flag := cmd.Flags().Lookup("exit-nonzero")
+	if flag == nil {
+		t.Error("Flag exit-nonzero not found")
 	}
 }
 
 func TestRunDiffInvalidConfig(t *testing.T) {
 	// Reset flags
-	diffConfigFile = "nonexistent.yml"
+	configFile = "nonexistent.yml"
 
 	err := runDiff(nil, nil)
 	if err == nil {
@@ -130,7 +106,7 @@ func TestDiffCommandExitNonzeroFlag(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Reset flags
-			diffConfigFile = "apcdeploy.yml"
+			configFile = "apcdeploy.yml"
 			diffExitNonzero = false
 
 			cmd := newDiffCmd()

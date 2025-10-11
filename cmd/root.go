@@ -70,7 +70,7 @@ func Execute() {
 	}
 }
 
-// IsSilent returns whether silent mode is enabled
-func IsSilent() bool {
+// isSilent returns whether silent mode is enabled
+func isSilent() bool {
 	return silent
 }

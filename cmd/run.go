@@ -14,7 +14,6 @@ const (
 )
 
 var (
-	runConfigFile string
 	runWaitDeploy bool
 	runWaitBake   bool
 	runTimeout    int
@@ -42,7 +41,6 @@ This command will:
 		SilenceUsage: true, // Don't show usage on runtime errors
 	}
 
-	cmd.Flags().StringVarP(&runConfigFile, "config", "c", "apcdeploy.yml", "Path to configuration file")
 	cmd.Flags().BoolVar(&runWaitDeploy, "wait-deploy", false, "Wait for deployment phase to complete (until baking starts)")
 	cmd.Flags().BoolVar(&runWaitBake, "wait-bake", false, "Wait for complete deployment including baking phase")
 	cmd.Flags().IntVar(&runTimeout, "timeout", DefaultDeploymentTimeout, "Timeout in seconds for deployment")
@@ -56,16 +54,16 @@ func runRun(cmd *cobra.Command, args []string) error {
 
 	// Create options
 	opts := &run.Options{
-		ConfigFile: runConfigFile,
+		ConfigFile: configFile,
 		WaitDeploy: runWaitDeploy,
 		WaitBake:   runWaitBake,
 		Timeout:    runTimeout,
 		Force:      runForce,
-		Silent:     IsSilent(),
+		Silent:     isSilent(),
 	}
 
 	// Create reporter
-	reporter := cli.GetReporter(IsSilent())
+	reporter := cli.GetReporter(isSilent())
 
 	// Run deployment
 	executor := run.NewExecutor(reporter)

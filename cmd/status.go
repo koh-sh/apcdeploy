@@ -8,10 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	statusConfigFile   string
-	statusDeploymentID string
-)
+var statusDeploymentID string
 
 // StatusCommand returns the status command
 func StatusCommand() *cobra.Command {
@@ -30,7 +27,6 @@ identified by deployment number.`,
 		SilenceUsage: true, // Don't show usage on runtime errors
 	}
 
-	cmd.Flags().StringVarP(&statusConfigFile, "config", "c", "apcdeploy.yml", "Path to configuration file")
 	cmd.Flags().StringVar(&statusDeploymentID, "deployment", "", "Deployment number to check (defaults to latest)")
 
 	return cmd
@@ -41,13 +37,13 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// Create options
 	opts := &status.Options{
-		ConfigFile:   statusConfigFile,
+		ConfigFile:   configFile,
 		DeploymentID: statusDeploymentID,
-		Silent:       IsSilent(),
+		Silent:       isSilent(),
 	}
 
 	// Create reporter
-	reporter := cli.GetReporter(IsSilent())
+	reporter := cli.GetReporter(isSilent())
 
 	// Run status check
 	executor := status.NewExecutor(reporter)

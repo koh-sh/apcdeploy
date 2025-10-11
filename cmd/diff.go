@@ -10,10 +10,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	diffConfigFile  string
-	diffExitNonzero bool
-)
+var diffExitNonzero bool
 
 // DiffCommand returns the diff command
 func DiffCommand() *cobra.Command {
@@ -32,7 +29,6 @@ and displays the differences in unified diff format.`,
 		SilenceUsage: true, // Don't show usage on runtime errors
 	}
 
-	cmd.Flags().StringVarP(&diffConfigFile, "config", "c", "apcdeploy.yml", "Path to configuration file")
 	cmd.Flags().BoolVar(&diffExitNonzero, "exit-nonzero", false, "Exit with code 1 if differences exist")
 
 	return cmd
@@ -43,13 +39,13 @@ func runDiff(cmd *cobra.Command, args []string) error {
 
 	// Create options
 	opts := &diff.Options{
-		ConfigFile:  diffConfigFile,
+		ConfigFile:  configFile,
 		ExitNonzero: diffExitNonzero,
-		Silent:      IsSilent(),
+		Silent:      isSilent(),
 	}
 
 	// Create reporter
-	reporter := cli.GetReporter(IsSilent())
+	reporter := cli.GetReporter(isSilent())
 
 	// Run diff
 	executor := diff.NewExecutor(reporter)

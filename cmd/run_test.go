@@ -16,11 +16,6 @@ func TestRunCommand(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "custom config file",
-			args:    []string{"--config", "custom.yml"},
-			wantErr: false,
-		},
-		{
 			name:    "wait-deploy flag",
 			args:    []string{"--wait-deploy"},
 			wantErr: false,
@@ -40,7 +35,7 @@ func TestRunCommand(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Reset global flags for each test
-			runConfigFile = "apcdeploy.yml"
+			configFile = "apcdeploy.yml"
 			runWaitDeploy = false
 			runWaitBake = false
 			runTimeout = DefaultDeploymentTimeout
@@ -57,7 +52,7 @@ func TestRunCommand(t *testing.T) {
 }
 
 func TestRunCommandFlags(t *testing.T) {
-	runConfigFile = "apcdeploy.yml"
+	configFile = "apcdeploy.yml"
 	runWaitDeploy = false
 	runWaitBake = false
 	runTimeout = DefaultDeploymentTimeout
@@ -69,11 +64,6 @@ func TestRunCommandFlags(t *testing.T) {
 		flagName     string
 		defaultValue string
 	}{
-		{
-			name:         "config flag has default",
-			flagName:     "config",
-			defaultValue: "apcdeploy.yml",
-		},
 		{
 			name:         "timeout flag has default",
 			flagName:     "timeout",
@@ -97,7 +87,7 @@ func TestRunCommandFlags(t *testing.T) {
 }
 
 func TestRunCommandWaitFlags(t *testing.T) {
-	runConfigFile = "apcdeploy.yml"
+	configFile = "apcdeploy.yml"
 	runWaitDeploy = false
 	runWaitBake = false
 	runTimeout = DefaultDeploymentTimeout

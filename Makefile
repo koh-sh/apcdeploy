@@ -24,10 +24,10 @@ tidy:
 	go mod tidy -v
 
 lint:
-	go tool golangci-lint run -v
+	go tool golangci-lint run
 
 lint-fix:
-	go tool golangci-lint run -v --fix
+	go tool golangci-lint run --fix
 
 build:
 	go build
