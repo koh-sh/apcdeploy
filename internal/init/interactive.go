@@ -7,7 +7,6 @@ import (
 	"sort"
 
 	"github.com/aws/aws-sdk-go-v2/service/appconfig"
-	"github.com/charmbracelet/huh"
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/prompt"
 	"github.com/koh-sh/apcdeploy/internal/reporter"
@@ -32,8 +31,8 @@ func handlePromptError(err error) error {
 	if err == nil {
 		return nil
 	}
-	if errors.Is(err, huh.ErrUserAborted) {
-		return errors.New("operation cancelled")
+	if errors.Is(err, prompt.ErrUserCancelled) {
+		return err
 	}
 	return err
 }
@@ -101,7 +100,7 @@ func (s *InteractiveSelector) SelectApplication(ctx context.Context, client *aws
 	}
 
 	if len(apps) == 0 {
-		return "", errors.New("no applications found. Please create an application in AWS AppConfig first")
+		return "", errors.New("no applications found. Please create an application in AppConfig first")
 	}
 
 	sort.Strings(apps)
@@ -140,7 +139,7 @@ func (s *InteractiveSelector) SelectConfigurationProfile(ctx context.Context, cl
 	}
 
 	if len(profiles) == 0 {
-		return "", errors.New("no configuration profiles found. Please create a configuration profile first")
+		return "", errors.New("no configuration profiles found. Please create a configuration profile in AppConfig first")
 	}
 
 	sort.Strings(profiles)
@@ -179,7 +178,7 @@ func (s *InteractiveSelector) SelectEnvironment(ctx context.Context, client *aws
 	}
 
 	if len(envs) == 0 {
-		return "", errors.New("no environments found. Please create an environment first")
+		return "", errors.New("no environments found. Please create an environment in AppConfig first")
 	}
 
 	sort.Strings(envs)

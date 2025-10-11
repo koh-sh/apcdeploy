@@ -11,9 +11,9 @@ import (
 	accountTypes "github.com/aws/aws-sdk-go-v2/service/account/types"
 	"github.com/aws/aws-sdk-go-v2/service/appconfig"
 	appconfigTypes "github.com/aws/aws-sdk-go-v2/service/appconfig/types"
-	"github.com/charmbracelet/huh"
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
 	awsMock "github.com/koh-sh/apcdeploy/internal/aws/mock"
+	"github.com/koh-sh/apcdeploy/internal/prompt"
 	promptTesting "github.com/koh-sh/apcdeploy/internal/prompt/testing"
 	reporterTesting "github.com/koh-sh/apcdeploy/internal/reporter/testing"
 )
@@ -96,7 +96,7 @@ func TestInteractiveSelector_SelectRegion(t *testing.T) {
 					}, nil
 				}
 				p.SelectFunc = func(message string, options []string) (string, error) {
-					return "", huh.ErrUserAborted
+					return "", prompt.ErrUserCancelled
 				}
 			},
 			wantErr:     true,
@@ -241,7 +241,7 @@ func TestInteractiveSelector_SelectApplication(t *testing.T) {
 					}, nil
 				}
 				p.SelectFunc = func(message string, options []string) (string, error) {
-					return "", huh.ErrUserAborted
+					return "", prompt.ErrUserCancelled
 				}
 			},
 			wantErr:     true,
@@ -395,7 +395,7 @@ func TestInteractiveSelector_SelectConfigurationProfile(t *testing.T) {
 					}, nil
 				}
 				p.SelectFunc = func(message string, options []string) (string, error) {
-					return "", huh.ErrUserAborted
+					return "", prompt.ErrUserCancelled
 				}
 			},
 			wantErr:     true,
@@ -550,7 +550,7 @@ func TestInteractiveSelector_SelectEnvironment(t *testing.T) {
 					}, nil
 				}
 				p.SelectFunc = func(message string, options []string) (string, error) {
-					return "", huh.ErrUserAborted
+					return "", prompt.ErrUserCancelled
 				}
 			},
 			wantErr:     true,

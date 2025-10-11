@@ -27,9 +27,9 @@ func (h *HuhPrompter) Select(message string, options []string) (string, error) {
 		Value(&result).
 		Run()
 	if err != nil {
-		// Handle cancellation (Ctrl+C)
+		// Handle cancellation (Ctrl+C) and convert to our standard error
 		if errors.Is(err, huh.ErrUserAborted) {
-			return "", err
+			return "", ErrUserCancelled
 		}
 		return "", err
 	}

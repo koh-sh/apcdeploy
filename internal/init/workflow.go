@@ -69,14 +69,14 @@ func NewInitWorkflowWithClient(awsClient *awsInternal.Client, prompter prompt.Pr
 }
 
 // Run executes the initialization workflow
-func (w *InitWorkflow) Run(ctx context.Context, opts *Options) (*Result, error) {
+func (w *InitWorkflow) Run(ctx context.Context, opts *Options) error {
 	// Step 3: Application selection
 	selectedApp := opts.Application
 	if selectedApp == "" {
 		var err error
 		selectedApp, err = w.selector.SelectApplication(ctx, w.awsClient, opts.Application)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
@@ -84,7 +84,7 @@ func (w *InitWorkflow) Run(ctx context.Context, opts *Options) (*Result, error) 
 	resolver := awsInternal.NewResolver(w.awsClient)
 	appID, err := resolver.ResolveApplication(ctx, selectedApp)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve application: %w", err)
+		return fmt.Errorf("failed to resolve application: %w", err)
 	}
 
 	// Step 5: Profile selection
@@ -92,7 +92,7 @@ func (w *InitWorkflow) Run(ctx context.Context, opts *Options) (*Result, error) 
 	if selectedProfile == "" {
 		selectedProfile, err = w.selector.SelectConfigurationProfile(ctx, w.awsClient, appID, opts.Profile)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
@@ -101,7 +101,7 @@ func (w *InitWorkflow) Run(ctx context.Context, opts *Options) (*Result, error) 
 	if selectedEnv == "" {
 		selectedEnv, err = w.selector.SelectEnvironment(ctx, w.awsClient, appID, opts.Environment)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
@@ -117,5 +117,6 @@ func (w *InitWorkflow) Run(ctx context.Context, opts *Options) (*Result, error) 
 	}
 
 	// Step 8: Run existing initialization logic
-	return w.initializer.Run(ctx, finalOpts)
+	_, err = w.initializer.Run(ctx, finalOpts)
+	return err
 }

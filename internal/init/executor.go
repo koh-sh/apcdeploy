@@ -43,6 +43,9 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	}
 
 	// Run initialization
-	_, err = workflow.Run(ctx, opts)
-	return err
+	if err := workflow.Run(ctx, opts); err != nil {
+		return err
+	}
+
+	return nil
 }
