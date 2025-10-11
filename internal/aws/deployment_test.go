@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -742,5 +743,199 @@ func TestGetHostedConfigurationVersion(t *testing.T) {
 				t.Errorf("GetHostedConfigurationVersion() content = %s, want %s", content, tt.wantContent)
 			}
 		})
+	}
+}
+
+func TestWaitForDeploymentPhase(t *testing.T) {
+	tests := []struct {
+		name          string
+		deploymentNum int32
+		waitForBaking bool
+		mockStates    []types.DeploymentState
+		mockEventLog  []types.DeploymentEvent
+		timeout       time.Duration
+		wantErr       bool
+		wantErrMsg    string
+	}{
+		{
+			name:          "wait for deploy: completes when entering BAKING",
+			deploymentNum: 1,
+			waitForBaking: false,
+			mockStates:    []types.DeploymentState{types.DeploymentStateDeploying, types.DeploymentStateBaking},
+			timeout:       10 * time.Second,
+			wantErr:       false,
+		},
+		{
+			name:          "wait for deploy: already in BAKING",
+			deploymentNum: 2,
+			waitForBaking: false,
+			mockStates:    []types.DeploymentState{types.DeploymentStateBaking},
+			timeout:       10 * time.Second,
+			wantErr:       false,
+		},
+		{
+			name:          "wait for deploy: already COMPLETE",
+			deploymentNum: 3,
+			waitForBaking: false,
+			mockStates:    []types.DeploymentState{types.DeploymentStateComplete},
+			timeout:       10 * time.Second,
+			wantErr:       false,
+		},
+		{
+			name:          "wait for deploy: rolled back during DEPLOYING",
+			deploymentNum: 4,
+			waitForBaking: false,
+			mockStates:    []types.DeploymentState{types.DeploymentStateDeploying, types.DeploymentStateRolledBack},
+			timeout:       10 * time.Second,
+			wantErr:       true,
+			wantErrMsg:    "deployment was rolled back",
+		},
+		{
+			name:          "wait for bake: completes when COMPLETE",
+			deploymentNum: 5,
+			waitForBaking: true,
+			mockStates:    []types.DeploymentState{types.DeploymentStateDeploying, types.DeploymentStateBaking, types.DeploymentStateComplete},
+			timeout:       10 * time.Second,
+			wantErr:       false,
+		},
+		{
+			name:          "wait for bake: already COMPLETE",
+			deploymentNum: 6,
+			waitForBaking: true,
+			mockStates:    []types.DeploymentState{types.DeploymentStateComplete},
+			timeout:       10 * time.Second,
+			wantErr:       false,
+		},
+		{
+			name:          "wait for bake: rolled back during BAKING",
+			deploymentNum: 7,
+			waitForBaking: true,
+			mockStates:    []types.DeploymentState{types.DeploymentStateBaking, types.DeploymentStateRolledBack},
+			mockEventLog: []types.DeploymentEvent{
+				{
+					EventType:   types.DeploymentEventTypeRollbackStarted,
+					Description: aws_stringPtr("CloudWatch alarm triggered"),
+				},
+			},
+			timeout:    10 * time.Second,
+			wantErr:    true,
+			wantErrMsg: "deployment was rolled back: CloudWatch alarm triggered",
+		},
+		{
+			name:          "wait for deploy: timeout",
+			deploymentNum: 8,
+			waitForBaking: false,
+			mockStates:    []types.DeploymentState{types.DeploymentStateDeploying, types.DeploymentStateDeploying},
+			timeout:       1 * time.Second,
+			wantErr:       true,
+			wantErrMsg:    "deployment timed out",
+		},
+		{
+			name:          "wait for bake: timeout",
+			deploymentNum: 9,
+			waitForBaking: true,
+			mockStates:    []types.DeploymentState{types.DeploymentStateBaking, types.DeploymentStateBaking},
+			timeout:       1 * time.Second,
+			wantErr:       true,
+			wantErrMsg:    "deployment timed out",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			callCount := 0
+			mockClient := &mock.MockAppConfigClient{
+				GetDeploymentFunc: func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
+					var state types.DeploymentState
+					if callCount < len(tt.mockStates) {
+						state = tt.mockStates[callCount]
+					} else {
+						state = tt.mockStates[len(tt.mockStates)-1]
+					}
+					callCount++
+
+					return &appconfig.GetDeploymentOutput{
+						DeploymentNumber:   tt.deploymentNum,
+						State:              state,
+						PercentageComplete: aws_floatPtr(float32(callCount) * 30.0),
+						EventLog:           tt.mockEventLog,
+					}, nil
+				},
+			}
+
+			client := &Client{
+				AppConfig:       mockClient,
+				PollingInterval: 100 * time.Millisecond, // Fast polling for tests
+			}
+			err := client.WaitForDeploymentPhase(
+				context.Background(),
+				"app-123",
+				"env-123",
+				tt.deploymentNum,
+				tt.waitForBaking,
+				tt.timeout,
+			)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("WaitForDeploymentPhase() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			if tt.wantErrMsg != "" && err != nil {
+				if !strings.Contains(err.Error(), tt.wantErrMsg) {
+					t.Errorf("WaitForDeploymentPhase() error message = %q, want to contain %q", err.Error(), tt.wantErrMsg)
+				}
+			}
+		})
+	}
+}
+
+// Test that WaitForDeploymentPhase with waitForBaking=false stops at BAKING
+func TestWaitForDeploymentPhase_StopsAtBaking(t *testing.T) {
+	callCount := 0
+	mockClient := &mock.MockAppConfigClient{
+		GetDeploymentFunc: func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
+			callCount++
+			// Deployment goes: DEPLOYING -> BAKING -> COMPLETE
+			// But we should stop at BAKING when waitForBaking=false
+			states := []types.DeploymentState{
+				types.DeploymentStateDeploying,
+				types.DeploymentStateBaking,
+				types.DeploymentStateComplete,
+			}
+			var state types.DeploymentState
+			if callCount-1 < len(states) {
+				state = states[callCount-1]
+			} else {
+				state = types.DeploymentStateComplete
+			}
+
+			return &appconfig.GetDeploymentOutput{
+				DeploymentNumber: 1,
+				State:            state,
+			}, nil
+		},
+	}
+
+	client := &Client{
+		AppConfig:       mockClient,
+		PollingInterval: 50 * time.Millisecond,
+	}
+
+	err := client.WaitForDeploymentPhase(
+		context.Background(),
+		"app-123",
+		"env-123",
+		1,
+		false, // waitForBaking=false
+		5*time.Second,
+	)
+	if err != nil {
+		t.Errorf("WaitForDeploymentPhase() unexpected error: %v", err)
+	}
+
+	// Should have called GetDeployment exactly 2 times (DEPLOYING, then BAKING)
+	// and stopped at BAKING without checking COMPLETE
+	if callCount > 2 {
+		t.Errorf("Expected to stop at BAKING (2 calls), but made %d calls", callCount)
 	}
 }

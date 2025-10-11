@@ -63,7 +63,8 @@ func TestExecutorValidateTimeout(t *testing.T) {
 
 			opts := &Options{
 				ConfigFile: "nonexistent.yml",
-				Wait:       false,
+				WaitDeploy: false,
+				WaitBake:   false,
 				Timeout:    tt.timeout,
 			}
 
@@ -86,13 +87,37 @@ func TestExecutorValidateTimeout(t *testing.T) {
 	}
 }
 
+func TestExecutorValidateWaitFlags(t *testing.T) {
+	reporter := &reportertest.MockReporter{}
+	executor := NewExecutor(reporter)
+
+	opts := &Options{
+		ConfigFile: "nonexistent.yml",
+		WaitDeploy: true,
+		WaitBake:   true,
+		Timeout:    300,
+	}
+
+	err := executor.Execute(context.Background(), opts)
+
+	if err == nil {
+		t.Error("expected error when both --wait-deploy and --wait-bake are specified")
+		return
+	}
+
+	if !strings.Contains(err.Error(), "--wait-deploy and --wait-bake cannot be used together") {
+		t.Errorf("expected error about mutually exclusive flags, got: %v", err)
+	}
+}
+
 func TestExecutorLoadConfigurationError(t *testing.T) {
 	reporter := &reportertest.MockReporter{}
 	executor := NewExecutor(reporter)
 
 	opts := &Options{
 		ConfigFile: "nonexistent.yml",
-		Wait:       false,
+		WaitDeploy: false,
+		WaitBake:   false,
 		Timeout:    300,
 	}
 
@@ -229,7 +254,8 @@ region: us-east-1
 
 	opts := &Options{
 		ConfigFile: configPath,
-		Wait:       false,
+		WaitDeploy: false,
+		WaitBake:   false,
 		Timeout:    300,
 	}
 
@@ -269,19 +295,35 @@ region: us-east-1
 	}
 }
 
-// TestExecutorFullWorkflowWithWait tests deployment with wait option
+// TestExecutorFullWorkflowWithWait tests deployment with wait options
 func TestExecutorFullWorkflowWithWait(t *testing.T) {
 	tests := []struct {
 		name       string
+		waitDeploy bool
+		waitBake   bool
 		mockStates []types.DeploymentState
+		wantMsg    string
 	}{
 		{
-			name:       "immediate completion",
+			name:       "wait for bake: immediate completion",
+			waitDeploy: false,
+			waitBake:   true,
 			mockStates: []types.DeploymentState{types.DeploymentStateComplete},
+			wantMsg:    "Deployment completed successfully",
 		},
 		{
-			name:       "completion after polling (5s wait)",
-			mockStates: []types.DeploymentState{types.DeploymentStateDeploying, types.DeploymentStateComplete},
+			name:       "wait for bake: completion after polling",
+			waitDeploy: false,
+			waitBake:   true,
+			mockStates: []types.DeploymentState{types.DeploymentStateDeploying, types.DeploymentStateBaking, types.DeploymentStateComplete},
+			wantMsg:    "Deployment completed successfully",
+		},
+		{
+			name:       "wait for deploy: stops at baking",
+			waitDeploy: true,
+			waitBake:   false,
+			mockStates: []types.DeploymentState{types.DeploymentStateDeploying, types.DeploymentStateBaking},
+			wantMsg:    "Deployment phase completed (now baking)",
 		},
 	}
 
@@ -369,7 +411,8 @@ region: us-east-1
 
 			opts := &Options{
 				ConfigFile: configPath,
-				Wait:       true, // Wait for deployment
+				WaitDeploy: tt.waitDeploy,
+				WaitBake:   tt.waitBake,
 				Timeout:    30,
 			}
 
@@ -378,17 +421,17 @@ region: us-east-1
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			// Verify deployment completed message
-			hasCompletedMsg := false
+			// Verify expected message
+			hasExpectedMsg := false
 			for _, msg := range reporter.Messages {
-				if strings.Contains(msg, "Deployment completed successfully") {
-					hasCompletedMsg = true
+				if strings.Contains(msg, tt.wantMsg) {
+					hasExpectedMsg = true
 					break
 				}
 			}
 
-			if !hasCompletedMsg {
-				t.Error("expected 'Deployment completed successfully' message")
+			if !hasExpectedMsg {
+				t.Errorf("expected message containing %q, got messages: %v", tt.wantMsg, reporter.Messages)
 			}
 		})
 	}
@@ -492,7 +535,8 @@ region: us-east-1
 
 	opts := &Options{
 		ConfigFile: configPath,
-		Wait:       false,
+		WaitDeploy: false,
+		WaitBake:   false,
 		Timeout:    300,
 		Force:      false,
 	}
@@ -621,7 +665,8 @@ region: us-east-1
 
 	opts := &Options{
 		ConfigFile: configPath,
-		Wait:       false,
+		WaitDeploy: false,
+		WaitBake:   false,
 		Timeout:    300,
 		Force:      true, // Force deployment even without changes
 	}
@@ -724,7 +769,8 @@ region: us-east-1
 
 	opts := &Options{
 		ConfigFile: configPath,
-		Wait:       false,
+		WaitDeploy: false,
+		WaitBake:   false,
 		Timeout:    300,
 	}
 

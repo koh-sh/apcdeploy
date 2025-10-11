@@ -21,8 +21,13 @@ func TestRunCommand(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "wait flag",
-			args:    []string{"--wait"},
+			name:    "wait-deploy flag",
+			args:    []string{"--wait-deploy"},
+			wantErr: false,
+		},
+		{
+			name:    "wait-bake flag",
+			args:    []string{"--wait-bake"},
 			wantErr: false,
 		},
 		{
@@ -36,8 +41,9 @@ func TestRunCommand(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Reset global flags for each test
 			runConfigFile = "apcdeploy.yml"
-			runWait = false
-			runTimeout = 600
+			runWaitDeploy = false
+			runWaitBake = false
+			runTimeout = DefaultDeploymentTimeout
 
 			cmd := newRunCmd()
 			cmd.SetArgs(tt.args)
@@ -52,8 +58,9 @@ func TestRunCommand(t *testing.T) {
 
 func TestRunCommandFlags(t *testing.T) {
 	runConfigFile = "apcdeploy.yml"
-	runWait = false
-	runTimeout = 600
+	runWaitDeploy = false
+	runWaitBake = false
+	runTimeout = DefaultDeploymentTimeout
 
 	cmd := newRunCmd()
 
@@ -89,21 +96,40 @@ func TestRunCommandFlags(t *testing.T) {
 	}
 }
 
-func TestRunCommandWaitFlag(t *testing.T) {
+func TestRunCommandWaitFlags(t *testing.T) {
 	runConfigFile = "apcdeploy.yml"
-	runWait = false
-	runTimeout = 600
+	runWaitDeploy = false
+	runWaitBake = false
+	runTimeout = DefaultDeploymentTimeout
 
 	cmd := newRunCmd()
 
-	flag := cmd.Flags().Lookup("wait")
-	if flag == nil {
-		t.Error("Flag wait not found")
-		return
+	tests := []struct {
+		name     string
+		flagName string
+	}{
+		{
+			name:     "wait-deploy flag exists",
+			flagName: "wait-deploy",
+		},
+		{
+			name:     "wait-bake flag exists",
+			flagName: "wait-bake",
+		},
 	}
 
-	if flag.DefValue != "false" {
-		t.Errorf("Flag wait default = %v, want false", flag.DefValue)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			flag := cmd.Flags().Lookup(tt.flagName)
+			if flag == nil {
+				t.Errorf("Flag %s not found", tt.flagName)
+				return
+			}
+
+			if flag.DefValue != "false" {
+				t.Errorf("Flag %s default = %v, want false", tt.flagName, flag.DefValue)
+			}
+		})
 	}
 }
 

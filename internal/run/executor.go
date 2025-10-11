@@ -39,6 +39,11 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 		return fmt.Errorf("timeout must be a positive value")
 	}
 
+	// Validate wait flags: both cannot be specified together
+	if opts.WaitDeploy && opts.WaitBake {
+		return fmt.Errorf("--wait-deploy and --wait-bake cannot be used together")
+	}
+
 	// Step 1: Load configuration
 	e.reporter.Progress("Loading configuration...")
 	cfg, dataContent, err := loadConfiguration(opts.ConfigFile)
@@ -126,13 +131,25 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	e.reporter.Success(fmt.Sprintf("Deployment #%d started", deploymentNumber))
 
 	// Step 9: Wait for deployment if requested
-	if opts.Wait {
+	switch {
+	case opts.WaitDeploy:
+		// Wait for deploy phase only (until BAKING starts)
+		e.reporter.Progress("Waiting for deployment phase to complete...")
+		if err := deployer.WaitForDeploymentPhase(ctx, resolved, deploymentNumber, false, opts.Timeout); err != nil {
+			return fmt.Errorf("deployment failed: %w", err)
+		}
+		e.reporter.Success("Deployment phase completed (now baking)")
+
+	case opts.WaitBake:
+		// Wait for complete deployment (deploy + bake)
 		e.reporter.Progress("Waiting for deployment to complete...")
-		if err := deployer.WaitForDeployment(ctx, resolved, deploymentNumber, opts.Timeout); err != nil {
+		if err := deployer.WaitForDeploymentPhase(ctx, resolved, deploymentNumber, true, opts.Timeout); err != nil {
 			return fmt.Errorf("deployment failed: %w", err)
 		}
 		e.reporter.Success("Deployment completed successfully")
-	} else {
+
+	default:
+		// No wait requested
 		e.reporter.Warning(fmt.Sprintf("Deployment #%d is in progress. Use 'apcdeploy status' to check the status.", deploymentNumber))
 	}
 

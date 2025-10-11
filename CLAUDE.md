@@ -40,7 +40,8 @@ When implementing new features or fixing bugs, follow these absolute rules:
 
 # Other commands
 ./apcdeploy diff -c apcdeploy.yml
-./apcdeploy run -c apcdeploy.yml --wait
+./apcdeploy run -c apcdeploy.yml --wait-bake  # Wait for full deployment
+./apcdeploy run -c apcdeploy.yml --wait-deploy  # Wait for deploy phase only
 ./apcdeploy status -c apcdeploy.yml
 ./apcdeploy get -c apcdeploy.yml
 
@@ -123,7 +124,9 @@ Interactive prompt interface for user input:
 3. Compare local content with latest deployed version (auto-skip if identical unless `--force`)
 4. Create new hosted configuration version
 5. Start deployment
-6. Optionally poll deployment status if `--wait` is specified
+6. Optionally wait for deployment:
+   - `--wait-deploy`: Wait until deployment phase completes (enters BAKING state)
+   - `--wait-bake`: Wait for complete deployment (DEPLOYING → BAKING → COMPLETE)
 
 #### Diff Calculation
 
@@ -213,8 +216,36 @@ The `--silent` (or `-s`) flag is a global flag that suppresses verbose output an
 ./apcdeploy status -c apcdeploy.yml --silent
 
 # Suppress progress messages during deployment
-./apcdeploy run -c apcdeploy.yml --wait --silent
+./apcdeploy run -c apcdeploy.yml --wait-bake --silent
 ```
+
+## Deployment Wait Options
+
+The `run` command supports two wait modes for monitoring deployment progress:
+
+### `--wait-deploy`
+
+Waits until the deployment phase completes (when the deployment enters BAKING state):
+- Monitors deployment progress through the DEPLOYING phase
+- Returns successfully once baking begins
+- Useful for CI/CD pipelines that only need to confirm the rollout started
+
+```bash
+./apcdeploy run -c apcdeploy.yml --wait-deploy
+```
+
+### `--wait-bake`
+
+Waits for complete deployment including the baking phase:
+- Monitors the full deployment lifecycle: DEPLOYING → BAKING → COMPLETE
+- Returns only when deployment is fully complete
+- Recommended for production deployments requiring full validation
+
+```bash
+./apcdeploy run -c apcdeploy.yml --wait-bake
+```
+
+These flags are mutually exclusive and cannot be used together. Either flag can be combined with `--timeout` to specify maximum wait duration (default: 600 seconds).
 
 ## Go Version and Tools
 

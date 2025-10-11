@@ -161,6 +161,16 @@ func (d *Deployer) WaitForDeployment(ctx context.Context, resolved *aws.Resolved
 	return d.awsClient.WaitForDeployment(ctx, resolved.ApplicationID, resolved.EnvironmentID, deploymentNumber, duration)
 }
 
+// WaitForDeploymentPhase waits for a deployment to reach a specific phase
+func (d *Deployer) WaitForDeploymentPhase(ctx context.Context, resolved *aws.ResolvedResources, deploymentNumber int32, waitForBaking bool, timeoutSeconds int) error {
+	timeout := fmt.Sprintf("%ds", timeoutSeconds)
+	duration, err := time.ParseDuration(timeout)
+	if err != nil {
+		return fmt.Errorf("invalid timeout: %w", err)
+	}
+	return d.awsClient.WaitForDeploymentPhase(ctx, resolved.ApplicationID, resolved.EnvironmentID, deploymentNumber, waitForBaking, duration)
+}
+
 // IsValidationError checks if the error is a validation error
 func (d *Deployer) IsValidationError(err error) bool {
 	return aws.IsValidationError(err)
