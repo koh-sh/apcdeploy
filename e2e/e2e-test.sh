@@ -20,7 +20,7 @@ function title() {
 
 cd "$WORKDIR"
 
-# Basic workflow: init -> diff -> run -> status -> update -> run
+# Basic workflow: init -> diff -> run -> status -> get -> update -> run
 title "========== S1: Workflow =========="
 $APCDEPLOY init --app "$APP" --profile json-freeform --env dev --region "$REGION" --force
 use_strategy
@@ -28,8 +28,10 @@ echo '{"v":"1"}' > data.json
 $APCDEPLOY diff | grep -q "v"
 $APCDEPLOY run --wait
 $APCDEPLOY status | grep -q "COMPLETE"
+$APCDEPLOY get | grep -q '"v":"1"'
 echo '{"v":"2"}' > data.json
 $APCDEPLOY run --wait
+$APCDEPLOY get | grep -q '"v":"2"'
 
 # Support for different content types: FeatureFlags, YAML, text
 title "========== S2: Content Types =========="
