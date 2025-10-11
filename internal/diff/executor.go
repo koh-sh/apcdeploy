@@ -44,11 +44,6 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
-	// Override region if specified
-	if opts.Region != "" {
-		cfg.Region = opts.Region
-	}
-
 	// Step 2: Initialize AWS client
 	awsClient, err := e.clientFactory(ctx, cfg.Region)
 	if err != nil {

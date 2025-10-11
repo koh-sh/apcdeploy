@@ -23,11 +23,6 @@ func TestStatusCommand(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "custom region",
-			args:    []string{"--region", "us-west-2"},
-			wantErr: false,
-		},
-		{
 			name:    "with deployment ID",
 			args:    []string{"--deployment", "123"},
 			wantErr: false,
@@ -38,7 +33,6 @@ func TestStatusCommand(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Reset global flags for each test
 			statusConfigFile = "apcdeploy.yml"
-			statusRegion = ""
 			statusDeploymentID = ""
 
 			cmd := newStatusCmd()
@@ -114,7 +108,6 @@ deployment_strategy: test-strategy
 
 			// Reset global flags
 			statusConfigFile = configPath
-			statusRegion = ""
 			statusDeploymentID = ""
 
 			// Create command
@@ -152,7 +145,6 @@ func TestStatusCommandStructure(t *testing.T) {
 
 func TestStatusCommandFlags(t *testing.T) {
 	statusConfigFile = "apcdeploy.yml"
-	statusRegion = ""
 	statusDeploymentID = ""
 
 	cmd := newStatusCmd()
@@ -166,11 +158,6 @@ func TestStatusCommandFlags(t *testing.T) {
 			name:         "config flag has default",
 			flagName:     "config",
 			defaultValue: "apcdeploy.yml",
-		},
-		{
-			name:         "region flag has default",
-			flagName:     "region",
-			defaultValue: "",
 		},
 		{
 			name:         "deployment flag has default",
