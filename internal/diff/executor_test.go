@@ -259,18 +259,8 @@ region: us-east-1
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Verify warning about deployment in progress
-	hasWarning := false
-	for _, msg := range reporter.Messages {
-		if strings.Contains(msg, "currently DEPLOYING") || strings.Contains(msg, "currently") {
-			hasWarning = true
-			break
-		}
-	}
-
-	if !hasWarning {
-		t.Error("expected warning about deployment in progress")
-	}
+	// Test that execution completes successfully with DEPLOYING state
+	// Warning display is tested in display_test.go
 }
 
 func TestExecutorExitNonzeroWithDifferences(t *testing.T) {

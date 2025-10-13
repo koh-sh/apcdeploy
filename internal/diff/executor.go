@@ -82,35 +82,27 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 		return nil
 	}
 
-	// Step 7: Handle case when deployment is in progress
-	if deployment.State == "DEPLOYING" || deployment.State == "BAKING" {
-		fmt.Fprintln(os.Stderr)
-		e.reporter.Warning(fmt.Sprintf("Deployment #%d is currently %s", deployment.DeploymentNumber, deployment.State))
-		fmt.Fprintln(os.Stderr, "The diff will be calculated against the currently deploying version.")
-		fmt.Fprintln(os.Stderr)
-	}
-
-	// Step 8: Get remote configuration
+	// Step 7: Get remote configuration
 	e.reporter.Progress("Fetching deployed configuration...")
 	remoteData, err := aws.GetHostedConfigurationVersion(ctx, awsClient, resources.ApplicationID, resources.Profile.ID, deployment.ConfigurationVersion)
 	if err != nil {
 		return fmt.Errorf("failed to get deployed configuration: %w", err)
 	}
 
-	// Step 9: Calculate diff
+	// Step 8: Calculate diff
 	diffResult, err := calculate(string(remoteData), string(localData), cfg.DataFile, resources.Profile.Type)
 	if err != nil {
 		return fmt.Errorf("failed to calculate diff: %w", err)
 	}
 
-	// Step 10: Display diff
+	// Step 9: Display diff
 	if opts.Silent {
-		displaySilent(diffResult)
+		displaySilent(diffResult, deployment)
 	} else {
 		display(diffResult, cfg, resources, deployment)
 	}
 
-	// Step 11: Return error if differences found and ExitNonzero is set
+	// Step 10: Return error if differences found and ExitNonzero is set
 	if opts.ExitNonzero && diffResult.HasChanges {
 		return ErrDiffFound
 	}

@@ -10,13 +10,16 @@ import (
 )
 
 // displaySilent shows only the diff content in silent mode
-func displaySilent(result *Result) {
+func displaySilent(result *Result, deployment *aws.DeploymentInfo) {
 	// In silent mode:
 	// - No output if there are no changes
 	// - Only show the diff content if there are changes
 	if result.HasChanges {
 		displayColorizedDiff(result.UnifiedDiff)
 	}
+
+	// Show deployment warning in silent mode too if deployment is in progress
+	displayDeploymentWarning(deployment)
 }
 
 // display shows the diff result in a user-friendly format
@@ -44,6 +47,8 @@ func display(result *Result, cfg *config.Config, resources *aws.ResolvedResource
 	// Check if there are changes
 	if !result.HasChanges {
 		fmt.Fprintln(os.Stderr, "✓ No changes detected")
+		// Show deployment warning even if no changes
+		displayDeploymentWarning(deployment)
 		return
 	}
 
@@ -57,6 +62,18 @@ func display(result *Result, cfg *config.Config, resources *aws.ResolvedResource
 	// Display summary to stderr (metadata)
 	addedLines, removedLines := countChanges(result.UnifiedDiff)
 	fmt.Fprintf(os.Stderr, "Summary: +%d additions, -%d deletions\n", addedLines, removedLines)
+
+	// Show deployment warning after summary
+	displayDeploymentWarning(deployment)
+}
+
+// displayDeploymentWarning shows a warning if deployment is in progress
+func displayDeploymentWarning(deployment *aws.DeploymentInfo) {
+	if deployment != nil && (deployment.State == "DEPLOYING" || deployment.State == "BAKING") {
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintf(os.Stderr, "⚠ Deployment #%d is currently %s\n", deployment.DeploymentNumber, deployment.State)
+		fmt.Fprintln(os.Stderr, "The diff is calculated against the currently deploying version.")
+	}
 }
 
 // displayColorizedDiff displays the diff with colors
