@@ -15,6 +15,7 @@ import (
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/aws/mock"
 	"github.com/koh-sh/apcdeploy/internal/config"
+	prompttest "github.com/koh-sh/apcdeploy/internal/prompt/testing"
 	reportertest "github.com/koh-sh/apcdeploy/internal/reporter/testing"
 )
 
@@ -22,10 +23,15 @@ func TestNewExecutor(t *testing.T) {
 	t.Parallel()
 
 	reporter := &reportertest.MockReporter{}
-	executor := NewExecutor(reporter)
+	prompter := &prompttest.MockPrompter{}
+	executor := NewExecutor(reporter, prompter)
 
 	if executor.reporter != reporter {
 		t.Error("expected executor to have the provided reporter")
+	}
+
+	if executor.prompter != prompter {
+		t.Error("expected executor to have the provided prompter")
 	}
 }
 
@@ -33,7 +39,8 @@ func TestExecutorLoadConfigurationError(t *testing.T) {
 	t.Parallel()
 
 	reporter := &reportertest.MockReporter{}
-	executor := NewExecutor(reporter)
+	prompter := &prompttest.MockPrompter{}
+	executor := NewExecutor(reporter, prompter)
 
 	opts := &Options{
 		ConfigFile: "nonexistent.yml",
@@ -161,10 +168,12 @@ region: us-east-1
 	}
 
 	reporter := &reportertest.MockReporter{}
-	executor := NewExecutorWithFactory(reporter, getterFactory)
+	prompter := &prompttest.MockPrompter{}
+	executor := NewExecutorWithFactory(reporter, prompter, getterFactory)
 
 	opts := &Options{
-		ConfigFile: configPath,
+		ConfigFile:       configPath,
+		SkipConfirmation: true, // Skip confirmation for this test
 	}
 
 	err = executor.Execute(context.Background(), opts)
@@ -237,7 +246,8 @@ region: us-east-1
 	}
 
 	reporter := &reportertest.MockReporter{}
-	executor := NewExecutorWithFactory(reporter, getterFactory)
+	prompter := &prompttest.MockPrompter{}
+	executor := NewExecutorWithFactory(reporter, prompter, getterFactory)
 
 	opts := &Options{
 		ConfigFile: configPath,
@@ -284,7 +294,8 @@ region: us-east-1
 	}
 
 	reporter := &reportertest.MockReporter{}
-	executor := NewExecutorWithFactory(reporter, getterFactory)
+	prompter := &prompttest.MockPrompter{}
+	executor := NewExecutorWithFactory(reporter, prompter, getterFactory)
 
 	opts := &Options{
 		ConfigFile: configPath,
@@ -365,10 +376,12 @@ region: us-east-1
 	}
 
 	reporter := &reportertest.MockReporter{}
-	executor := NewExecutorWithFactory(reporter, getterFactory)
+	prompter := &prompttest.MockPrompter{}
+	executor := NewExecutorWithFactory(reporter, prompter, getterFactory)
 
 	opts := &Options{
-		ConfigFile: configPath,
+		ConfigFile:       configPath,
+		SkipConfirmation: true, // Skip confirmation for this test
 	}
 
 	err = executor.Execute(context.Background(), opts)
@@ -428,7 +441,8 @@ region: us-east-1
 	}
 
 	reporter := &reportertest.MockReporter{}
-	executor := NewExecutorWithFactory(reporter, getterFactory)
+	prompter := &prompttest.MockPrompter{}
+	executor := NewExecutorWithFactory(reporter, prompter, getterFactory)
 
 	opts := &Options{
 		ConfigFile: configPath,
@@ -502,7 +516,8 @@ region: us-east-1
 	}
 
 	reporter := &reportertest.MockReporter{}
-	executor := NewExecutorWithFactory(reporter, getterFactory)
+	prompter := &prompttest.MockPrompter{}
+	executor := NewExecutorWithFactory(reporter, prompter, getterFactory)
 
 	opts := &Options{
 		ConfigFile: configPath,
@@ -516,5 +531,185 @@ region: us-east-1
 
 	if !strings.Contains(err.Error(), "failed to resolve") {
 		t.Errorf("expected 'failed to resolve' error, got: %v", err)
+	}
+}
+
+// TestExecutorConfirmationPrompt tests confirmation prompt behavior
+func TestExecutorConfirmationPrompt(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name              string
+		skipConfirmation  bool
+		userResponse      string
+		expectError       bool
+		expectPromptCalls int
+	}{
+		{
+			name:              "User confirms with Yes",
+			skipConfirmation:  false,
+			userResponse:      "Yes",
+			expectError:       false,
+			expectPromptCalls: 1,
+		},
+		{
+			name:              "User confirms with yes (lowercase)",
+			skipConfirmation:  false,
+			userResponse:      "yes",
+			expectError:       false,
+			expectPromptCalls: 1,
+		},
+		{
+			name:              "User confirms with Y",
+			skipConfirmation:  false,
+			userResponse:      "Y",
+			expectError:       false,
+			expectPromptCalls: 1,
+		},
+		{
+			name:              "User confirms with y (lowercase)",
+			skipConfirmation:  false,
+			userResponse:      "y",
+			expectError:       false,
+			expectPromptCalls: 1,
+		},
+		{
+			name:              "User confirms with Y and whitespace",
+			skipConfirmation:  false,
+			userResponse:      " Y ",
+			expectError:       false,
+			expectPromptCalls: 1,
+		},
+		{
+			name:              "User declines with No",
+			skipConfirmation:  false,
+			userResponse:      "No",
+			expectError:       true,
+			expectPromptCalls: 1,
+		},
+		{
+			name:              "User declines with empty input",
+			skipConfirmation:  false,
+			userResponse:      "",
+			expectError:       true,
+			expectPromptCalls: 1,
+		},
+		{
+			name:              "User declines with invalid input",
+			skipConfirmation:  false,
+			userResponse:      "maybe",
+			expectError:       true,
+			expectPromptCalls: 1,
+		},
+		{
+			name:              "Skip confirmation with flag",
+			skipConfirmation:  true,
+			userResponse:      "",
+			expectError:       false,
+			expectPromptCalls: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tempDir, err := os.MkdirTemp("", "get-executor-confirm-*")
+			if err != nil {
+				t.Fatalf("Failed to create temp dir: %v", err)
+			}
+			defer os.RemoveAll(tempDir)
+
+			configPath := filepath.Join(tempDir, "apcdeploy.yml")
+			if err := os.WriteFile(configPath, []byte(`application: test-app
+configuration_profile: test-profile
+environment: test-env
+data_file: data.json
+region: us-east-1
+`), 0o644); err != nil {
+				t.Fatalf("Failed to write config: %v", err)
+			}
+
+			dataPath := filepath.Join(tempDir, "data.json")
+			if err := os.WriteFile(dataPath, []byte(`{}`), 0o644); err != nil {
+				t.Fatalf("Failed to write data: %v", err)
+			}
+
+			configData := []byte(`{"feature": "enabled"}`)
+
+			mockAppConfigClient := &mock.MockAppConfigClient{
+				ListApplicationsFunc: func(ctx context.Context, params *appconfig.ListApplicationsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListApplicationsOutput, error) {
+					return &appconfig.ListApplicationsOutput{
+						Items: []types.Application{{Id: aws.String("app-123"), Name: aws.String("test-app")}},
+					}, nil
+				},
+				ListConfigurationProfilesFunc: func(ctx context.Context, params *appconfig.ListConfigurationProfilesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListConfigurationProfilesOutput, error) {
+					return &appconfig.ListConfigurationProfilesOutput{
+						Items: []types.ConfigurationProfileSummary{{Id: aws.String("profile-123"), Name: aws.String("test-profile")}},
+					}, nil
+				},
+				GetConfigurationProfileFunc: func(ctx context.Context, params *appconfig.GetConfigurationProfileInput, optFns ...func(*appconfig.Options)) (*appconfig.GetConfigurationProfileOutput, error) {
+					return &appconfig.GetConfigurationProfileOutput{
+						Id:   aws.String("profile-123"),
+						Type: aws.String("AWS.Freeform"),
+					}, nil
+				},
+				ListEnvironmentsFunc: func(ctx context.Context, params *appconfig.ListEnvironmentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListEnvironmentsOutput, error) {
+					return &appconfig.ListEnvironmentsOutput{
+						Items: []types.Environment{{Id: aws.String("env-123"), Name: aws.String("test-env")}},
+					}, nil
+				},
+			}
+
+			mockAppConfigDataClient := &mock.MockAppConfigDataClient{
+				StartConfigurationSessionFunc: func(ctx context.Context, params *appconfigdata.StartConfigurationSessionInput, optFns ...func(*appconfigdata.Options)) (*appconfigdata.StartConfigurationSessionOutput, error) {
+					return &appconfigdata.StartConfigurationSessionOutput{
+						InitialConfigurationToken: aws.String("initial-token"),
+					}, nil
+				},
+				GetLatestConfigurationFunc: func(ctx context.Context, params *appconfigdata.GetLatestConfigurationInput, optFns ...func(*appconfigdata.Options)) (*appconfigdata.GetLatestConfigurationOutput, error) {
+					return &appconfigdata.GetLatestConfigurationOutput{
+						Configuration: configData,
+					}, nil
+				},
+			}
+
+			getterFactory := func(ctx context.Context, cfg *config.Config) (*Getter, error) {
+				awsClient := &awsInternal.Client{
+					AppConfig:     mockAppConfigClient,
+					AppConfigData: mockAppConfigDataClient,
+				}
+				return NewWithClient(cfg, awsClient), nil
+			}
+
+			promptCalls := 0
+			mockPrompter := &prompttest.MockPrompter{
+				InputFunc: func(message string, placeholder string) (string, error) {
+					promptCalls++
+					return tt.userResponse, nil
+				},
+			}
+
+			reporter := &reportertest.MockReporter{}
+			executor := NewExecutorWithFactory(reporter, mockPrompter, getterFactory)
+
+			opts := &Options{
+				ConfigFile:       configPath,
+				SkipConfirmation: tt.skipConfirmation,
+			}
+
+			err = executor.Execute(context.Background(), opts)
+
+			if tt.expectError && err == nil {
+				t.Fatal("expected error but got none")
+			}
+			if !tt.expectError && err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if promptCalls != tt.expectPromptCalls {
+				t.Errorf("expected %d prompt calls, got %d", tt.expectPromptCalls, promptCalls)
+			}
+		})
 	}
 }

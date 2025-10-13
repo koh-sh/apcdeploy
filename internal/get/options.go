@@ -2,6 +2,7 @@ package get
 
 // Options contains the configuration options for getting configuration
 type Options struct {
-	ConfigFile string
-	Silent     bool
+	ConfigFile       string
+	Silent           bool
+	SkipConfirmation bool
 }

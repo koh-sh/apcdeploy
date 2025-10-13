@@ -250,3 +250,9 @@ Retrieve the currently deployed configuration:
 ```bash
 apcdeploy get -c apcdeploy.yml
 ```
+
+**Note:** This command uses AWS AppConfig Data API which incurs charges per API call. You will be prompted for confirmation before proceeding.
+
+Options:
+
+- `-y, --yes`: Skip confirmation prompt (useful for scripts and automation)
