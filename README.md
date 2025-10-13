@@ -36,6 +36,9 @@ Download the latest release from the [Releases page](https://github.com/koh-sh/a
 
 ## Quick Start Tutorial
 
+> [!TIP]
+> Working with an AI coding assistant like Claude Code? Have it run `apcdeploy context` to access comprehensive guidelines and usage details for this tool.
+
 This tutorial walks you through the complete workflow: initializing from existing AWS AppConfig resources, making changes, and deploying.
 
 ### Prerequisites
@@ -266,5 +269,3 @@ Output context information for AI assistants:
 ```bash
 apcdeploy context
 ```
-
-This command outputs the contents of `llms.md`, which provides comprehensive guidelines for AI assistants when using the `apcdeploy` command. This is particularly useful when working with AI coding assistants or LLMs to help them understand the tool's capabilities and usage patterns.
