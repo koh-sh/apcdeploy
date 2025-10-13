@@ -31,6 +31,7 @@ Please review with particular attention to the following aspects:
 - Is the Factory pattern utilized to ensure testability?
 - Are interfaces (AppConfigAPI, ProgressReporter, Prompter, etc.) used appropriately?
 - Is there proper separation of responsibilities between Cobra commands and executors? Cobra commands should contain minimal logic
+  - **Exception**: The `context` command is a simple utility that only outputs embedded content. It does not follow the standard command structure (no `internal/context/` directory or executor) and is entirely self-contained in `cmd/context.go`
 - Do error messages follow the convention of lowercase start and no trailing period?
 
 ultrathink

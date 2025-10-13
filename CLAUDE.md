@@ -44,6 +44,7 @@ When implementing new features or fixing bugs, follow these absolute rules:
 ./apcdeploy run -c apcdeploy.yml --wait-deploy  # Wait for deploy phase only
 ./apcdeploy status -c apcdeploy.yml
 ./apcdeploy get -c apcdeploy.yml
+./apcdeploy context  # Output llms.md for AI assistants
 
 # Silent mode (suppress verbose output)
 ./apcdeploy diff -c apcdeploy.yml --silent
@@ -65,9 +66,12 @@ E2E tests require AWS credentials and use Terraform to provision resources:
 
 All commands follow the pattern: `cmd/<command>.go` → `internal/<command>/executor.go`
 
+**Exception**: The `context` command is a simple utility that only outputs embedded content (`llms.md`). It does not follow the standard command structure and has no corresponding `internal/context/` directory. The implementation is entirely contained in `cmd/context.go`, with the content embedded in `main.go` and passed via `cmd.SetLLMsContent()`.
+
 1. **cmd/**: Cobra command definitions and CLI flag parsing
    - `root.go`: Root command with global flags (`--config`, `--silent`)
    - Each command file (`init.go`, `run.go`, `diff.go`, `status.go`, `get.go`) handles CLI concerns only
+   - `context.go`: Simple command that outputs embedded `llms.md` content for AI assistants (no internal package)
    - `init.go`: Supports interactive mode for resource selection; all flags are optional
 
 2. **internal/\<command\>/**: Business logic for each command

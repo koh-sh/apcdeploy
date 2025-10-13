@@ -36,6 +36,9 @@ Download the latest release from the [Releases page](https://github.com/koh-sh/a
 
 ## Quick Start Tutorial
 
+> [!TIP]
+> Working with an AI coding assistant like Claude Code? Have it run `apcdeploy context` to access comprehensive guidelines and usage details for this tool.
+
 This tutorial walks you through the complete workflow: initializing from existing AWS AppConfig resources, making changes, and deploying.
 
 ### Prerequisites
@@ -258,3 +261,11 @@ apcdeploy get -c apcdeploy.yml
 Options:
 
 - `-y, --yes`: Skip confirmation prompt (useful for scripts and automation)
+
+### context
+
+Output context information for AI assistants:
+
+```bash
+apcdeploy context
+```
