@@ -78,7 +78,7 @@ Example `apcdeploy.yml`:
 application: my-application
 configuration_profile: my-config-profile
 environment: production
-deployment_strategy: AppConfig.Linear50PercentEvery30Seconds
+deployment_strategy: AppConfig.AllAtOnce  # optional, uses default if omitted
 data_file: data.json
 region: us-west-2
 ```
@@ -152,7 +152,7 @@ configuration_profile: my-config-profile
 # Required: Name of the environment
 environment: production
 
-# Optional: Deployment strategy (defaults to AppConfig.Linear50PercentEvery30Seconds)
+# Optional: Deployment strategy (defaults to AppConfig.AllAtOnce)
 deployment_strategy: AppConfig.AllAtOnce
 
 # Required: Path to your configuration data file (relative or absolute)
@@ -171,6 +171,8 @@ region: us-west-2
 For FeatureFlags profiles, metadata fields (`_createdAt`, `_updatedAt`) are automatically ignored during diff and deployment comparisons.
 
 ## Commands
+
+For detailed usage information and advanced features, see [llms.md](./llms.md).
 
 ### Global Flags
 

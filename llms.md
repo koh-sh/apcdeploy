@@ -1,0 +1,789 @@
+# llms.md
+
+This file provides guidelines for AI assistants when using the `apcdeploy` command.
+
+## Overview of apcdeploy
+
+`apcdeploy` is a declarative CLI tool for managing AWS AppConfig deployments. It allows you to manage AppConfig applications, configuration profiles, and environments as "code" using a YAML configuration file (`apcdeploy.yml`).
+
+### Capabilities
+
+- Auto-generate configuration files from existing AWS AppConfig resources (`init`)
+- Deploy configuration changes (`run`)
+- Compare differences between local files and deployed configurations (`diff`)
+- Monitor deployment status (`status`)
+- Retrieve deployed configurations (`get`)
+
+### Important Constraints
+
+- **Supports AWS AppConfig hosted configuration store only**
+- AppConfig resources (applications, configuration profiles, environments, deployment strategies) must be created in AWS beforehand
+- This tool is for managing existing resources and does not create resources itself
+
+### Supported Content Types
+
+1. **JSON** (`.json` files)
+   - Automatic validation and formatting
+   - Metadata fields (`_createdAt`, `_updatedAt`) in FeatureFlags profiles are automatically ignored during diff calculations
+
+2. **YAML** (`.yaml` or `.yml` files)
+   - Automatic validation and formatting
+   - FeatureFlags profile metadata is automatically ignored
+
+3. **Plain Text** (`.txt` or other extensions)
+   - Deployed as-is
+
+## Recommended Usage Flows
+
+### Initial Setup Flow
+
+Recommended procedure when starting with existing AWS AppConfig resources:
+
+```bash
+# 1. Initialize in interactive mode (recommended)
+apcdeploy init
+
+# Or initialize non-interactively using flags
+apcdeploy init --region us-west-2 --app my-app --profile my-profile --env production
+
+# 2. Review the generated files
+# - apcdeploy.yml: Deployment configuration
+# - data.json/data.yaml/data.txt: Current configuration content
+
+# 3. Edit configuration content as needed
+vim data.json
+
+# 4. Preview changes
+apcdeploy diff -c apcdeploy.yml
+
+# 5. Execute deployment
+apcdeploy run -c apcdeploy.yml
+
+# 6. Check deployment status
+apcdeploy status -c apcdeploy.yml
+```
+
+### Daily Change Management Flow
+
+```bash
+# 1. Edit configuration file
+vim data.json
+
+# 2. Review changes
+apcdeploy diff -c apcdeploy.yml
+
+# 3. Automated check in CI/CD (optional)
+apcdeploy diff -c apcdeploy.yml --exit-nonzero --silent
+
+# 4. Execute deployment
+apcdeploy run -c apcdeploy.yml
+
+# 5. Check status (as needed)
+apcdeploy status -c apcdeploy.yml
+```
+
+### Troubleshooting Flow
+
+```bash
+# Check deployment status details
+apcdeploy status -c apcdeploy.yml
+
+# For more detailed information, check AWS Console
+```
+
+## Configuration File Reference
+
+### Structure of apcdeploy.yml
+
+```yaml
+# Required: AppConfig application name
+application: my-application
+
+# Required: Configuration profile name
+configuration_profile: my-config-profile
+
+# Required: Environment name
+environment: production
+
+# Optional: Deployment strategy (default: AppConfig.AllAtOnce)
+deployment_strategy: AppConfig.Linear
+
+# Required: Path to configuration data file (relative or absolute)
+# Relative paths are interpreted from apcdeploy.yml location
+data_file: data.json
+
+# Optional: AWS region (uses AWS SDK default if omitted)
+region: us-west-2
+```
+
+### data_file Path Resolution
+
+- **Relative path**: Interpreted as relative to the directory containing `apcdeploy.yml`
+  - Example: `data.json` → `data.json` in the same directory as `apcdeploy.yml`
+  - Example: `config/data.json` → `config/data.json` under the `apcdeploy.yml` directory
+- **Absolute path**: Used as-is
+  - Example: `/home/user/configs/data.json`
+
+### Deployment Strategy Examples
+
+Pre-defined deployment strategies provided by AppConfig:
+
+- `AppConfig.Linear` (AWS Recommended): Deploy 20% every 6 minutes (30 minutes total), for production environments
+- `AppConfig.Canary10Percent20Minutes` (AWS Recommended): Exponentially increase by 10% over 20 minutes, recommended for production deployments
+- `AppConfig.AllAtOnce` (Quick): Deploy to all targets immediately
+- `AppConfig.Linear50PercentEvery30Seconds` (Testing/Demo): Deploy 50% every 30 seconds (1 minute total), for testing and demo purposes
+
+Each strategy monitors CloudWatch Alarms and automatically rolls back if issues are detected. You can also specify custom strategy names if you've created them.
+
+Reference: [AWS AppConfig Pre-defined Deployment Strategies](https://docs.aws.amazon.com/appconfig/latest/userguide/appconfig-creating-deployment-strategy-predefined.html)
+
+## Command Reference
+
+### Global Flags
+
+Available for all commands:
+
+- `-c, --config <path>`: Configuration file path (default: `apcdeploy.yml`)
+- `-s, --silent`: Suppress verbose output, show only essential information (useful for CI/CD and scripting)
+
+### init command
+
+Generates `apcdeploy.yml` and configuration data files from existing AWS AppConfig resources.
+
+#### Usage
+
+```bash
+# Interactive mode (recommended)
+apcdeploy init
+
+# Non-interactive mode (all flags specified)
+apcdeploy init --region us-west-2 --app my-app --profile my-profile --env production
+
+# Specify output destinations
+apcdeploy init -c custom-config.yml -o custom-data.json
+
+# Overwrite existing files
+apcdeploy init -f
+```
+
+#### Flags
+
+- `--region <region>`: AWS region (interactive prompt if omitted)
+- `--app <name>`: Application name (interactive prompt if omitted)
+- `--profile <name>`: Configuration profile name (interactive prompt if omitted)
+- `--env <name>`: Environment name (interactive prompt if omitted)
+- `-c, --config <path>`: Output configuration file path (default: `apcdeploy.yml`)
+- `-o, --output-data <path>`: Output data file path (auto-determined from content type if omitted: `data.json`, `data.yaml`, `data.txt`)
+- `-f, --force`: Overwrite existing files without confirmation
+
+#### Operation Details
+
+**Prerequisites**: This command assumes that AWS AppConfig resources (application, configuration profile, environment) are already created. It does not create resources.
+
+1. **Region Selection** (when `--region` not specified)
+   - Select from available AWS regions
+   - Display AWS Account ID for the selected region
+
+2. **Application Selection** (when `--app` not specified)
+   - Select from AppConfig applications in the specified region
+
+3. **Configuration Profile Selection** (when `--profile` not specified)
+   - Select from configuration profiles in the selected application
+
+4. **Environment Selection** (when `--env` not specified)
+   - Select from environments in the selected application
+
+5. **Fetch Configuration and Generate**
+   - Fetch current configuration content from AWS
+   - Auto-detect Content-Type
+   - Generate `apcdeploy.yml`
+   - Generate configuration data file (extension determined by content type)
+
+#### Notes
+
+- **All flags are optional**: If not specified, you can select interactively through prompts
+- **Partial flag specification**: If only some flags are specified, prompts will appear only for unspecified items
+- **Existing file protection**: By default, does not overwrite existing files. Use the `-f` flag to overwrite
+- **AWS credentials required**: AWS CLI configuration or equivalent credentials are required
+- **IAM permissions**:
+  - When selecting region interactively (`--region` not specified), `account:ListRegions` permission is required (to retrieve the list of enabled regions)
+  - When specifying region directly with `--region` flag, this permission is not required
+
+#### Examples
+
+```bash
+# Fully interactive
+apcdeploy init
+
+# Specify only region and app, select the rest
+apcdeploy init --region us-east-1 --app my-app
+
+# Output to different directory
+apcdeploy init -c /path/to/config.yml -o /path/to/data.json
+
+# Use in CI/CD (all specified + silent mode)
+apcdeploy init --region us-west-2 --app my-app --profile my-profile --env prod -f --silent
+```
+
+### run command
+
+Deploys configuration changes to AWS AppConfig.
+
+#### Usage
+
+```bash
+# Basic deployment
+apcdeploy run -c apcdeploy.yml
+
+# Wait for deployment phase to complete
+apcdeploy run -c apcdeploy.yml --wait-deploy
+
+# Wait for deployment and baking phase to complete
+apcdeploy run -c apcdeploy.yml --wait-bake
+
+# Deploy even when there are no differences
+apcdeploy run -c apcdeploy.yml --force
+
+# Specify timeout
+apcdeploy run -c apcdeploy.yml --wait-bake --timeout 900
+```
+
+#### Flags
+
+- `--wait-deploy`: Wait for deployment phase to complete (until baking starts)
+- `--wait-bake`: Wait for complete deployment including baking phase
+- `--force`: Deploy even when content is unchanged
+- `--timeout <seconds>`: Timeout in seconds for deployment wait (default: 600)
+
+**Important**: `--wait-deploy` and `--wait-bake` are mutually exclusive and cannot be used together.
+
+#### Operation Details
+
+1. **Load configuration file**: Load `apcdeploy.yml` and `data_file`
+2. **Resolve resource names**: Resolve application, profile, and environment names to AWS IDs
+3. **Diff check**: Compare local file with latest deployed version
+   - If content is identical, automatically skips by default (can be overridden with `--force`)
+4. **Create version**: Create a new hosted configuration version
+5. **Start deployment**: Start deployment to the specified environment
+6. **Wait** (optional):
+   - `--wait-deploy`: Wait for DEPLOYING → BAKING transition
+   - `--wait-bake`: Wait for full lifecycle DEPLOYING → BAKING → COMPLETE
+
+#### Deployment Wait Options Comparison
+
+| Option | Wait Behavior | Completion Condition | Use Case |
+|--------|---------------|---------------------|----------|
+| None (Recommended) | No wait | Exits immediately after deployment starts | Most cases. Check progress separately with `status` command |
+| `--wait-deploy` | Deployment phase only | When entering baking state | Cases where you need to synchronously wait for deployment phase completion |
+| `--wait-bake` | Complete deployment | When deployment becomes COMPLETE | Cases where you need to synchronously wait for full deployment completion |
+
+#### Idempotency
+
+- **Auto-skip feature**: If local file content is identical to deployed version, deployment is automatically skipped
+- **FeatureFlags special handling**: For FeatureFlags profiles, metadata fields (`_createdAt`, `_updatedAt`) are excluded from comparison
+- **Force deploy**: Use the `--force` flag to deploy even when content is unchanged
+
+#### Notes
+
+- **AWS credentials required**: AWS CLI configuration or equivalent credentials are required
+- **Existing resources required**: Application, profile, environment, and deployment strategy must exist in AWS
+- **In-progress deployments**: If there is an in-progress deployment (DEPLOYING or BAKING state) for the same environment, a new deployment cannot be started. You must wait for the existing deployment to complete or stop it from the AWS Console
+- **Timeout settings**: For deployment strategies that take a long time, set `--timeout` appropriately
+- **Error handling**: If an error occurs during deployment, it exits with an appropriate error message
+- **Recommended usage**: For basically all situations, it is recommended not to use `--wait-deploy` or `--wait-bake` options, and instead check progress separately with the `status` command after deployment starts
+
+#### Examples
+
+```bash
+# Basic deployment (recommended)
+apcdeploy run -c apcdeploy.yml
+
+# Use in CI/CD pipeline (recommended)
+apcdeploy run -c apcdeploy.yml --silent
+
+# Check status after deployment (recommended)
+apcdeploy run -c apcdeploy.yml
+apcdeploy status -c apcdeploy.yml
+
+# Deploy even when there are no differences
+apcdeploy run -c apcdeploy.yml --force
+
+# Only when waiting is needed in specific situations
+apcdeploy run -c apcdeploy.yml --wait-deploy
+apcdeploy run -c apcdeploy.yml --wait-bake --timeout 1800
+```
+
+### diff command
+
+Displays differences between local file and deployed configuration.
+
+#### Usage
+
+```bash
+# Display differences
+apcdeploy diff -c apcdeploy.yml
+
+# Use in CI (exit code 1 if differences exist)
+apcdeploy diff -c apcdeploy.yml --exit-nonzero
+
+# Display only differences in silent mode
+apcdeploy diff -c apcdeploy.yml --silent
+```
+
+#### Flags
+
+- `--exit-nonzero`: Exit with code 1 if differences exist (useful in CI/CD)
+
+#### Operation Details
+
+1. **Load configuration file**: Load local `apcdeploy.yml` and `data_file`
+2. **Fetch deployed configuration**: Fetch latest deployed version from AWS
+3. **Normalize**: Normalize both configurations (remove FeatureFlags metadata, unify formatting)
+4. **Calculate differences**: Calculate differences in unified diff format
+5. **Output**: Display differences (or display message if no differences)
+
+#### Output Format
+
+- **Unified Diff Format**: Display differences in standard diff format
+  - Lines starting with `-`: Content to be removed from deployed version
+  - Lines starting with `+`: Content to be added
+- **No differences**: Display "No differences found" message
+
+#### Normalization Process
+
+- **JSON/YAML format unification**: Absorbs differences in indentation and line breaks
+- **FeatureFlags metadata exclusion**: `_createdAt` and `_updatedAt` fields are automatically ignored
+
+#### Notes
+
+- **AWS credentials required**: Required to fetch deployed version
+- **Content-Type consideration**: JSON/YAML are normalized, but Plain Text is compared byte-by-byte
+- **Exit codes**:
+  - 0: No differences, or normal exit
+  - 1: When `--exit-nonzero` is specified and differences exist
+- **Comparison with in-progress configuration**: If there is a deployment in progress (DEPLOYING) or baking (BAKING), it compares with that configuration. Note that if that deployment is rolled back (ROLLED_BACK), the content displayed by the diff command may differ from the actually deployed content
+
+#### Examples
+
+```bash
+# Check before deployment
+apcdeploy diff -c apcdeploy.yml
+
+# Change detection in CI/CD
+if apcdeploy diff -c apcdeploy.yml --exit-nonzero --silent; then
+  echo "No changes to deploy"
+else
+  echo "Changes detected, deploying..."
+  apcdeploy run -c apcdeploy.yml
+fi
+```
+
+### status command
+
+Displays deployment status.
+
+#### Usage
+
+```bash
+# Display latest deployment status
+apcdeploy status -c apcdeploy.yml
+
+# Display status of specific deployment number
+apcdeploy status -c apcdeploy.yml --deployment 3
+
+# Display only status in silent mode
+apcdeploy status -c apcdeploy.yml --silent
+```
+
+#### Flags
+
+- `--deployment <number>`: Specify deployment number (defaults to latest deployment if omitted)
+
+#### Operation Details
+
+1. **Load configuration file**: Load `apcdeploy.yml`
+2. **Resolve resources**: Resolve application and environment names to AWS IDs
+3. **Fetch deployment information**: Fetch information for specified (or latest) deployment from AWS
+4. **Display status**: Display deployment state, progress, and detailed information
+
+#### Displayed Information
+
+- **Deployment Number**: Deployment number
+- **State**: Deployment state
+  - `DEPLOYING`: Deployment in progress
+  - `BAKING`: Baking (validation phase)
+  - `COMPLETE`: Completed
+  - `ROLLED_BACK`: Rolled back
+- **Percentage Complete**: Completion percentage (%)
+- **Configuration Version**: Configuration version number
+- **Started At**: Deployment start time
+
+#### Deployment State Details
+
+- **DEPLOYING**: Configuration is being gradually rolled out to targets
+- **BAKING**: Rollout to all targets is complete and in validation period
+- **COMPLETE**: Deployment is fully completed
+- **ROLLED_BACK**: Issues were detected and rolled back to previous version
+
+#### Notes
+
+- **AWS credentials required**: Required to fetch deployment information
+- **No deployment exists**: Error message is displayed
+- **Exit codes**: 0 on normal exit, 1 on error
+
+#### Examples
+
+```bash
+# Check after deployment
+apcdeploy run -c apcdeploy.yml
+apcdeploy status -c apcdeploy.yml
+
+# Loop to wait for deployment completion (manual monitoring)
+while true; do
+  apcdeploy status -c apcdeploy.yml --silent
+  sleep 10
+done
+
+# Check past deployments
+apcdeploy status -c apcdeploy.yml --deployment 1
+apcdeploy status -c apcdeploy.yml --deployment 2
+apcdeploy status -c apcdeploy.yml --deployment 3
+```
+
+### get command
+
+Retrieves deployed configuration and displays to stdout.
+
+#### Usage
+
+```bash
+# Retrieve with confirmation prompt
+apcdeploy get -c apcdeploy.yml
+
+# Skip confirmation and retrieve
+apcdeploy get -c apcdeploy.yml -y
+
+# Redirect to file
+apcdeploy get -c apcdeploy.yml -y > deployed.json
+```
+
+#### Flags
+
+- `-y, --yes`: Skip confirmation prompt (useful for scripts and automation)
+
+#### Operation Details
+
+1. **Confirmation prompt**: Warns that AWS AppConfig Data API is billable (can be skipped with `-y`)
+2. **Load configuration file**: Load `apcdeploy.yml`
+3. **Resolve resources**: Resolve application, profile, and environment names to AWS IDs
+4. **Fetch configuration**: Use AWS AppConfig Data API to fetch latest deployed configuration
+5. **Output**: Display configuration content to stdout (formatted according to Content-Type)
+
+#### Important Notes
+
+**About AWS AppConfig Data API billing:**
+
+- This command uses AWS AppConfig Data API
+- **Charges are incurred per API call**
+- Avoid frequent execution and use only when necessary
+
+#### Output Format
+
+- **JSON**: Output as formatted JSON
+- **YAML**: Output as formatted YAML
+- **Plain Text**: Output as-is
+
+#### Examples
+
+```bash
+# Check currently deployed configuration
+apcdeploy get -c apcdeploy.yml -y
+
+# Use in scripts
+DEPLOYED_CONFIG=$(apcdeploy get -c apcdeploy.yml -y)
+echo "$DEPLOYED_CONFIG" | jq '.features.new_feature'
+```
+
+## Silent Mode
+
+The `--silent` (or `-s`) flag suppresses verbose output and displays only essential information.
+
+### Behavior
+
+- **Suppressed output**: Progress messages, success messages, warnings
+- **Always displayed output**: Error messages (stderr), final results (diff output, status, etc.)
+
+### Use Cases
+
+- **CI/CD pipelines**: Reduce log noise and record only important information
+- **Scripts**: Obtain machine-readable output
+- **Automation**: Eliminate unnecessary messages
+
+### Examples
+
+```bash
+# Get only differences (no metadata)
+apcdeploy diff -c apcdeploy.yml --silent
+
+# Get only status
+apcdeploy status -c apcdeploy.yml --silent
+
+# Quiet deployment in CI/CD
+apcdeploy run -c apcdeploy.yml --wait-bake --silent
+```
+
+## Troubleshooting
+
+### Common Issues and Solutions
+
+#### 1. Resource Not Found
+
+**Error Example:**
+
+```txt
+Error: application "my-app" not found in region us-west-2
+```
+
+**Solution:**
+
+- Verify that the resource exists in AWS Console
+- Check that the region setting in `apcdeploy.yml` is correct
+- Verify that AWS credentials are for the correct account
+
+#### 2. Authentication Error
+
+**Error Example:**
+
+```txt
+Error: failed to load AWS credentials
+```
+
+**Solution:**
+
+```bash
+# Check AWS credentials
+aws sts get-caller-identity
+
+# Configure credentials
+aws configure
+
+# Or set via environment variables
+export AWS_ACCESS_KEY_ID=xxx
+export AWS_SECRET_ACCESS_KEY=yyy
+export AWS_REGION=us-west-2
+```
+
+#### 3. Deployment Skipped
+
+**Cause:**
+
+- Local file content is identical to deployed version
+
+**Solution:**
+
+```bash
+# Check differences
+apcdeploy diff -c apcdeploy.yml
+
+# Deploy even when there are no differences
+apcdeploy run -c apcdeploy.yml --force
+```
+
+#### 4. Timeout Error
+
+**Error Example:**
+
+```txt
+Error: deployment timeout after 600 seconds
+```
+
+**Solution:**
+
+```bash
+# Extend timeout
+apcdeploy run -c apcdeploy.yml --wait-bake --timeout 1800
+
+# Or deploy without waiting and check status separately
+apcdeploy run -c apcdeploy.yml
+apcdeploy status -c apcdeploy.yml
+```
+
+### Debugging Tips
+
+1. **Run in verbose mode**: Remove `--silent` to see detailed progress
+2. **Check differences**: Use `diff` command before deployment to verify changes
+3. **Monitor status**: Use `status` command during deployment to check progress
+4. **Check deployed configuration**: Use `get` command to verify actually deployed content
+
+## Best Practices
+
+### 1. Version Control
+
+```bash
+# Manage apcdeploy.yml and data file with Git
+git add apcdeploy.yml data.json
+git commit -m "Update feature flag configuration"
+```
+
+### 2. Per-Environment Configuration Files
+
+```bash
+# Separate by environment directories
+environments/
+├── dev/
+│   ├── apcdeploy.yml
+│   └── data.json
+├── staging/
+│   ├── apcdeploy.yml
+│   └── data.json
+└── production/
+    ├── apcdeploy.yml
+    └── data.json
+
+# Explicitly specify when deploying
+apcdeploy run -c environments/production/apcdeploy.yml
+```
+
+### 3. Use in CI/CD
+
+```yaml
+# GitHub Actions example
+- name: Deploy to AppConfig
+  run: |
+    # Check differences
+    if apcdeploy diff -c apcdeploy.yml --exit-nonzero --silent; then
+      echo "No changes to deploy"
+    else
+      # Deploy only if there are changes (wait option not recommended)
+      apcdeploy run -c apcdeploy.yml --silent
+    fi
+```
+
+### 4. Pre-Deployment Check
+
+Always verify changes with the `diff` command before deploying:
+
+```bash
+# Verify changes
+apcdeploy diff -c apcdeploy.yml
+
+# Deploy if no issues
+apcdeploy run -c apcdeploy.yml
+```
+
+### 5. Rollback Strategy
+
+Easily rollback by managing configuration files with Git:
+
+```bash
+# Manage configuration files with Git
+git add apcdeploy.yml data.json
+git commit -m "Update configuration"
+
+# If there are issues, revert to previous version with Git
+git revert HEAD
+# Or revert to specific commit
+git checkout <commit-hash> -- data.json
+
+# Deploy the rolled-back version
+apcdeploy run -c apcdeploy.yml
+```
+
+## Security and Access Control
+
+### Required IAM Permissions
+
+To use `apcdeploy`, the following AWS AppConfig IAM permissions are required:
+
+#### Basic Permissions (required for all commands)
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "appconfig:ListApplications",
+        "appconfig:ListConfigurationProfiles",
+        "appconfig:ListEnvironments",
+        "appconfig:ListDeploymentStrategies",
+        "appconfig:GetConfigurationProfile"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+#### Deployment Permissions (run, diff, and status commands)
+
+```json
+{
+  "Effect": "Allow",
+  "Action": [
+    "appconfig:CreateHostedConfigurationVersion",
+    "appconfig:StartDeployment",
+    "appconfig:GetDeployment",
+    "appconfig:GetHostedConfigurationVersion",
+    "appconfig:ListDeployments"
+  ],
+  "Resource": "*"
+}
+```
+
+#### Data Retrieval Permissions (get command)
+
+```json
+{
+  "Effect": "Allow",
+  "Action": [
+    "appconfig:StartConfigurationSession",
+    "appconfig:GetLatestConfiguration"
+  ],
+  "Resource": "*"
+}
+```
+
+### Security Best Practices
+
+1. **Principle of least privilege**: Grant only necessary permissions
+2. **Resource restrictions**: Restrict permissions to specific applications or resources where possible
+3. **Credential management**: Do not hardcode AWS credentials; use IAM roles or temporary credentials
+4. **Audit logs**: Use CloudTrail to record API calls
+
+## AWS AppConfig Limitations
+
+- **Maximum hosted configuration size**:
+  - Default: 2 MB
+  - Maximum: 4 MB (can request limit increase)
+- For details, see [AWS AppConfig Quotas](https://docs.aws.amazon.com/appconfig/latest/userguide/appconfig-creating-configuration-and-profile-quotas.html)
+
+## FAQ
+
+### Q1: Does the init command overwrite existing configurations?
+
+A: By default, it does not overwrite. Use the `-f, --force` flag to overwrite.
+
+### Q2: Can I cancel a deployment in progress?
+
+A: You can interrupt the `apcdeploy` command itself, but the deployment on the AWS AppConfig side will continue. You need to stop the deployment from the AWS Console or AWS CLI.
+
+### Q3: Can I deploy to multiple environments simultaneously?
+
+A: You need to create separate `apcdeploy.yml` files for each environment and deploy sequentially.
+
+### Q4: Does it support both FeatureFlags and Freeform?
+
+A: Yes, it supports both profile types. Content-Type is automatically detected.
+
+### Q5: How do I perform a rollback?
+
+A: If you are managing configuration files with Git, you can rollback by reverting to a previous version and then executing `apcdeploy run`. Alternatively, you can rollback directly on the AppConfig side using the AWS Console/CLI.
+
+## Related Resources
+
+- [AWS AppConfig Official Documentation](https://docs.aws.amazon.com/appconfig/latest/userguide/what-is-appconfig.html)
+- [AWS AppConfig Feature Flags Reference](https://docs.aws.amazon.com/appconfig/latest/userguide/appconfig-type-reference-feature-flags.html)
+- [AWS AppConfig Quotas](https://docs.aws.amazon.com/appconfig/latest/userguide/appconfig-creating-configuration-and-profile-quotas.html)
+- [apcdeploy GitHub Repository](https://github.com/koh-sh/apcdeploy)
