@@ -28,6 +28,21 @@ func captureOutput(f func()) string {
 	return buf.String()
 }
 
+func captureStderr(f func()) string {
+	old := os.Stderr
+	r, w, _ := os.Pipe()
+	os.Stderr = w
+
+	f()
+
+	w.Close()
+	os.Stderr = old
+
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+	return buf.String()
+}
+
 func TestShowDeploymentStatusSilent(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -230,7 +245,7 @@ func TestShowDeploymentStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			output := captureOutput(func() {
+			output := captureStderr(func() {
 				ShowDeploymentStatus(tt.deployment, tt.cfg, tt.resources)
 			})
 

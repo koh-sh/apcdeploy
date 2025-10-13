@@ -3,6 +3,7 @@ package init
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
@@ -183,9 +184,9 @@ func (i *Initializer) generateFiles(opts *Options, result *Result) error {
 // showNextSteps displays next steps after initialization
 func (i *Initializer) showNextSteps() {
 	i.reporter.Success("\nInitialization complete!")
-	fmt.Println("\nNext steps:")
-	fmt.Println("  1. Review the generated configuration files")
-	fmt.Println("  2. Modify the data file as needed")
-	fmt.Println("  3. Run 'apcdeploy diff' to preview changes")
-	fmt.Println("  4. Run 'apcdeploy deploy' to deploy your configuration")
+	fmt.Fprintln(os.Stderr, "\nNext steps:")
+	fmt.Fprintln(os.Stderr, "  1. Review the generated configuration files")
+	fmt.Fprintln(os.Stderr, "  2. Modify the data file as needed")
+	fmt.Fprintln(os.Stderr, "  3. Run 'apcdeploy diff' to preview changes")
+	fmt.Fprintln(os.Stderr, "  4. Run 'apcdeploy deploy' to deploy your configuration")
 }

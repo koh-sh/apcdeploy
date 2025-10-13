@@ -2,6 +2,7 @@ package diff
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/koh-sh/apcdeploy/internal/aws"
@@ -20,41 +21,42 @@ func displaySilent(result *Result) {
 
 // display shows the diff result in a user-friendly format
 func display(result *Result, cfg *config.Config, resources *aws.ResolvedResources, deployment *aws.DeploymentInfo) {
-	// Display header
-	fmt.Println("Configuration Diff")
-	fmt.Println("==================")
-	fmt.Println()
-	fmt.Printf("Application:   %s\n", cfg.Application)
-	fmt.Printf("Profile:       %s\n", resources.Profile.Name)
-	fmt.Printf("Environment:   %s\n", cfg.Environment)
-	fmt.Println()
+	// Display header to stderr (metadata)
+	fmt.Fprintln(os.Stderr, "Configuration Diff")
+	fmt.Fprintln(os.Stderr, "==================")
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintf(os.Stderr, "Application:   %s\n", cfg.Application)
+	fmt.Fprintf(os.Stderr, "Profile:       %s\n", resources.Profile.Name)
+	fmt.Fprintf(os.Stderr, "Environment:   %s\n", cfg.Environment)
+	fmt.Fprintln(os.Stderr)
 
 	if deployment != nil {
-		fmt.Printf("Remote Version: %s (Deployment #%d)\n", deployment.ConfigurationVersion, deployment.DeploymentNumber)
+		fmt.Fprintf(os.Stderr, "Remote Version: %s (Deployment #%d)\n", deployment.ConfigurationVersion, deployment.DeploymentNumber)
 		if deployment.State != "" {
-			fmt.Printf("Status:         %s\n", deployment.State)
+			fmt.Fprintf(os.Stderr, "Status:         %s\n", deployment.State)
 		}
 	} else {
-		fmt.Println("Remote Version: (none)")
+		fmt.Fprintln(os.Stderr, "Remote Version: (none)")
 	}
-	fmt.Printf("Local File:     %s\n", result.FileName)
-	fmt.Println()
+	fmt.Fprintf(os.Stderr, "Local File:     %s\n", result.FileName)
+	fmt.Fprintln(os.Stderr)
 
 	// Check if there are changes
 	if !result.HasChanges {
-		fmt.Println("✓ No changes detected")
+		fmt.Fprintln(os.Stderr, "✓ No changes detected")
 		return
 	}
 
-	// Display the diff
-	fmt.Println("Changes:")
-	fmt.Println("--------")
+	// Display the diff header to stderr
+	fmt.Fprintln(os.Stderr, "Changes:")
+	fmt.Fprintln(os.Stderr, "--------")
+	// Display the actual diff to stdout (machine-readable)
 	displayColorizedDiff(result.UnifiedDiff)
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
-	// Display summary
+	// Display summary to stderr (metadata)
 	addedLines, removedLines := countChanges(result.UnifiedDiff)
-	fmt.Printf("Summary: +%d additions, -%d deletions\n", addedLines, removedLines)
+	fmt.Fprintf(os.Stderr, "Summary: +%d additions, -%d deletions\n", addedLines, removedLines)
 }
 
 // displayColorizedDiff displays the diff with colors
