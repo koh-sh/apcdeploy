@@ -78,7 +78,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 		fmt.Fprintln(os.Stderr, "\nLocal configuration:")
 		fmt.Println(string(localData))
 		fmt.Fprintln(os.Stderr)
-		fmt.Fprintln(os.Stderr, "Run 'apcdeploy deploy' to create the first deployment.")
+		fmt.Fprintln(os.Stderr, "Run 'apcdeploy run' to create the first deployment.")
 		return nil
 	}
 

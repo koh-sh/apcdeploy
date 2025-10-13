@@ -18,7 +18,10 @@ func displaySilent(result *Result, deployment *aws.DeploymentInfo) {
 		displayColorizedDiff(result.UnifiedDiff)
 	}
 
-	// Show deployment warning in silent mode too if deployment is in progress
+	// Show deployment warning in silent mode too if deployment is in progress.
+	// This is intentional because an ongoing deployment that gets rolled back
+	// could change the diff result, and users should be aware of this risk
+	// even in silent/automated environments.
 	displayDeploymentWarning(deployment)
 }
 
