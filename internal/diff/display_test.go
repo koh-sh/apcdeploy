@@ -98,7 +98,7 @@ func TestDisplaySilent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			output := captureOutput(func() {
+			output := captureOutput(t, func() {
 				displaySilent(tt.result, tt.deployment)
 			})
 
@@ -237,7 +237,7 @@ func TestDisplay(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, stderr := captureOutputAndError(func() {
+			_, stderr := captureOutputAndError(t, func() {
 				display(tt.result, tt.cfg, tt.resources, tt.deployment)
 			})
 
@@ -337,7 +337,7 @@ func TestDisplaySilentWithDeployment(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, stderr := captureOutputAndError(func() {
+			_, stderr := captureOutputAndError(t, func() {
 				displaySilent(tt.result, tt.deployment)
 			})
 
@@ -411,7 +411,8 @@ func Test_countChanges(t *testing.T) {
 }
 
 // Helper functions
-func captureOutput(f func()) string {
+func captureOutput(t *testing.T, f func()) string {
+	t.Helper()
 	old := os.Stdout
 	r, w, _ := os.Pipe()
 	os.Stdout = w
@@ -423,12 +424,13 @@ func captureOutput(f func()) string {
 
 	var buf bytes.Buffer
 	if _, err := io.Copy(&buf, r); err != nil {
-		panic(err)
+		t.Fatalf("failed to copy output: %v", err)
 	}
 	return buf.String()
 }
 
-func captureOutputAndError(f func()) (stdout, stderr string) {
+func captureOutputAndError(t *testing.T, f func()) (stdout, stderr string) {
+	t.Helper()
 	oldStdout := os.Stdout
 	oldStderr := os.Stderr
 
@@ -448,10 +450,10 @@ func captureOutputAndError(f func()) (stdout, stderr string) {
 
 	var bufOut, bufErr bytes.Buffer
 	if _, err := io.Copy(&bufOut, rOut); err != nil {
-		panic(err)
+		t.Fatalf("failed to copy stdout: %v", err)
 	}
 	if _, err := io.Copy(&bufErr, rErr); err != nil {
-		panic(err)
+		t.Fatalf("failed to copy stderr: %v", err)
 	}
 
 	return bufOut.String(), bufErr.String()
