@@ -5,10 +5,12 @@ import (
 
 	"github.com/koh-sh/apcdeploy/internal/cli"
 	"github.com/koh-sh/apcdeploy/internal/get"
+	"github.com/koh-sh/apcdeploy/internal/prompt"
 	"github.com/spf13/cobra"
 )
 
-// No local variables needed - using global configFile from root
+// getSkipConfirmation controls whether to skip the confirmation prompt (--yes flag)
+var getSkipConfirmation bool
 
 // GetCommand returns the get command
 func GetCommand() *cobra.Command {
@@ -19,16 +21,15 @@ func newGetCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "get",
 		Short: "Get configuration from AWS AppConfig",
-		Long: `Get configuration from AWS AppConfig.
+		Long: `Get the latest deployed configuration from AWS AppConfig and output to stdout.
 
-This command will:
-1. Load the local configuration file (apcdeploy.yml)
-2. Resolve AWS resources (application, environment, configuration profile)
-3. Fetch the latest configuration from AppConfig
-4. Output the configuration to stdout`,
+WARNING: This command uses AWS AppConfig Data API which incurs charges per API call.
+Use --yes to skip the confirmation prompt (useful for scripts and automation).`,
 		RunE:         runGet,
 		SilenceUsage: true, // Don't show usage on runtime errors
 	}
+
+	cmd.Flags().BoolVarP(&getSkipConfirmation, "yes", "y", false, "Skip confirmation prompt")
 
 	return cmd
 }
@@ -38,14 +39,16 @@ func runGet(cmd *cobra.Command, args []string) error {
 
 	// Create options
 	opts := &get.Options{
-		ConfigFile: configFile,
-		Silent:     isSilent(),
+		ConfigFile:       configFile,
+		Silent:           isSilent(),
+		SkipConfirmation: getSkipConfirmation,
 	}
 
-	// Create reporter
+	// Create reporter and prompter
 	reporter := cli.GetReporter(isSilent())
+	prompter := &prompt.HuhPrompter{}
 
 	// Get configuration
-	executor := get.NewExecutor(reporter)
+	executor := get.NewExecutor(reporter, prompter)
 	return executor.Execute(ctx, opts)
 }

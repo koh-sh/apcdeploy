@@ -37,10 +37,10 @@ fi
 echo "Rest of tests use --silent for cleaner output"
 $APCDEPLOY run --wait-bake --silent
 $APCDEPLOY status --silent | grep -q "COMPLETE"
-$APCDEPLOY get --silent | grep -q '"v":"1"'
+$APCDEPLOY get --silent --yes | grep -q '"v":"1"'
 echo '{"v":"2"}' > data.json
 $APCDEPLOY run --wait-bake --silent
-$APCDEPLOY get --silent | grep -q '"v":"2"'
+$APCDEPLOY get --silent --yes | grep -q '"v":"2"'
 
 echo "Support for different content types: FeatureFlags, YAML, text"
 title "========== S2: Content Types =========="

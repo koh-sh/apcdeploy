@@ -36,3 +36,21 @@ func (h *HuhPrompter) Select(message string, options []string) (string, error) {
 
 	return result, nil
 }
+
+func (h *HuhPrompter) Input(message string, placeholder string) (string, error) {
+	var result string
+	err := huh.NewInput().
+		Title(message).
+		Placeholder(placeholder).
+		Value(&result).
+		Run()
+	if err != nil {
+		// Handle cancellation (Ctrl+C) and convert to our standard error
+		if errors.Is(err, huh.ErrUserAborted) {
+			return "", ErrUserCancelled
+		}
+		return "", err
+	}
+
+	return result, nil
+}

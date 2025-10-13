@@ -9,4 +9,7 @@ var ErrUserCancelled = errors.New("operation cancelled")
 type Prompter interface {
 	// Select displays a list of options and returns the selected value
 	Select(message string, options []string) (string, error)
+
+	// Input displays a prompt and returns the user's input
+	Input(message string, placeholder string) (string, error)
 }
