@@ -258,3 +258,13 @@ apcdeploy get -c apcdeploy.yml
 Options:
 
 - `-y, --yes`: Skip confirmation prompt (useful for scripts and automation)
+
+### context
+
+Output context information for AI assistants:
+
+```bash
+apcdeploy context
+```
+
+This command outputs the contents of `llms.md`, which provides comprehensive guidelines for AI assistants when using the `apcdeploy` command. This is particularly useful when working with AI coding assistants or LLMs to help them understand the tool's capabilities and usage patterns.

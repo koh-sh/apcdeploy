@@ -35,15 +35,18 @@ This file provides guidelines for AI assistants when using the `apcdeploy` comma
 
 ## Recommended Usage Flows
 
+**Note for AI Assistants**: The flows below include interactive commands and text editors. When using these flows via AI agents, always use non-interactive modes (with all flags specified) and programmatic file operations instead of interactive editors like `vim`.
+
 ### Initial Setup Flow
 
 Recommended procedure when starting with existing AWS AppConfig resources:
 
 ```bash
-# 1. Initialize in interactive mode (recommended)
+# 1. Initialize (for human users: interactive mode; for AI agents: specify all flags)
+# Human users:
 apcdeploy init
 
-# Or initialize non-interactively using flags
+# AI agents (non-interactive with all flags):
 apcdeploy init --region us-west-2 --app my-app --profile my-profile --env production
 
 # 2. Review the generated files
@@ -51,7 +54,8 @@ apcdeploy init --region us-west-2 --app my-app --profile my-profile --env produc
 # - data.json/data.yaml/data.txt: Current configuration content
 
 # 3. Edit configuration content as needed
-vim data.json
+# Human users: vim data.json
+# AI agents: Use Write or Edit tools to modify the file programmatically
 
 # 4. Preview changes
 apcdeploy diff -c apcdeploy.yml
@@ -67,7 +71,8 @@ apcdeploy status -c apcdeploy.yml
 
 ```bash
 # 1. Edit configuration file
-vim data.json
+# Human users: vim data.json
+# AI agents: Use Write or Edit tools to modify the file programmatically
 
 # 2. Review changes
 apcdeploy diff -c apcdeploy.yml
@@ -126,14 +131,47 @@ region: us-west-2
 
 ### Deployment Strategy Examples
 
-Pre-defined deployment strategies provided by AppConfig:
+#### How to List Available Deployment Strategies
+
+To see all available deployment strategies (both AWS pre-defined and custom strategies you've created), use the AWS CLI:
+
+```bash
+# List all deployment strategies
+aws appconfig list-deployment-strategies
+
+# Format output as table for easier reading
+aws appconfig list-deployment-strategies --query 'Items[*].[Name,Id,Description]' --output table
+
+# Filter by specific criteria (e.g., only show strategies with names)
+aws appconfig list-deployment-strategies --query 'Items[*].[Name,GrowthFactor,FinalBakeTimeInMinutes]' --output table
+```
+
+This command returns both:
+
+- **AWS pre-defined strategies**: Start with `AppConfig.` prefix (e.g., `AppConfig.Linear`)
+- **Custom strategies**: User-created strategies with custom names
+
+#### Pre-defined Deployment Strategies
+
+Common AWS pre-defined deployment strategies:
 
 - `AppConfig.Linear` (AWS Recommended): Deploy 20% every 6 minutes (30 minutes total), for production environments
 - `AppConfig.Canary10Percent20Minutes` (AWS Recommended): Exponentially increase by 10% over 20 minutes, recommended for production deployments
 - `AppConfig.AllAtOnce` (Quick): Deploy to all targets immediately
 - `AppConfig.Linear50PercentEvery30Seconds` (Testing/Demo): Deploy 50% every 30 seconds (1 minute total), for testing and demo purposes
 
-Each strategy monitors CloudWatch Alarms and automatically rolls back if issues are detected. You can also specify custom strategy names if you've created them.
+Each strategy monitors CloudWatch Alarms and automatically rolls back if issues are detected.
+
+#### Using Custom Deployment Strategies
+
+You can create your own deployment strategies in AWS AppConfig and reference them by name in `apcdeploy.yml`:
+
+```yaml
+# Example using a custom strategy
+deployment_strategy: MyCustomStrategy
+```
+
+To create a custom deployment strategy, use the AWS Console or AWS CLI. See [AWS AppConfig Deployment Strategies](https://docs.aws.amazon.com/appconfig/latest/userguide/appconfig-creating-deployment-strategy.html) for details.
 
 Reference: [AWS AppConfig Pre-defined Deployment Strategies](https://docs.aws.amazon.com/appconfig/latest/userguide/appconfig-creating-deployment-strategy-predefined.html)
 
@@ -145,6 +183,7 @@ Available for all commands:
 
 - `-c, --config <path>`: Configuration file path (default: `apcdeploy.yml`)
 - `-s, --silent`: Suppress verbose output, show only essential information (useful for CI/CD and scripting)
+  - **Note for AI Assistants**: Do not use `--silent` when executing commands via AI agents. Verbose output is essential for debugging and understanding command execution.
 
 ### init command
 
@@ -153,10 +192,10 @@ Generates `apcdeploy.yml` and configuration data files from existing AWS AppConf
 #### Usage
 
 ```bash
-# Interactive mode (recommended)
+# Interactive mode (for human users)
 apcdeploy init
 
-# Non-interactive mode (all flags specified)
+# Non-interactive mode (for AI agents and automation - all flags specified)
 apcdeploy init --region us-west-2 --app my-app --profile my-profile --env production
 
 # Specify output destinations
@@ -201,6 +240,24 @@ apcdeploy init -f
 
 #### Notes
 
+- **For AI Assistants**: When using this command programmatically or via AI agents, always use the non-interactive mode by specifying all required flags (`--region`, `--app`, `--profile`, `--env`). **Do not use the `--silent` flag** - verbose output is essential for debugging and understanding command execution. To obtain the necessary values:
+  - **Preferred approach**: Use AWS CLI to retrieve available resources:
+
+    ```bash
+    # List applications
+    aws appconfig list-applications --region <region>
+
+    # List configuration profiles
+    aws appconfig list-configuration-profiles --application-id <app-id>
+
+    # List environments
+    aws appconfig list-environments --application-id <app-id>
+
+    # List deployment strategies (to choose appropriate one for generated apcdeploy.yml)
+    aws appconfig list-deployment-strategies
+    ```
+
+  - **Fallback approach**: If AWS CLI is not available, ask the user to provide the application name, configuration profile name, and environment name
 - **All flags are optional**: If not specified, you can select interactively through prompts
 - **Partial flag specification**: If only some flags are specified, prompts will appear only for unspecified items
 - **Existing file protection**: By default, does not overwrite existing files. Use the `-f` flag to overwrite
@@ -212,7 +269,7 @@ apcdeploy init -f
 #### Examples
 
 ```bash
-# Fully interactive
+# Fully interactive (for human users)
 apcdeploy init
 
 # Specify only region and app, select the rest
@@ -223,6 +280,21 @@ apcdeploy init -c /path/to/config.yml -o /path/to/data.json
 
 # Use in CI/CD (all specified + silent mode)
 apcdeploy init --region us-west-2 --app my-app --profile my-profile --env prod -f --silent
+
+# AI agent workflow example (without --silent for better debugging)
+# 1. Get available resources using AWS CLI
+aws appconfig list-applications --region us-west-2 --query 'Items[*].[Name,Id]' --output table
+aws appconfig list-configuration-profiles --application-id <app-id> --query 'Items[*].[Name,Id]' --output table
+aws appconfig list-environments --application-id <app-id> --query 'Items[*].[Name,Id]' --output table
+
+# Optional: List deployment strategies to choose appropriate one
+aws appconfig list-deployment-strategies --query 'Items[*].[Name,Id,Description]' --output table
+
+# 2. Run init with obtained values
+apcdeploy init --region us-west-2 --app my-app --profile my-profile --env production
+
+# 3. (Optional) Modify apcdeploy.yml to use a specific deployment strategy
+# Edit the generated apcdeploy.yml to set deployment_strategy field
 ```
 
 ### run command
@@ -504,9 +576,55 @@ DEPLOYED_CONFIG=$(apcdeploy get -c apcdeploy.yml -y)
 echo "$DEPLOYED_CONFIG" | jq '.features.new_feature'
 ```
 
+### context command
+
+Outputs context information for AI assistants.
+
+#### Usage
+
+```bash
+# Output llms.md content
+apcdeploy context
+```
+
+#### Operation Details
+
+This command outputs the contents of `llms.md` to stdout. The content is embedded in the binary at build time, so no external files are required.
+
+#### Purpose
+
+The `context` command is designed for AI assistants and LLMs to quickly access comprehensive documentation about the `apcdeploy` tool. When working with AI coding assistants, you can pipe this command's output to provide the assistant with detailed information about:
+
+- Command usage and workflows
+- Configuration file formats
+- Best practices
+- Troubleshooting guidance
+
+#### Examples
+
+```bash
+# Output full documentation
+apcdeploy context
+
+# Use with AI assistants or documentation viewers
+apcdeploy context | less
+
+# Search for specific information
+apcdeploy context | grep "deployment strategy"
+```
+
+#### Notes
+
+- This command does not interact with AWS
+- No AWS credentials are required
+- The output is static content embedded at build time
+- Global flags like `--config` and `--silent` have no effect on this command
+
 ## Silent Mode
 
 The `--silent` (or `-s`) flag suppresses verbose output and displays only essential information.
+
+**Important for AI Assistants**: Do not use `--silent` mode when executing commands via AI agents. Verbose output provides critical information for debugging and understanding command execution, which is essential for AI-driven workflows.
 
 ### Behavior
 
@@ -517,7 +635,7 @@ The `--silent` (or `-s`) flag suppresses verbose output and displays only essent
 
 - **CI/CD pipelines**: Reduce log noise and record only important information
 - **Scripts**: Obtain machine-readable output
-- **Automation**: Eliminate unnecessary messages
+- **Automation**: Eliminate unnecessary messages (not recommended for AI agents)
 
 ### Examples
 
