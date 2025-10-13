@@ -183,7 +183,7 @@ Defined in `internal/config/constants.go`:
 application: <name>
 configuration_profile: <name>
 environment: <name>
-deployment_strategy: <strategy-name>  # optional, defaults to AppConfig.Linear50PercentEvery30Seconds
+deployment_strategy: <strategy-name>  # optional, defaults to AppConfig.AllAtOnce
 data_file: <path>  # relative to apcdeploy.yml or absolute
 region: <aws-region>  # optional, uses AWS SDK default if omitted
 ```
