@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/config"
@@ -74,19 +75,19 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	// Step 6: Handle case when no deployment exists
 	if deployment == nil {
 		e.reporter.Warning("No deployment found - this will be the initial deployment")
-		fmt.Println("\nLocal configuration:")
+		fmt.Fprintln(os.Stderr, "\nLocal configuration:")
 		fmt.Println(string(localData))
-		fmt.Println()
-		fmt.Println("Run 'apcdeploy deploy' to create the first deployment.")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Run 'apcdeploy deploy' to create the first deployment.")
 		return nil
 	}
 
 	// Step 7: Handle case when deployment is in progress
 	if deployment.State == "DEPLOYING" || deployment.State == "BAKING" {
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 		e.reporter.Warning(fmt.Sprintf("Deployment #%d is currently %s", deployment.DeploymentNumber, deployment.State))
-		fmt.Println("The diff will be calculated against the currently deploying version.")
-		fmt.Println()
+		fmt.Fprintln(os.Stderr, "The diff will be calculated against the currently deploying version.")
+		fmt.Fprintln(os.Stderr)
 	}
 
 	// Step 8: Get remote configuration

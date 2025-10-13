@@ -1,4 +1,4 @@
-.PHONY: test fmt cov cov-check tidy lint lint-fix build modernize modernize-fix ci tool-install e2e-setup e2e-run e2e-clean e2e-full
+.PHONY: test fmt cov tidy lint lint-fix build modernize modernize-fix ci tool-install e2e-setup e2e-run e2e-clean e2e-full
 
 COVFILE = coverage.out
 COVHTML = cover.html
@@ -13,10 +13,6 @@ fmt:
 cov:
 	go test -cover ./... -coverprofile=$(COVFILE)
 	go tool cover -html=$(COVFILE) -o $(COVHTML)
-	rm $(COVFILE)
-
-cov-check:
-	go test -cover ./... -coverprofile=$(COVFILE)
 	CI=1 GITHUB_REPOSITORY=$(GITHUB_REPOSITORY) octocov
 	rm $(COVFILE)
 
@@ -32,7 +28,7 @@ lint-fix:
 build:
 	go build
 
-ci: fmt modernize-fix lint-fix test build cov-check
+ci: fmt modernize-fix lint-fix build cov
 
 # Go Modernize
 modernize:

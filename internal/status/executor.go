@@ -3,6 +3,7 @@ package status
 import (
 	"context"
 	"fmt"
+	"os"
 	"strconv"
 
 	"github.com/koh-sh/apcdeploy/internal/aws"
@@ -78,10 +79,10 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	if deploymentInfo == nil {
 		e.reporter.Warning("No deployments found")
 		if !opts.Silent {
-			fmt.Println("\nNo deployments have been created yet for this configuration.")
-			fmt.Println("\nNext steps:")
-			fmt.Println("  1. Review your configuration file")
-			fmt.Println("  2. Run 'apcdeploy deploy' to create your first deployment")
+			fmt.Fprintln(os.Stderr, "\nNo deployments have been created yet for this configuration.")
+			fmt.Fprintln(os.Stderr, "\nNext steps:")
+			fmt.Fprintln(os.Stderr, "  1. Review your configuration file")
+			fmt.Fprintln(os.Stderr, "  2. Run 'apcdeploy deploy' to create your first deployment")
 		}
 		return nil
 	}

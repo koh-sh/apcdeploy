@@ -2,6 +2,7 @@ package display
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/appconfig/types"
@@ -17,89 +18,89 @@ func ShowDeploymentStatusSilent(deployment *aws.DeploymentDetails) {
 
 // ShowDeploymentStatus displays detailed deployment status information
 func ShowDeploymentStatus(deployment *aws.DeploymentDetails, cfg *config.Config, resources *aws.ResolvedResources) {
-	// Header
-	fmt.Println("\n" + bold("Deployment Status"))
-	fmt.Println(separator())
+	// Header - output to stderr (human-readable display)
+	fmt.Fprintln(os.Stderr, "\n"+bold("Deployment Status"))
+	fmt.Fprintln(os.Stderr, separator())
 
 	// Configuration information
-	fmt.Printf("  Application:   %s\n", cfg.Application)
-	fmt.Printf("  Profile:       %s\n", resources.Profile.Name)
-	fmt.Printf("  Environment:   %s\n", cfg.Environment)
-	fmt.Println()
+	fmt.Fprintf(os.Stderr, "  Application:   %s\n", cfg.Application)
+	fmt.Fprintf(os.Stderr, "  Profile:       %s\n", resources.Profile.Name)
+	fmt.Fprintf(os.Stderr, "  Environment:   %s\n", cfg.Environment)
+	fmt.Fprintln(os.Stderr)
 
 	// Deployment information
-	fmt.Printf("  Deployment #:  %d\n", deployment.DeploymentNumber)
-	fmt.Printf("  Status:        %s\n", formatDeploymentState(deployment.State))
-	fmt.Printf("  Version:       %s\n", deployment.ConfigurationVersion)
+	fmt.Fprintf(os.Stderr, "  Deployment #:  %d\n", deployment.DeploymentNumber)
+	fmt.Fprintf(os.Stderr, "  Status:        %s\n", formatDeploymentState(deployment.State))
+	fmt.Fprintf(os.Stderr, "  Version:       %s\n", deployment.ConfigurationVersion)
 
 	// Show description only for non-rolled-back deployments
 	if deployment.State != types.DeploymentStateRolledBack && deployment.Description != "" {
-		fmt.Printf("  Description:   %s\n", deployment.Description)
+		fmt.Fprintf(os.Stderr, "  Description:   %s\n", deployment.Description)
 	}
 
 	// Show deployment strategy
 	if deployment.DeploymentStrategyName != "" {
-		fmt.Printf("  Strategy:      %s\n", deployment.DeploymentStrategyName)
+		fmt.Fprintf(os.Stderr, "  Strategy:      %s\n", deployment.DeploymentStrategyName)
 	}
 
 	// Timing information
 	if deployment.StartedAt != nil {
-		fmt.Printf("  Started:       %s\n", formatTime(*deployment.StartedAt))
+		fmt.Fprintf(os.Stderr, "  Started:       %s\n", formatTime(*deployment.StartedAt))
 	}
 
 	if deployment.CompletedAt != nil {
-		fmt.Printf("  Completed:     %s\n", formatTime(*deployment.CompletedAt))
+		fmt.Fprintf(os.Stderr, "  Completed:     %s\n", formatTime(*deployment.CompletedAt))
 		if deployment.StartedAt != nil {
 			duration := deployment.CompletedAt.Sub(*deployment.StartedAt)
-			fmt.Printf("  Duration:      %s\n", formatDuration(duration))
+			fmt.Fprintf(os.Stderr, "  Duration:      %s\n", formatDuration(duration))
 		}
 	}
 
 	// Progress information (for in-progress deployments)
 	if deployment.State == types.DeploymentStateDeploying || deployment.State == types.DeploymentStateBaking {
-		fmt.Println()
-		fmt.Println(bold("  Progress"))
-		fmt.Printf("  Percentage:    %.1f%%\n", deployment.PercentageComplete)
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, bold("  Progress"))
+		fmt.Fprintf(os.Stderr, "  Percentage:    %.1f%%\n", deployment.PercentageComplete)
 
 		if deployment.StartedAt != nil {
 			elapsed := time.Since(*deployment.StartedAt)
-			fmt.Printf("  Elapsed:       %s\n", formatDuration(elapsed))
+			fmt.Fprintf(os.Stderr, "  Elapsed:       %s\n", formatDuration(elapsed))
 
 			// Estimate remaining time
 			if deployment.PercentageComplete > 0 {
 				estimatedTotal := time.Duration(float64(elapsed) / float64(deployment.PercentageComplete) * 100)
 				remaining := estimatedTotal - elapsed
 				if remaining > 0 {
-					fmt.Printf("  Estimated:     %s remaining\n", formatDuration(remaining))
+					fmt.Fprintf(os.Stderr, "  Estimated:     %s remaining\n", formatDuration(remaining))
 				}
 			}
 		}
 
 		// Deployment strategy information
 		if deployment.GrowthFactor > 0 {
-			fmt.Printf("  Growth Factor: %.1f%%\n", deployment.GrowthFactor)
+			fmt.Fprintf(os.Stderr, "  Growth Factor: %.1f%%\n", deployment.GrowthFactor)
 		}
 		if deployment.FinalBakeTimeInMinutes > 0 {
-			fmt.Printf("  Bake Time:     %d minutes\n", deployment.FinalBakeTimeInMinutes)
+			fmt.Fprintf(os.Stderr, "  Bake Time:     %d minutes\n", deployment.FinalBakeTimeInMinutes)
 		}
 
 		// Current phase
-		fmt.Printf("\n  Current Phase: %s\n", formatCurrentPhase(deployment))
+		fmt.Fprintf(os.Stderr, "\n  Current Phase: %s\n", formatCurrentPhase(deployment))
 	}
 
 	// Rollback information
 	if deployment.State == types.DeploymentStateRolledBack {
-		fmt.Println()
-		fmt.Printf("  %s\n", errorMsg("Deployment was rolled back"))
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintf(os.Stderr, "  %s\n", errorMsg("Deployment was rolled back"))
 
 		// Try to find rollback reason from event log
 		rollbackReason := getRollbackReason(deployment.EventLog)
 		if rollbackReason != "" {
-			fmt.Printf("  Reason:        %s\n", rollbackReason)
+			fmt.Fprintf(os.Stderr, "  Reason:        %s\n", rollbackReason)
 		}
 	}
 
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 }
 
 // formatDeploymentState formats the deployment state with appropriate styling
