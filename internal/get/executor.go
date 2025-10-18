@@ -71,6 +71,11 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 
 	// Step 4: Prompt for confirmation unless skipped
 	if !opts.SkipConfirmation {
+		// Check TTY availability before interactive prompt
+		if err := e.prompter.CheckTTY(); err != nil {
+			return fmt.Errorf("%w: use --yes to skip confirmation", err)
+		}
+
 		message := "This operation uses AWS AppConfig Data API (incurs charges). Proceed? (Y/Yes)"
 		response, err := e.prompter.Input(message, "")
 		if err != nil {

@@ -2,6 +2,7 @@ package init
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/koh-sh/apcdeploy/internal/prompt"
@@ -39,11 +40,19 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	// Create workflow with all dependencies
 	workflow, err := e.initializerFactory(ctx, opts, e.prompter, e.reporter)
 	if err != nil {
+		// Return TTY errors as-is without wrapping
+		if errors.Is(err, prompt.ErrNoTTY) {
+			return err
+		}
 		return fmt.Errorf("failed to create init workflow: %w", err)
 	}
 
 	// Run initialization
 	if err := workflow.Run(ctx, opts); err != nil {
+		// Return TTY errors as-is without wrapping
+		if errors.Is(err, prompt.ErrNoTTY) {
+			return err
+		}
 		return err
 	}
 

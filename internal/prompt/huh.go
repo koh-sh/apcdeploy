@@ -54,3 +54,8 @@ func (h *HuhPrompter) Input(message string, placeholder string) (string, error) 
 
 	return result, nil
 }
+
+// CheckTTY verifies that stdin is connected to a terminal
+func (h *HuhPrompter) CheckTTY() error {
+	return CheckTTY()
+}

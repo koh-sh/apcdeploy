@@ -15,6 +15,7 @@ import (
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/aws/mock"
 	"github.com/koh-sh/apcdeploy/internal/config"
+	"github.com/koh-sh/apcdeploy/internal/prompt"
 	prompttest "github.com/koh-sh/apcdeploy/internal/prompt/testing"
 	reportertest "github.com/koh-sh/apcdeploy/internal/reporter/testing"
 )
@@ -531,6 +532,91 @@ region: us-east-1
 
 	if !strings.Contains(err.Error(), "failed to resolve") {
 		t.Errorf("expected 'failed to resolve' error, got: %v", err)
+	}
+}
+
+// TestExecutorTTYCheckFailure tests TTY check failure when confirmation is required
+func TestExecutorTTYCheckFailure(t *testing.T) {
+	t.Parallel()
+
+	tempDir, err := os.MkdirTemp("", "get-executor-tty-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	configPath := filepath.Join(tempDir, "apcdeploy.yml")
+	if err := os.WriteFile(configPath, []byte(`application: test-app
+configuration_profile: test-profile
+environment: test-env
+data_file: data.json
+region: us-east-1
+`), 0o644); err != nil {
+		t.Fatalf("Failed to write config: %v", err)
+	}
+
+	dataPath := filepath.Join(tempDir, "data.json")
+	if err := os.WriteFile(dataPath, []byte(`{}`), 0o644); err != nil {
+		t.Fatalf("Failed to write data: %v", err)
+	}
+
+	mockAppConfigClient := &mock.MockAppConfigClient{
+		ListApplicationsFunc: func(ctx context.Context, params *appconfig.ListApplicationsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListApplicationsOutput, error) {
+			return &appconfig.ListApplicationsOutput{
+				Items: []types.Application{{Id: aws.String("app-123"), Name: aws.String("test-app")}},
+			}, nil
+		},
+		ListConfigurationProfilesFunc: func(ctx context.Context, params *appconfig.ListConfigurationProfilesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListConfigurationProfilesOutput, error) {
+			return &appconfig.ListConfigurationProfilesOutput{
+				Items: []types.ConfigurationProfileSummary{{Id: aws.String("profile-123"), Name: aws.String("test-profile")}},
+			}, nil
+		},
+		GetConfigurationProfileFunc: func(ctx context.Context, params *appconfig.GetConfigurationProfileInput, optFns ...func(*appconfig.Options)) (*appconfig.GetConfigurationProfileOutput, error) {
+			return &appconfig.GetConfigurationProfileOutput{
+				Id:   aws.String("profile-123"),
+				Type: aws.String("AWS.Freeform"),
+			}, nil
+		},
+		ListEnvironmentsFunc: func(ctx context.Context, params *appconfig.ListEnvironmentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListEnvironmentsOutput, error) {
+			return &appconfig.ListEnvironmentsOutput{
+				Items: []types.Environment{{Id: aws.String("env-123"), Name: aws.String("test-env")}},
+			}, nil
+		},
+	}
+
+	getterFactory := func(ctx context.Context, cfg *config.Config) (*Getter, error) {
+		awsClient := &awsInternal.Client{
+			AppConfig: mockAppConfigClient,
+		}
+		return NewWithClient(cfg, awsClient), nil
+	}
+
+	mockPrompter := &prompttest.MockPrompter{
+		CheckTTYFunc: func() error {
+			return prompt.ErrNoTTY
+		},
+	}
+
+	reporter := &reportertest.MockReporter{}
+	executor := NewExecutorWithFactory(reporter, mockPrompter, getterFactory)
+
+	opts := &Options{
+		ConfigFile:       configPath,
+		SkipConfirmation: false, // Require confirmation
+	}
+
+	err = executor.Execute(context.Background(), opts)
+
+	if err == nil {
+		t.Fatal("expected error when TTY check fails")
+	}
+
+	if !strings.Contains(err.Error(), "interactive mode requires a TTY") {
+		t.Errorf("expected 'interactive mode requires a TTY' error, got: %v", err)
+	}
+
+	if !strings.Contains(err.Error(), "use --yes to skip confirmation") {
+		t.Errorf("expected error to suggest --yes flag, got: %v", err)
 	}
 }
 

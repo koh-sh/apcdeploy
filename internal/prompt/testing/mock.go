@@ -4,8 +4,9 @@ import "github.com/koh-sh/apcdeploy/internal/prompt"
 
 // MockPrompter is a test implementation of Prompter
 type MockPrompter struct {
-	SelectFunc func(message string, options []string) (string, error)
-	InputFunc  func(message string, placeholder string) (string, error)
+	SelectFunc   func(message string, options []string) (string, error)
+	InputFunc    func(message string, placeholder string) (string, error)
+	CheckTTYFunc func() error
 }
 
 // Ensure MockPrompter implements the interface
@@ -23,4 +24,13 @@ func (m *MockPrompter) Input(message string, placeholder string) (string, error)
 		return m.InputFunc(message, placeholder)
 	}
 	return "", nil
+}
+
+// CheckTTY returns nil by default in tests (TTY check always passes)
+// Use CheckTTYFunc to customize behavior in specific tests
+func (m *MockPrompter) CheckTTY() error {
+	if m.CheckTTYFunc != nil {
+		return m.CheckTTYFunc()
+	}
+	return nil
 }

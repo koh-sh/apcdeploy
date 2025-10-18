@@ -12,4 +12,8 @@ type Prompter interface {
 
 	// Input displays a prompt and returns the user's input
 	Input(message string, placeholder string) (string, error)
+
+	// CheckTTY verifies that interactive prompts are available
+	// Returns an error if stdin is not a terminal
+	CheckTTY() error
 }

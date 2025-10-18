@@ -396,3 +396,90 @@ func TestExecutorFactoryError(t *testing.T) {
 		t.Errorf("expected 'failed to create init workflow' error, got: %v", err)
 	}
 }
+
+// TestExecutorTTYErrorFromFactory tests that TTY errors from factory are returned as-is
+func TestExecutorTTYErrorFromFactory(t *testing.T) {
+	t.Parallel()
+
+	mockReporter := &reporterTesting.MockReporter{}
+	mockPrompter := &promptTesting.MockPrompter{}
+
+	// Create factory that returns a TTY error
+	workflowFactory := func(ctx context.Context, opts *Options, prompter prompt.Prompter, reporter reporter.ProgressReporter) (*InitWorkflow, error) {
+		return nil, fmt.Errorf("%w: please provide --region, --app, --profile, and --env flags", prompt.ErrNoTTY)
+	}
+
+	executor := NewExecutorWithFactory(mockReporter, mockPrompter, workflowFactory)
+
+	opts := &Options{
+		Application: "test-app",
+		Profile:     "test-profile",
+		Environment: "test-env",
+		Region:      "",
+		ConfigFile:  "apcdeploy.yml",
+	}
+
+	err := executor.Execute(context.Background(), opts)
+
+	if err == nil {
+		t.Fatal("expected error from factory")
+	}
+
+	// TTY error should NOT be wrapped with "failed to create init workflow"
+	if strings.Contains(err.Error(), "failed to create init workflow") {
+		t.Errorf("TTY error should not be wrapped, got: %v", err)
+	}
+
+	if !strings.Contains(err.Error(), "interactive mode requires a TTY") {
+		t.Errorf("expected 'interactive mode requires a TTY' error, got: %v", err)
+	}
+}
+
+// TestExecutorTTYErrorFromWorkflowRun tests that TTY errors from workflow.Run are returned as-is
+func TestExecutorTTYErrorFromWorkflowRun(t *testing.T) {
+	t.Parallel()
+
+	mockReporter := &reporterTesting.MockReporter{}
+	mockPrompter := &promptTesting.MockPrompter{
+		CheckTTYFunc: func() error {
+			return prompt.ErrNoTTY
+		},
+	}
+
+	// Create mock AWS client
+	mockClient := &awsMock.MockAppConfigClient{}
+
+	// Create workflow factory that uses the mock client
+	workflowFactory := func(ctx context.Context, opts *Options, prompter prompt.Prompter, reporter reporter.ProgressReporter) (*InitWorkflow, error) {
+		awsClient := &awsInternal.Client{
+			AppConfig: mockClient,
+		}
+		return NewInitWorkflowWithClient(awsClient, prompter, reporter), nil
+	}
+
+	executor := NewExecutorWithFactory(mockReporter, mockPrompter, workflowFactory)
+
+	// Empty flags to trigger TTY check in workflow.Run
+	opts := &Options{
+		Application: "", // Empty to trigger interactive mode check
+		Profile:     "test-profile",
+		Environment: "test-env",
+		Region:      "us-east-1",
+		ConfigFile:  "apcdeploy.yml",
+	}
+
+	err := executor.Execute(context.Background(), opts)
+
+	if err == nil {
+		t.Fatal("expected error from workflow.Run")
+	}
+
+	// TTY error should be returned as-is without wrapping
+	if !strings.Contains(err.Error(), "interactive mode requires a TTY") {
+		t.Errorf("expected 'interactive mode requires a TTY' error, got: %v", err)
+	}
+
+	if !strings.Contains(err.Error(), "please provide --region, --app, --profile, and --env flags") {
+		t.Errorf("expected helpful message about all required flags, got: %v", err)
+	}
+}

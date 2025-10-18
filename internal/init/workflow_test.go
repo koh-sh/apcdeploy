@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/koh-sh/apcdeploy/internal/prompt"
 	promptTesting "github.com/koh-sh/apcdeploy/internal/prompt/testing"
 	reporterTesting "github.com/koh-sh/apcdeploy/internal/reporter/testing"
 )
@@ -65,6 +66,31 @@ func TestNewInitWorkflow(t *testing.T) {
 				// Either success or error is acceptable depending on environment
 				if err == nil && workflow == nil {
 					t.Error("expected either error or non-nil workflow")
+				}
+			},
+		},
+		{
+			name: "without region and TTY check fails",
+			opts: &Options{
+				Application: "test-app",
+				Profile:     "test-profile",
+				Environment: "test-env",
+				Region:      "",
+				ConfigFile:  "apcdeploy.yml",
+				OutputData:  "data.json",
+				Force:       false,
+			},
+			setupMock: func() *promptTesting.MockPrompter {
+				return &promptTesting.MockPrompter{
+					CheckTTYFunc: func() error {
+						return prompt.ErrNoTTY
+					},
+				}
+			},
+			expectError: true,
+			validateFunc: func(t *testing.T, workflow *InitWorkflow, err error) {
+				if err == nil {
+					t.Fatal("expected error when TTY check fails")
 				}
 			},
 		},

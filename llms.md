@@ -33,6 +33,21 @@ This file provides guidelines for AI assistants when using the `apcdeploy` comma
 3. **Plain Text** (`.txt` or other extensions)
    - Deployed as-is
 
+### Important: TTY Requirements for AI Agents
+
+**Critical for AI Assistants**: Some commands require interactive terminal (TTY) access. AI agents operating in non-interactive environments must follow these rules:
+
+1. **`init` command**: ALWAYS provide all flags (`--region`, `--app`, `--profile`, `--env`)
+   - Without all flags, the command attempts interactive prompts and will fail with TTY error
+   - Error message: `interactive mode requires a TTY: please provide --region, --app, --profile, and --env flags`
+
+2. **`get` command**: Use with caution as it incurs AWS API charges
+   - When necessary in non-interactive environments, use the `--yes` (or `-y`) flag to skip confirmation
+   - Without this flag, the command shows a confirmation prompt and will fail with TTY error
+   - Error message: `interactive mode requires a TTY: use --yes to skip confirmation`
+
+3. Other commands (`run`, `diff`, `status`) do not require TTY and work in non-interactive environments
+
 ## Recommended Usage Flows
 
 **Note for AI Assistants**: The flows below include interactive commands and text editors. When using these flows via AI agents, always use non-interactive modes (with all flags specified) and programmatic file operations instead of interactive editors like `vim`.
@@ -240,7 +255,7 @@ apcdeploy init -f
 
 #### Notes
 
-- **For AI Assistants**: When using this command programmatically or via AI agents, always use the non-interactive mode by specifying all required flags (`--region`, `--app`, `--profile`, `--env`). **Do not use the `--silent` flag** - verbose output is essential for debugging and understanding command execution. To obtain the necessary values:
+- **For AI Assistants (CRITICAL)**: When using this command programmatically or via AI agents, **YOU MUST** always use the non-interactive mode by specifying all required flags (`--region`, `--app`, `--profile`, `--env`). Omitting any flag will cause the command to attempt interactive prompts and fail with a TTY error. **Do not use the `--silent` flag** - verbose output is essential for debugging and understanding command execution. To obtain the necessary values:
   - **Preferred approach**: Use AWS CLI to retrieve available resources:
 
     ```bash
@@ -542,6 +557,7 @@ apcdeploy get -c apcdeploy.yml -y > deployed.json
 #### Flags
 
 - `-y, --yes`: Skip confirmation prompt (useful for scripts and automation)
+  - **For AI Assistants**: Use this flag when executing in non-interactive environments to avoid TTY errors
 
 #### Operation Details
 
@@ -571,9 +587,12 @@ apcdeploy get -c apcdeploy.yml -y > deployed.json
 # Check currently deployed configuration
 apcdeploy get -c apcdeploy.yml -y
 
-# Use in scripts
+# Use in scripts (use -y flag to skip confirmation)
 DEPLOYED_CONFIG=$(apcdeploy get -c apcdeploy.yml -y)
 echo "$DEPLOYED_CONFIG" | jq '.features.new_feature'
+
+# For AI agents in non-interactive environments
+apcdeploy get -c apcdeploy.yml --yes
 ```
 
 ### context command
@@ -654,7 +673,36 @@ apcdeploy run -c apcdeploy.yml --wait-bake --silent
 
 ### Common Issues and Solutions
 
-#### 1. Resource Not Found
+#### 1. TTY Error (Non-Interactive Environment)
+
+**Error Examples:**
+
+```txt
+Error: interactive mode requires a TTY: please provide --region, --app, --profile, and --env flags
+Error: interactive mode requires a TTY: use --yes to skip confirmation
+```
+
+**Cause:**
+
+- Attempting to use interactive prompts in a non-interactive environment (CI/CD, scripts, AI agents)
+- Missing required flags for `init` command
+- Missing `--yes` flag for `get` command
+
+**Solution:**
+
+For `init` command:
+```bash
+# ALWAYS provide all flags in non-interactive environments
+apcdeploy init --region us-west-2 --app my-app --profile my-profile --env production
+```
+
+For `get` command:
+```bash
+# Use --yes flag in non-interactive environments to skip confirmation
+apcdeploy get -c apcdeploy.yml --yes
+```
+
+#### 2. Resource Not Found
 
 **Error Example:**
 
@@ -668,7 +716,7 @@ Error: application "my-app" not found in region us-west-2
 - Check that the region setting in `apcdeploy.yml` is correct
 - Verify that AWS credentials are for the correct account
 
-#### 2. Authentication Error
+#### 3. Authentication Error
 
 **Error Example:**
 
@@ -691,7 +739,7 @@ export AWS_SECRET_ACCESS_KEY=yyy
 export AWS_REGION=us-west-2
 ```
 
-#### 3. Deployment Skipped
+#### 4. Deployment Skipped
 
 **Cause:**
 
@@ -707,7 +755,7 @@ apcdeploy diff -c apcdeploy.yml
 apcdeploy run -c apcdeploy.yml --force
 ```
 
-#### 4. Timeout Error
+#### 5. Timeout Error
 
 **Error Example:**
 
