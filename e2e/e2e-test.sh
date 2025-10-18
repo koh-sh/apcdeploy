@@ -20,8 +20,13 @@ function title() {
 
 cd "$WORKDIR"
 
-echo "Basic workflow: init -> diff -> run -> status -> get -> update -> run"
+echo "Basic workflow: ls-resources -> init -> diff -> run -> status -> get -> update -> run"
 title "========== S1: Workflow =========="
+echo "Test ls-resources command"
+$APCDEPLOY ls-resources --region "$REGION" --silent | grep -q "$APP"
+$APCDEPLOY ls-resources --region "$REGION" --json --silent | jq -e ".region == \"$REGION\"" > /dev/null
+$APCDEPLOY ls-resources --region "$REGION" --json --silent | jq -e '.applications | length > 0' > /dev/null
+$APCDEPLOY ls-resources --region "$REGION" --show-strategies --silent | grep -q "AppConfig.AllAtOnce"
 $APCDEPLOY init --silent --app "$APP" --profile json-freeform --env dev --region "$REGION" --force
 use_strategy
 echo '{"v":"1"}' > data.json

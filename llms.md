@@ -8,6 +8,7 @@ This file provides guidelines for AI assistants when using the `apcdeploy` comma
 
 ### Capabilities
 
+- List available AWS AppConfig resources (`ls-resources`)
 - Auto-generate configuration files from existing AWS AppConfig resources (`init`)
 - Deploy configuration changes (`run`)
 - Compare differences between local files and deployed configurations (`diff`)
@@ -57,28 +58,34 @@ This file provides guidelines for AI assistants when using the `apcdeploy` comma
 Recommended procedure when starting with existing AWS AppConfig resources:
 
 ```bash
-# 1. Initialize (for human users: interactive mode; for AI agents: specify all flags)
+# 1. Discover available resources (especially useful for AI agents)
+apcdeploy ls-resources --region us-west-2
+
+# Or output as JSON for programmatic parsing
+apcdeploy ls-resources --region us-west-2 --json
+
+# 2. Initialize (for human users: interactive mode; for AI agents: specify all flags)
 # Human users:
 apcdeploy init
 
 # AI agents (non-interactive with all flags):
 apcdeploy init --region us-west-2 --app my-app --profile my-profile --env production
 
-# 2. Review the generated files
+# 3. Review the generated files
 # - apcdeploy.yml: Deployment configuration
 # - data.json/data.yaml/data.txt: Current configuration content
 
-# 3. Edit configuration content as needed
+# 4. Edit configuration content as needed
 # Human users: vim data.json
 # AI agents: Use Write or Edit tools to modify the file programmatically
 
-# 4. Preview changes
+# 5. Preview changes
 apcdeploy diff -c apcdeploy.yml
 
-# 5. Execute deployment
+# 6. Execute deployment
 apcdeploy run -c apcdeploy.yml
 
-# 6. Check deployment status
+# 7. Check deployment status
 apcdeploy status -c apcdeploy.yml
 ```
 
@@ -192,6 +199,211 @@ Reference: [AWS AppConfig Pre-defined Deployment Strategies](https://docs.aws.am
 
 ## Command Reference
 
+### ls-resources command
+
+Lists all AWS AppConfig resources in a hierarchical view. By default, shows only applications, configuration profiles, and environments. Deployment strategies can be optionally included using the `--show-strategies` flag. This command is especially useful for AI agents and automation tools to discover available resources before running the `init` command.
+
+#### Usage
+
+```bash
+# List resources in default region
+apcdeploy ls-resources
+
+# List resources in specific region
+apcdeploy ls-resources --region us-east-1
+
+# Include deployment strategies in output
+apcdeploy ls-resources --show-strategies
+
+# Output as JSON (useful for scripts and AI agents)
+apcdeploy ls-resources --json
+
+# Suppress progress messages, show only results
+apcdeploy ls-resources --silent
+```
+
+#### Flags
+
+- `--region <region>`: AWS region (uses AWS SDK default if not specified)
+- `--json`: Output in JSON format
+- `--show-strategies`: Include deployment strategies in output (default: false)
+
+#### Operation Details
+
+1. **Region determination**: Use specified region or AWS SDK default
+2. **List applications**: Fetch all AppConfig applications in the region
+3. **List profiles and environments**: For each application, fetch configuration profiles and environments
+4. **List deployment strategies** (optional): If `--show-strategies` is set, fetch all deployment strategies in the region (both AWS pre-defined and custom)
+5. **Format output**: Display in human-readable format or JSON
+
+#### Output Format
+
+**Human-readable format** (default, without `--show-strategies`):
+```
+Region: us-east-1
+
+Applications:
+  [1] my-app (ID: abc123)
+      Configuration Profiles:
+        - my-profile (ID: prof-123)
+        - feature-flags (ID: prof-456)
+      Environments:
+        - dev (ID: env-111)
+        - production (ID: env-222)
+
+  [2] another-app (ID: xyz789)
+      Configuration Profiles:
+        - config (ID: prof-789)
+      Environments:
+        - staging (ID: env-333)
+```
+
+**With `--show-strategies` flag**:
+```
+Region: us-east-1
+
+Deployment Strategies:
+  - AppConfig.AllAtOnce (ID: a1b2c3d4)
+    Description: Quick deployment to all targets at once
+    Deployment Duration: 0 minutes
+    Final Bake Time: 0 minutes
+    Growth Factor: 100.0%
+    Growth Type: LINEAR
+  - AppConfig.Linear (ID: e5f6g7h8)
+    Description: AWS Recommended deployment strategy for production environments
+    Deployment Duration: 30 minutes
+    Final Bake Time: 10 minutes
+    Growth Factor: 20.0%
+    Growth Type: LINEAR
+
+Applications:
+  [1] my-app (ID: abc123)
+      Configuration Profiles:
+        - my-profile (ID: prof-123)
+        - feature-flags (ID: prof-456)
+      Environments:
+        - dev (ID: env-111)
+        - production (ID: env-222)
+
+  [2] another-app (ID: xyz789)
+      Configuration Profiles:
+        - config (ID: prof-789)
+      Environments:
+        - staging (ID: env-333)
+```
+
+**JSON format** (default `--json`, without `--show-strategies`):
+```json
+{
+  "region": "us-east-1",
+  "applications": [
+    {
+      "name": "my-app",
+      "id": "abc123",
+      "configuration_profiles": [
+        {
+          "name": "my-profile",
+          "id": "prof-123"
+        },
+        {
+          "name": "feature-flags",
+          "id": "prof-456"
+        }
+      ],
+      "environments": [
+        {
+          "name": "dev",
+          "id": "env-111"
+        },
+        {
+          "name": "production",
+          "id": "env-222"
+        }
+      ]
+    }
+  ],
+  "deployment_strategies": []
+}
+```
+
+**JSON format with `--show-strategies`**:
+```json
+{
+  "region": "us-east-1",
+  "applications": [
+    {
+      "name": "my-app",
+      "id": "abc123",
+      "configuration_profiles": [
+        {
+          "name": "my-profile",
+          "id": "prof-123"
+        }
+      ],
+      "environments": [
+        {
+          "name": "production",
+          "id": "env-222"
+        }
+      ]
+    }
+  ],
+  "deployment_strategies": [
+    {
+      "name": "AppConfig.AllAtOnce",
+      "id": "a1b2c3d4",
+      "description": "Quick deployment to all targets at once",
+      "deployment_duration_in_minutes": 0,
+      "final_bake_time_in_minutes": 0,
+      "growth_factor": 100,
+      "growth_type": "LINEAR"
+    },
+    {
+      "name": "AppConfig.Linear",
+      "id": "e5f6g7h8",
+      "description": "AWS Recommended deployment strategy for production environments",
+      "deployment_duration_in_minutes": 30,
+      "final_bake_time_in_minutes": 10,
+      "growth_factor": 20,
+      "growth_type": "LINEAR"
+    }
+  ]
+}
+```
+
+#### Notes
+
+- **For AI Assistants**: This command is specifically designed to help AI agents discover available resources without requiring AWS CLI. Use this command instead of AWS CLI when listing resources for the `init` command.
+- **No configuration file required**: This command does not require `apcdeploy.yml`
+- **AWS credentials required**: AWS CLI configuration or equivalent credentials are required
+- **Read-only operation**: This command only queries AWS resources and does not modify anything
+- **No TTY required**: Can be used in non-interactive environments without any issues
+- **Deployment strategies**: By default, deployment strategies are not displayed. Use `--show-strategies` flag to include them in the output. This is useful when you need to choose a deployment strategy for the `run` command.
+
+#### Examples
+
+```bash
+# Discover resources for init command (AI agent workflow)
+# 1. List available resources
+apcdeploy ls-resources --region us-west-2 --json
+
+# 2. Parse JSON output to extract resource names (using jq or similar)
+APPS=$(apcdeploy ls-resources --region us-west-2 --json | jq -r '.applications[].name')
+
+# 3. Use discovered resource names for init command
+apcdeploy init --region us-west-2 --app my-app --profile my-profile --env production
+
+# List resources including deployment strategies
+apcdeploy ls-resources --region us-east-1 --show-strategies
+
+# Human workflow - view available resources before interactive init
+apcdeploy ls-resources --region us-east-1
+apcdeploy init  # Interactive mode will show the same resources
+
+# Use in scripts
+apcdeploy ls-resources --region us-west-2 --silent > resources.txt
+```
+
 ### Global Flags
 
 Available for all commands:
@@ -256,23 +468,17 @@ apcdeploy init -f
 #### Notes
 
 - **For AI Assistants (CRITICAL)**: When using this command programmatically or via AI agents, **YOU MUST** always use the non-interactive mode by specifying all required flags (`--region`, `--app`, `--profile`, `--env`). Omitting any flag will cause the command to attempt interactive prompts and fail with a TTY error. **Do not use the `--silent` flag** - verbose output is essential for debugging and understanding command execution. To obtain the necessary values:
-  - **Preferred approach**: Use AWS CLI to retrieve available resources:
+  - Use the `ls-resources` command to retrieve available resources:
 
     ```bash
-    # List applications
-    aws appconfig list-applications --region <region>
+    # List all resources (human-readable format)
+    apcdeploy ls-resources --region us-west-2
 
-    # List configuration profiles
-    aws appconfig list-configuration-profiles --application-id <app-id>
-
-    # List environments
-    aws appconfig list-environments --application-id <app-id>
-
-    # List deployment strategies (to choose appropriate one for generated apcdeploy.yml)
-    aws appconfig list-deployment-strategies
+    # Or get JSON output for programmatic parsing
+    apcdeploy ls-resources --region us-west-2 --json
     ```
 
-  - **Fallback approach**: If AWS CLI is not available, ask the user to provide the application name, configuration profile name, and environment name
+  - **Fallback approach**: If `ls-resources` is not available, ask the user to provide the application name, configuration profile name, and environment name
 - **All flags are optional**: If not specified, you can select interactively through prompts
 - **Partial flag specification**: If only some flags are specified, prompts will appear only for unspecified items
 - **Existing file protection**: By default, does not overwrite existing files. Use the `-f` flag to overwrite
@@ -296,14 +502,12 @@ apcdeploy init -c /path/to/config.yml -o /path/to/data.json
 # Use in CI/CD (all specified + silent mode)
 apcdeploy init --region us-west-2 --app my-app --profile my-profile --env prod -f --silent
 
-# AI agent workflow example (without --silent for better debugging)
-# 1. Get available resources using AWS CLI
-aws appconfig list-applications --region us-west-2 --query 'Items[*].[Name,Id]' --output table
-aws appconfig list-configuration-profiles --application-id <app-id> --query 'Items[*].[Name,Id]' --output table
-aws appconfig list-environments --application-id <app-id> --query 'Items[*].[Name,Id]' --output table
+# AI agent workflow example (recommended)
+# 1. Get available resources using ls-resources command
+apcdeploy ls-resources --region us-west-2
 
-# Optional: List deployment strategies to choose appropriate one
-aws appconfig list-deployment-strategies --query 'Items[*].[Name,Id,Description]' --output table
+# Or get JSON output for parsing
+apcdeploy ls-resources --region us-west-2 --json
 
 # 2. Run init with obtained values
 apcdeploy init --region us-west-2 --app my-app --profile my-profile --env production
