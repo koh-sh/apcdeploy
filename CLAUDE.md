@@ -32,6 +32,11 @@ When implementing new features or fixing bugs, follow these absolute rules:
 ### Testing the CLI
 
 ```bash
+# List available resources
+./apcdeploy ls-resources --region us-east-1
+./apcdeploy ls-resources --region us-east-1 --json
+./apcdeploy ls-resources --region us-east-1 --show-strategies
+
 # Interactive mode (recommended for init)
 ./apcdeploy init
 
@@ -47,6 +52,7 @@ When implementing new features or fixing bugs, follow these absolute rules:
 ./apcdeploy context  # Output llms.md for AI assistants
 
 # Silent mode (suppress verbose output)
+./apcdeploy ls-resources --region us-east-1 --silent
 ./apcdeploy diff -c apcdeploy.yml --silent
 ./apcdeploy status -c apcdeploy.yml --silent
 ```
@@ -70,9 +76,10 @@ All commands follow the pattern: `cmd/<command>.go` → `internal/<command>/exec
 
 1. **cmd/**: Cobra command definitions and CLI flag parsing
    - `root.go`: Root command with global flags (`--config`, `--silent`)
-   - Each command file (`init.go`, `run.go`, `diff.go`, `status.go`, `get.go`) handles CLI concerns only
+   - Each command file (`init.go`, `run.go`, `diff.go`, `status.go`, `get.go`, `ls_resources.go`) handles CLI concerns only
    - `context.go`: Simple command that outputs embedded `llms.md` content for AI assistants (no internal package)
    - `init.go`: Supports interactive mode for resource selection; all flags are optional
+   - `ls_resources.go`: Lists AppConfig resources; does not require `apcdeploy.yml`; all flags are optional
 
 2. **internal/\<command\>/**: Business logic for each command
    - `executor.go`: Main execution logic using Factory pattern for testability
@@ -121,6 +128,18 @@ Interactive prompt interface for user input:
 - `internal/prompt/testing/mock.go`: Mock implementation for unit tests
 - TTY checking prevents interactive prompts from hanging in non-interactive environments (CI/CD, scripts)
 
+#### internal/lsresources
+
+Resource listing functionality for discovering AppConfig resources:
+
+- `executor.go`: Orchestrates the resource listing workflow using Factory pattern
+- `lister.go`: Core logic for fetching AppConfig resources (applications, profiles, environments, deployment strategies)
+- `formatter.go`: Formats output in human-readable or JSON format
+- `types.go`: Defines data structures (`ResourcesTree`, `Application`, `ConfigurationProfile`, `Environment`, `DeploymentStrategy`)
+- `options.go`: Command-specific options struct (`Region`, `JSON`, `ShowStrategies`, `Silent`)
+- Factory pattern enables dependency injection for testing (custom `ClientFactory`)
+- No configuration file required; operates independently of `apcdeploy.yml`
+
 ### Key Workflows
 
 #### Deployment Flow (run command)
@@ -166,6 +185,28 @@ Interactive mode uses `huh` library for terminal UI prompts. TTY checking preven
 4. Show confirmation prompt (unless `--yes` flag is used)
 5. Fetch latest deployed configuration from AppConfig
 6. Output configuration to stdout (respects content type formatting)
+
+#### Resource Listing Flow (ls-resources command)
+
+1. Create AWS client with specified region (or use SDK default)
+2. Fetch all deployment strategies (always fetched, optionally displayed)
+3. Fetch all applications in the region
+4. For each application:
+   - Fetch all configuration profiles
+   - Fetch all environments
+   - Sort profiles and environments by name
+5. Sort applications by name for consistent output
+6. Format output:
+   - Human-readable format: Hierarchical text view with optional deployment strategies section
+   - JSON format: Structured JSON with all resource details
+7. Output to stdout
+
+Key characteristics:
+- No configuration file required (operates independently)
+- Read-only operation (no AWS resource modifications)
+- Supports silent mode for script-friendly output
+- Deployment strategies fetched but hidden by default (use `--show-strategies` to display)
+- All resources sorted alphabetically for consistent output
 
 ### Testing Patterns
 

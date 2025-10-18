@@ -8,6 +8,7 @@ https://github.com/user-attachments/assets/392b7240-a406-40c0-9bc3-8f953d1b1d3f
 
 ## Features
 
+- **Resource Discovery**: List all AWS AppConfig resources (applications, profiles, environments) in a region
 - **Declarative Configuration**: Define your AppConfig resources in `apcdeploy.yml`
 - **Deployment Automation**: Deploy configuration changes with a single command
 - **Configuration Retrieval**: Fetch currently deployed configuration from AWS AppConfig
@@ -183,6 +184,30 @@ All commands support these global flags:
 
 - `-c, --config`: Config file path (default: `apcdeploy.yml`)
 - `-s, --silent`: Suppress verbose output, show only essential information (useful for CI/CD and scripting)
+
+### ls-resources
+
+List all AWS AppConfig resources in a region:
+
+```bash
+apcdeploy ls-resources --region us-west-2
+```
+
+This command helps you discover available applications, configuration profiles, and environments before running `init`. It's especially useful for automation and AI-assisted workflows.
+
+Options:
+
+- `--region`: AWS region (uses AWS SDK default if not specified)
+- `--json`: Output in JSON format (useful for scripts and automation)
+- `--show-strategies`: Include deployment strategies in output
+
+Example with JSON output:
+
+```bash
+apcdeploy ls-resources --region us-west-2 --json
+```
+
+This command does not require an `apcdeploy.yml` file and is read-only.
 
 ### init
 
