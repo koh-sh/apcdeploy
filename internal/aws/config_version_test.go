@@ -122,13 +122,11 @@ func TestGetLatestVersion(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &mock.MockAppConfigClient{
-				ListHostedConfigurationVersionsFunc: func(ctx context.Context, params *appconfig.ListHostedConfigurationVersionsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListHostedConfigurationVersionsOutput, error) {
+				ListAllHostedConfigurationVersionsFunc: func(ctx context.Context, appID, profileID string) ([]types.HostedConfigurationVersionSummary, error) {
 					if tt.mockListErr != nil {
 						return nil, tt.mockListErr
 					}
-					return &appconfig.ListHostedConfigurationVersionsOutput{
-						Items: tt.mockVersions,
-					}, nil
+					return tt.mockVersions, nil
 				},
 				GetHostedConfigurationVersionFunc: func(ctx context.Context, params *appconfig.GetHostedConfigurationVersionInput, optFns ...func(*appconfig.Options)) (*appconfig.GetHostedConfigurationVersionOutput, error) {
 					if tt.mockGetErr != nil {

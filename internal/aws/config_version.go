@@ -24,31 +24,28 @@ type ConfigVersionFetcher struct {
 // NewConfigVersionFetcher creates a new config version fetcher
 func NewConfigVersionFetcher(client *Client) *ConfigVersionFetcher {
 	return &ConfigVersionFetcher{
-		client: client.AppConfig,
+		client: client,
 	}
 }
 
 // GetLatestVersion retrieves the latest configuration version
 func (f *ConfigVersionFetcher) GetLatestVersion(ctx context.Context, appID, profileID string) (*ConfigVersionInfo, error) {
 	// List all versions
-	output, err := f.client.ListHostedConfigurationVersions(ctx, &appconfig.ListHostedConfigurationVersionsInput{
-		ApplicationId:          aws.String(appID),
-		ConfigurationProfileId: aws.String(profileID),
-	})
+	versions, err := f.client.ListAllHostedConfigurationVersions(ctx, appID, profileID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list configuration versions: %w", err)
 	}
 
-	if len(output.Items) == 0 {
+	if len(versions) == 0 {
 		return nil, fmt.Errorf("no configuration versions found")
 	}
 
 	// Sort by version number to get the latest
-	sort.Slice(output.Items, func(i, j int) bool {
-		return output.Items[i].VersionNumber > output.Items[j].VersionNumber
+	sort.Slice(versions, func(i, j int) bool {
+		return versions[i].VersionNumber > versions[j].VersionNumber
 	})
 
-	latestItem := output.Items[0]
+	latestItem := versions[0]
 
 	// Get the full version content
 	versionOutput, err := f.client.GetHostedConfigurationVersion(ctx, &appconfig.GetHostedConfigurationVersionInput{

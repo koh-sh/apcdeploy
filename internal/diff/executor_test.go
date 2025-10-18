@@ -135,9 +135,7 @@ region: us-east-1
 
 	// Use factory pattern
 	clientFactory := func(ctx context.Context, region string) (*awsInternal.Client, error) {
-		return &awsInternal.Client{
-			AppConfig: mockClient,
-		}, nil
+		return awsInternal.NewTestClient(mockClient), nil
 	}
 
 	reporter := &reportertest.MockReporter{}
@@ -242,9 +240,7 @@ region: us-east-1
 	}
 
 	clientFactory := func(ctx context.Context, region string) (*awsInternal.Client, error) {
-		return &awsInternal.Client{
-			AppConfig: mockClient,
-		}, nil
+		return awsInternal.NewTestClient(mockClient), nil
 	}
 
 	reporter := &reportertest.MockReporter{}
@@ -338,9 +334,7 @@ region: us-east-1
 	}
 
 	clientFactory := func(ctx context.Context, region string) (*awsInternal.Client, error) {
-		return &awsInternal.Client{
-			AppConfig: mockClient,
-		}, nil
+		return awsInternal.NewTestClient(mockClient), nil
 	}
 
 	reporter := &reportertest.MockReporter{}
@@ -436,9 +430,7 @@ region: us-east-1
 	}
 
 	clientFactory := func(ctx context.Context, region string) (*awsInternal.Client, error) {
-		return &awsInternal.Client{
-			AppConfig: mockClient,
-		}, nil
+		return awsInternal.NewTestClient(mockClient), nil
 	}
 
 	reporter := &reportertest.MockReporter{}

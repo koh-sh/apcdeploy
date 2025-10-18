@@ -67,10 +67,7 @@ func TestNewWithClient(t *testing.T) {
 	mockAppConfigClient := &mock.MockAppConfigClient{}
 	mockAppConfigDataClient := &mock.MockAppConfigDataClient{}
 
-	awsClient := &awsInternal.Client{
-		AppConfig:     mockAppConfigClient,
-		AppConfigData: mockAppConfigDataClient,
-	}
+	awsClient := awsInternal.NewTestClientWithData(mockAppConfigClient, mockAppConfigDataClient)
 
 	getter := NewWithClient(cfg, awsClient)
 
@@ -132,9 +129,7 @@ func TestResolveResourcesSuccess(t *testing.T) {
 		},
 	}
 
-	awsClient := &awsInternal.Client{
-		AppConfig: mockAppConfigClient,
-	}
+	awsClient := awsInternal.NewTestClient(mockAppConfigClient)
 
 	getter := NewWithClient(cfg, awsClient)
 	resolved, err := getter.ResolveResources(context.Background())
@@ -174,9 +169,7 @@ func TestResolveResourcesApplicationError(t *testing.T) {
 		},
 	}
 
-	awsClient := &awsInternal.Client{
-		AppConfig: mockAppConfigClient,
-	}
+	awsClient := awsInternal.NewTestClient(mockAppConfigClient)
 
 	getter := NewWithClient(cfg, awsClient)
 	_, err := getter.ResolveResources(context.Background())
@@ -210,9 +203,7 @@ func TestResolveResourcesProfileError(t *testing.T) {
 		},
 	}
 
-	awsClient := &awsInternal.Client{
-		AppConfig: mockAppConfigClient,
-	}
+	awsClient := awsInternal.NewTestClient(mockAppConfigClient)
 
 	getter := NewWithClient(cfg, awsClient)
 	_, err := getter.ResolveResources(context.Background())
@@ -257,9 +248,7 @@ func TestResolveResourcesEnvironmentError(t *testing.T) {
 		},
 	}
 
-	awsClient := &awsInternal.Client{
-		AppConfig: mockAppConfigClient,
-	}
+	awsClient := awsInternal.NewTestClient(mockAppConfigClient)
 
 	getter := NewWithClient(cfg, awsClient)
 	_, err := getter.ResolveResources(context.Background())

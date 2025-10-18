@@ -12,18 +12,13 @@ import (
 
 // CheckOngoingDeployment checks if there is an ongoing deployment
 func (c *Client) CheckOngoingDeployment(ctx context.Context, applicationID, environmentID string) (bool, *types.DeploymentSummary, error) {
-	input := &appconfig.ListDeploymentsInput{
-		ApplicationId: aws.String(applicationID),
-		EnvironmentId: aws.String(environmentID),
-	}
-
-	output, err := c.AppConfig.ListDeployments(ctx, input)
+	deployments, err := c.ListAllDeployments(ctx, applicationID, environmentID)
 	if err != nil {
 		return false, nil, wrapAWSError(err, "failed to list deployments")
 	}
 
 	// Check for ongoing deployments (DEPLOYING or BAKING state)
-	for _, deployment := range output.Items {
+	for _, deployment := range deployments {
 		if deployment.State == types.DeploymentStateDeploying ||
 			deployment.State == types.DeploymentStateBaking {
 			return true, &deployment, nil
@@ -51,7 +46,7 @@ func (c *Client) CreateHostedConfigurationVersion(
 		input.Description = aws.String(description)
 	}
 
-	output, err := c.AppConfig.CreateHostedConfigurationVersion(ctx, input)
+	output, err := c.appConfig.CreateHostedConfigurationVersion(ctx, input)
 	if err != nil {
 		return 0, wrapAWSError(err, "failed to create hosted configuration version")
 	}
@@ -80,7 +75,7 @@ func (c *Client) StartDeployment(
 		input.Description = aws.String(description)
 	}
 
-	output, err := c.AppConfig.StartDeployment(ctx, input)
+	output, err := c.appConfig.StartDeployment(ctx, input)
 	if err != nil {
 		return 0, wrapAWSError(err, "failed to start deployment")
 	}
@@ -131,7 +126,7 @@ func (c *Client) waitForDeploymentWithCondition(
 			DeploymentNumber: &deploymentNumber,
 		}
 
-		output, err := c.AppConfig.GetDeployment(ctx, input)
+		output, err := c.appConfig.GetDeployment(ctx, input)
 		if err != nil {
 			return false, wrapAWSError(err, "failed to get deployment status")
 		}
@@ -245,12 +240,7 @@ func GetLatestDeploymentIncludingRollback(ctx context.Context, client *Client, a
 
 // getLatestDeploymentInternal is the internal implementation for retrieving the latest deployment
 func getLatestDeploymentInternal(ctx context.Context, client *Client, applicationID, environmentID, profileID string, skipRolledBack bool) (*DeploymentInfo, error) {
-	input := &appconfig.ListDeploymentsInput{
-		ApplicationId: aws.String(applicationID),
-		EnvironmentId: aws.String(environmentID),
-	}
-
-	output, err := client.AppConfig.ListDeployments(ctx, input)
+	deployments, err := client.ListAllDeployments(ctx, applicationID, environmentID)
 	if err != nil {
 		return nil, wrapAWSError(err, "failed to list deployments")
 	}
@@ -258,8 +248,8 @@ func getLatestDeploymentInternal(ctx context.Context, client *Client, applicatio
 	// Find the latest deployment for this configuration profile
 	// We need to get full deployment details to access ConfigurationProfileId
 	var latestDeployment *DeploymentInfo
-	for i := range output.Items {
-		summary := &output.Items[i]
+	for i := range deployments {
+		summary := &deployments[i]
 
 		// Get full deployment details
 		getInput := &appconfig.GetDeploymentInput{
@@ -268,7 +258,7 @@ func getLatestDeploymentInternal(ctx context.Context, client *Client, applicatio
 			DeploymentNumber: &summary.DeploymentNumber,
 		}
 
-		deployment, err := client.AppConfig.GetDeployment(ctx, getInput)
+		deployment, err := client.appConfig.GetDeployment(ctx, getInput)
 		if err != nil {
 			continue // Skip this deployment if we can't get details
 		}
@@ -309,7 +299,7 @@ func GetHostedConfigurationVersion(ctx context.Context, client *Client, applicat
 	}
 	input.VersionNumber = aws.Int32(version)
 
-	output, err := client.AppConfig.GetHostedConfigurationVersion(ctx, input)
+	output, err := client.appConfig.GetHostedConfigurationVersion(ctx, input)
 	if err != nil {
 		return nil, wrapAWSError(err, "failed to get hosted configuration version")
 	}
@@ -342,7 +332,7 @@ func GetDeploymentDetails(ctx context.Context, client *Client, applicationID, en
 		DeploymentNumber: &deploymentNumber,
 	}
 
-	output, err := client.AppConfig.GetDeployment(ctx, input)
+	output, err := client.appConfig.GetDeployment(ctx, input)
 	if err != nil {
 		return nil, wrapAWSError(err, "failed to get deployment details")
 	}

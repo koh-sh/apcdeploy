@@ -85,7 +85,7 @@ func TestCheckOngoingDeployment(t *testing.T) {
 				},
 			}
 
-			client := &Client{AppConfig: mockClient}
+			client := &Client{appConfig: mockClient}
 			hasOngoing, deployment, err := client.CheckOngoingDeployment(context.Background(), "app-123", "env-123")
 
 			if (err != nil) != tt.expectedErr {
@@ -161,7 +161,7 @@ func TestCreateHostedConfigurationVersion(t *testing.T) {
 				CreateHostedConfigurationVersionFunc: tt.mockFunc,
 			}
 
-			client := &Client{AppConfig: mockClient}
+			client := &Client{appConfig: mockClient}
 			versionNum, err := client.CreateHostedConfigurationVersion(
 				context.Background(),
 				"app-123",
@@ -223,7 +223,7 @@ func TestStartDeployment(t *testing.T) {
 				StartDeploymentFunc: tt.mockFunc,
 			}
 
-			client := &Client{AppConfig: mockClient}
+			client := &Client{appConfig: mockClient}
 			deployNum, err := client.StartDeployment(
 				context.Background(),
 				"app-123",
@@ -360,7 +360,7 @@ func TestWaitForDeployment(t *testing.T) {
 			}
 
 			client := &Client{
-				AppConfig:       mockClient,
+				appConfig:       mockClient,
 				PollingInterval: 100 * time.Millisecond, // Fast polling for tests
 			}
 			err := client.WaitForDeployment(
@@ -537,7 +537,7 @@ func TestGetLatestDeployment(t *testing.T) {
 				GetDeploymentFunc: tt.getDeploymentFunc,
 			}
 
-			client := &Client{AppConfig: mockClient}
+			client := &Client{appConfig: mockClient}
 			deployment, err := GetLatestDeployment(context.Background(), client, "app-123", "env-123", tt.profileID)
 
 			if (err != nil) != tt.wantErr {
@@ -652,7 +652,7 @@ func TestGetLatestDeploymentIncludingRollback(t *testing.T) {
 				GetDeploymentFunc: tt.getDeploymentFunc,
 			}
 
-			client := &Client{AppConfig: mockClient}
+			client := &Client{appConfig: mockClient}
 			deployment, err := GetLatestDeploymentIncludingRollback(context.Background(), client, "app-123", "env-123", tt.profileID)
 
 			if (err != nil) != tt.wantErr {
@@ -731,7 +731,7 @@ func TestGetHostedConfigurationVersion(t *testing.T) {
 				GetHostedConfigurationVersionFunc: tt.mockFunc,
 			}
 
-			client := &Client{AppConfig: mockClient}
+			client := &Client{appConfig: mockClient}
 			content, err := GetHostedConfigurationVersion(context.Background(), client, "app-123", "profile-123", tt.versionNumber)
 
 			if (err != nil) != tt.wantErr {
@@ -864,7 +864,7 @@ func TestWaitForDeploymentPhase(t *testing.T) {
 			}
 
 			client := &Client{
-				AppConfig:       mockClient,
+				appConfig:       mockClient,
 				PollingInterval: 100 * time.Millisecond, // Fast polling for tests
 			}
 			err := client.WaitForDeploymentPhase(
@@ -917,7 +917,7 @@ func TestWaitForDeploymentPhase_StopsAtBaking(t *testing.T) {
 	}
 
 	client := &Client{
-		AppConfig:       mockClient,
+		appConfig:       mockClient,
 		PollingInterval: 50 * time.Millisecond,
 	}
 

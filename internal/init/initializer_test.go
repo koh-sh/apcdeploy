@@ -105,7 +105,7 @@ func TestInitializer_ResolveResources(t *testing.T) {
 			mockClient := &mock.MockAppConfigClient{}
 			tt.mockSetup(mockClient)
 
-			awsClient := &awsInternal.Client{AppConfig: mockClient}
+			awsClient := awsInternal.NewTestClient(mockClient)
 			reporter := &reportertest.MockReporter{}
 			initializer := New(awsClient, reporter)
 
@@ -195,7 +195,7 @@ func TestInitializer_FetchConfigVersion(t *testing.T) {
 			mockClient := &mock.MockAppConfigClient{}
 			tt.mockSetup(mockClient)
 
-			awsClient := &awsInternal.Client{AppConfig: mockClient}
+			awsClient := awsInternal.NewTestClient(mockClient)
 			reporter := &reportertest.MockReporter{}
 			initializer := New(awsClient, reporter)
 
@@ -319,7 +319,7 @@ func TestInitializer_FetchDeploymentStrategy(t *testing.T) {
 			mockClient := &mock.MockAppConfigClient{}
 			tt.mockSetup(mockClient)
 
-			awsClient := &awsInternal.Client{AppConfig: mockClient}
+			awsClient := awsInternal.NewTestClient(mockClient)
 			reporter := &reportertest.MockReporter{}
 			initializer := New(awsClient, reporter)
 
@@ -376,7 +376,7 @@ func TestInitializer_DetermineDataFileName(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &mock.MockAppConfigClient{}
-			awsClient := &awsInternal.Client{AppConfig: mockClient}
+			awsClient := awsInternal.NewTestClient(mockClient)
 			reporter := &reportertest.MockReporter{}
 			initializer := New(awsClient, reporter)
 
@@ -662,7 +662,7 @@ func TestInitializer_Run(t *testing.T) {
 			mockClient := &mock.MockAppConfigClient{}
 			tt.mockSetup(mockClient)
 
-			awsClient := &awsInternal.Client{AppConfig: mockClient}
+			awsClient := awsInternal.NewTestClient(mockClient)
 			reporter := &reportertest.MockReporter{}
 			initializer := New(awsClient, reporter)
 
@@ -741,7 +741,7 @@ func TestInitializer_GenerateFiles(t *testing.T) {
 			tt.result.ConfigFile = tt.opts.ConfigFile
 
 			mockClient := &mock.MockAppConfigClient{}
-			awsClient := &awsInternal.Client{AppConfig: mockClient}
+			awsClient := awsInternal.NewTestClient(mockClient)
 			reporter := &reportertest.MockReporter{}
 			initializer := New(awsClient, reporter)
 

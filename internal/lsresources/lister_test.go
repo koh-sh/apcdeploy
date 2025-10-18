@@ -274,9 +274,7 @@ func TestLister_ListResources(t *testing.T) {
 			mockAPI := &awsMock.MockAppConfigClient{}
 			tt.setupMock(mockAPI)
 
-			client := &awsInternal.Client{
-				AppConfig: mockAPI,
-			}
+			client := awsInternal.NewTestClient(mockAPI)
 
 			lister := New(client, tt.region)
 
