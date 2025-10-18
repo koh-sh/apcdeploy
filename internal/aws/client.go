@@ -12,9 +12,12 @@ import (
 	"github.com/koh-sh/apcdeploy/internal/config"
 )
 
-// Client wraps the AWS AppConfig client
+// Client wraps the AWS AppConfig client and implements AppConfigAPI interface.
+// It holds the raw SDK client internally and delegates/enhances its methods.
 type Client struct {
-	AppConfig       AppConfigAPI
+	// appConfig is the underlying AWS SDK client (private field implementing AppConfigSDKAPI)
+	// This can be either *appconfig.Client in production or mock.MockAppConfigClient in tests
+	appConfig       AppConfigSDKAPI
 	AppConfigData   AppConfigDataAPI
 	Region          string
 	PollingInterval time.Duration // Interval for polling deployment status (default: 5s)
@@ -45,7 +48,7 @@ func NewClient(ctx context.Context, region string) (*Client, error) {
 	appconfigdataClient := appconfigdata.NewFromConfig(cfg)
 
 	return &Client{
-		AppConfig:       appconfigClient,
+		appConfig:       appconfigClient,
 		AppConfigData:   appconfigdataClient,
 		Region:          cfg.Region,
 		PollingInterval: config.DefaultPollingInterval,

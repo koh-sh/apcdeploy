@@ -5,25 +5,58 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/account"
 	"github.com/aws/aws-sdk-go-v2/service/appconfig"
+	"github.com/aws/aws-sdk-go-v2/service/appconfig/types"
 	"github.com/aws/aws-sdk-go-v2/service/appconfigdata"
 )
 
-// AppConfigAPI defines the interface for AppConfig operations.
-// This interface is defined in the consumer package (not the mock package)
-// following Go best practice: "Accept interfaces, return structs".
-// Both the real AWS AppConfig client and mock implementations satisfy this interface.
-type AppConfigAPI interface {
+// AppConfigSDKAPI defines the minimal AWS SDK interface needed for Client's internal operations.
+// This interface is implemented by:
+//   - *appconfig.Client (the real AWS SDK client)
+//   - mock.MockAppConfigClient (for testing Client's internal methods)
+//
+// Note: This interface only includes methods used internally by Client. Create and Start
+// methods are not included because they're exposed through convenience wrapper methods on
+// *Client (see deployment.go) that have different, simpler signatures.
+type AppConfigSDKAPI interface {
+	// Raw SDK List methods - return paginated results (used by ListAll* pagination methods)
 	ListApplications(ctx context.Context, params *appconfig.ListApplicationsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListApplicationsOutput, error)
 	ListConfigurationProfiles(ctx context.Context, params *appconfig.ListConfigurationProfilesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListConfigurationProfilesOutput, error)
-	GetConfigurationProfile(ctx context.Context, params *appconfig.GetConfigurationProfileInput, optFns ...func(*appconfig.Options)) (*appconfig.GetConfigurationProfileOutput, error)
 	ListEnvironments(ctx context.Context, params *appconfig.ListEnvironmentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListEnvironmentsOutput, error)
 	ListDeploymentStrategies(ctx context.Context, params *appconfig.ListDeploymentStrategiesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentStrategiesOutput, error)
 	ListHostedConfigurationVersions(ctx context.Context, params *appconfig.ListHostedConfigurationVersionsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListHostedConfigurationVersionsOutput, error)
+	ListDeployments(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error)
+
+	// Get methods (used by Resolver, ConfigVersionFetcher, and deployment helper functions)
+	GetConfigurationProfile(ctx context.Context, params *appconfig.GetConfigurationProfileInput, optFns ...func(*appconfig.Options)) (*appconfig.GetConfigurationProfileOutput, error)
 	GetHostedConfigurationVersion(ctx context.Context, params *appconfig.GetHostedConfigurationVersionInput, optFns ...func(*appconfig.Options)) (*appconfig.GetHostedConfigurationVersionOutput, error)
+	GetDeployment(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error)
+
+	// Create/Start methods (used by convenience wrappers in deployment.go)
 	CreateHostedConfigurationVersion(ctx context.Context, params *appconfig.CreateHostedConfigurationVersionInput, optFns ...func(*appconfig.Options)) (*appconfig.CreateHostedConfigurationVersionOutput, error)
 	StartDeployment(ctx context.Context, params *appconfig.StartDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.StartDeploymentOutput, error)
+}
+
+// AppConfigAPI defines the interface for external code that needs AppConfig operations.
+// This interface includes:
+//   - Pagination-aware ListAll* methods (automatically handle pagination)
+//   - Raw SDK Get methods (for retrieving individual resources)
+//
+// Notably, this does NOT include Create/Start methods because those are exposed through
+// convenience wrapper methods on *Client (see deployment.go) with simplified signatures.
+// External code should use *Client directly when deploying configurations.
+type AppConfigAPI interface {
+	// Pagination-aware List methods - automatically handle pagination to retrieve all resources
+	ListAllApplications(ctx context.Context) ([]types.Application, error)
+	ListAllConfigurationProfiles(ctx context.Context, appID string) ([]types.ConfigurationProfileSummary, error)
+	ListAllEnvironments(ctx context.Context, appID string) ([]types.Environment, error)
+	ListAllDeploymentStrategies(ctx context.Context) ([]types.DeploymentStrategy, error)
+	ListAllDeployments(ctx context.Context, appID, envID string) ([]types.DeploymentSummary, error)
+	ListAllHostedConfigurationVersions(ctx context.Context, appID, profileID string) ([]types.HostedConfigurationVersionSummary, error)
+
+	// Raw SDK Get methods - for retrieving individual resource details
+	GetConfigurationProfile(ctx context.Context, params *appconfig.GetConfigurationProfileInput, optFns ...func(*appconfig.Options)) (*appconfig.GetConfigurationProfileOutput, error)
+	GetHostedConfigurationVersion(ctx context.Context, params *appconfig.GetHostedConfigurationVersionInput, optFns ...func(*appconfig.Options)) (*appconfig.GetHostedConfigurationVersionOutput, error)
 	GetDeployment(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error)
-	ListDeployments(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error)
 }
 
 // AppConfigDataAPI defines the interface for AppConfigData operations.

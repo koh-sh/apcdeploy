@@ -243,9 +243,7 @@ region: us-east-1
 
 	// Create deployer factory that uses the mock client
 	deployerFactory := func(ctx context.Context, cfg *config.Config) (*Deployer, error) {
-		awsClient := &awsInternal.Client{
-			AppConfig: mockClient,
-		}
+		awsClient := awsInternal.NewTestClient(mockClient)
 		return NewWithClient(cfg, awsClient), nil
 	}
 
@@ -400,10 +398,9 @@ region: us-east-1
 			}
 
 			deployerFactory := func(ctx context.Context, cfg *config.Config) (*Deployer, error) {
-				return NewWithClient(cfg, &awsInternal.Client{
-					AppConfig:       mockClient,
-					PollingInterval: 100 * time.Millisecond, // Fast polling for tests
-				}), nil
+				awsClient := awsInternal.NewTestClient(mockClient)
+				awsClient.PollingInterval = 100 * time.Millisecond // Fast polling for tests
+				return NewWithClient(cfg, awsClient), nil
 			}
 
 			reporter := &reportertest.MockReporter{}
@@ -527,7 +524,7 @@ region: us-east-1
 	}
 
 	deployerFactory := func(ctx context.Context, cfg *config.Config) (*Deployer, error) {
-		return NewWithClient(cfg, &awsInternal.Client{AppConfig: mockClient}), nil
+		return NewWithClient(cfg, awsInternal.NewTestClient(mockClient)), nil
 	}
 
 	reporter := &reportertest.MockReporter{}
@@ -657,7 +654,7 @@ region: us-east-1
 	}
 
 	deployerFactory := func(ctx context.Context, cfg *config.Config) (*Deployer, error) {
-		return NewWithClient(cfg, &awsInternal.Client{AppConfig: mockClient}), nil
+		return NewWithClient(cfg, awsInternal.NewTestClient(mockClient)), nil
 	}
 
 	reporter := &reportertest.MockReporter{}
@@ -758,10 +755,9 @@ region: us-east-1
 	}
 
 	deployerFactory := func(ctx context.Context, cfg *config.Config) (*Deployer, error) {
-		return NewWithClient(cfg, &awsInternal.Client{
-			AppConfig:       mockClient,
-			PollingInterval: 100 * time.Millisecond, // Fast polling for tests
-		}), nil
+		awsClient := awsInternal.NewTestClient(mockClient)
+		awsClient.PollingInterval = 100 * time.Millisecond // Fast polling for tests
+		return NewWithClient(cfg, awsClient), nil
 	}
 
 	reporter := &reportertest.MockReporter{}

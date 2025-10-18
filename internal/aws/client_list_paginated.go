@@ -1,3 +1,32 @@
+// Package aws provides centralized AWS AppConfig List API operations with automatic pagination handling.
+//
+// All List operations in this file handle pagination automatically to ensure complete data retrieval,
+// preventing silent truncation when resource counts exceed AWS API page limits.
+//
+// Usage Guidelines:
+//   - For List operations: Use the ListAll* methods defined in this file (e.g., ListAllApplications, ListAllConfigurationProfiles)
+//   - For Get/Create/Update/Delete operations: Use the raw SDK methods directly (e.g., client.AppConfig.GetConfigurationProfile)
+//   - The ListAll* methods are part of the AppConfigAPI interface, enabling dependency injection and testability
+//
+// Example:
+//
+//	client, err := aws.NewClient(ctx, "us-east-1")
+//	if err != nil {
+//	    return err
+//	}
+//
+//	// Use centralized list method with pagination
+//	apps, err := client.ListAllApplications(ctx)
+//	if err != nil {
+//	    return err
+//	}
+//	// All applications are returned, even if they span multiple pages
+//
+//	// Use raw SDK method for non-list operations
+//	profile, err := client.AppConfig.GetConfigurationProfile(ctx, &appconfig.GetConfigurationProfileInput{
+//	    ApplicationId: aws.String(appID),
+//	    ConfigurationProfileId: aws.String(profileID),
+//	})
 package aws
 
 import (
@@ -14,7 +43,7 @@ func (c *Client) ListAllApplications(ctx context.Context) ([]types.Application, 
 	var nextToken *string
 
 	for {
-		output, err := c.AppConfig.ListApplications(ctx, &appconfig.ListApplicationsInput{
+		output, err := c.appConfig.ListApplications(ctx, &appconfig.ListApplicationsInput{
 			NextToken: nextToken,
 		})
 		if err != nil {
@@ -38,7 +67,7 @@ func (c *Client) ListAllConfigurationProfiles(ctx context.Context, appID string)
 	var nextToken *string
 
 	for {
-		output, err := c.AppConfig.ListConfigurationProfiles(ctx, &appconfig.ListConfigurationProfilesInput{
+		output, err := c.appConfig.ListConfigurationProfiles(ctx, &appconfig.ListConfigurationProfilesInput{
 			ApplicationId: &appID,
 			NextToken:     nextToken,
 		})
@@ -63,7 +92,7 @@ func (c *Client) ListAllEnvironments(ctx context.Context, appID string) ([]types
 	var nextToken *string
 
 	for {
-		output, err := c.AppConfig.ListEnvironments(ctx, &appconfig.ListEnvironmentsInput{
+		output, err := c.appConfig.ListEnvironments(ctx, &appconfig.ListEnvironmentsInput{
 			ApplicationId: &appID,
 			NextToken:     nextToken,
 		})
@@ -88,7 +117,7 @@ func (c *Client) ListAllDeploymentStrategies(ctx context.Context) ([]types.Deplo
 	var nextToken *string
 
 	for {
-		output, err := c.AppConfig.ListDeploymentStrategies(ctx, &appconfig.ListDeploymentStrategiesInput{
+		output, err := c.appConfig.ListDeploymentStrategies(ctx, &appconfig.ListDeploymentStrategiesInput{
 			NextToken: nextToken,
 		})
 		if err != nil {
@@ -112,7 +141,7 @@ func (c *Client) ListAllDeployments(ctx context.Context, appID, envID string) ([
 	var nextToken *string
 
 	for {
-		output, err := c.AppConfig.ListDeployments(ctx, &appconfig.ListDeploymentsInput{
+		output, err := c.appConfig.ListDeployments(ctx, &appconfig.ListDeploymentsInput{
 			ApplicationId: &appID,
 			EnvironmentId: &envID,
 			NextToken:     nextToken,
@@ -138,7 +167,7 @@ func (c *Client) ListAllHostedConfigurationVersions(ctx context.Context, appID, 
 	var nextToken *string
 
 	for {
-		output, err := c.AppConfig.ListHostedConfigurationVersions(ctx, &appconfig.ListHostedConfigurationVersionsInput{
+		output, err := c.appConfig.ListHostedConfigurationVersions(ctx, &appconfig.ListHostedConfigurationVersionsInput{
 			ApplicationId:          &appID,
 			ConfigurationProfileId: &profileID,
 			NextToken:              nextToken,

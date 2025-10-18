@@ -89,6 +89,42 @@ func TestListAllApplications(t *testing.T) {
 			wantCount: 0,
 			wantErr:   false,
 		},
+		{
+			name: "pagination token is correctly passed",
+			setupMock: func() *mock.MockAppConfigClient {
+				callCount := 0
+				return &mock.MockAppConfigClient{
+					ListApplicationsFunc: func(ctx context.Context, params *appconfig.ListApplicationsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListApplicationsOutput, error) {
+						callCount++
+						if callCount == 1 {
+							// First call should have nil NextToken
+							if params.NextToken != nil {
+								t.Errorf("first call should have nil NextToken, got %v", *params.NextToken)
+							}
+							return &appconfig.ListApplicationsOutput{
+								Items: []types.Application{
+									{Id: aws.String("app-1"), Name: aws.String("app-1")},
+								},
+								NextToken: aws.String("token123"),
+							}, nil
+						}
+						// Second call should pass the token
+						if params.NextToken == nil {
+							t.Error("second call should have NextToken")
+						} else if *params.NextToken != "token123" {
+							t.Errorf("second call NextToken = %v, want token123", *params.NextToken)
+						}
+						return &appconfig.ListApplicationsOutput{
+							Items: []types.Application{
+								{Id: aws.String("app-2"), Name: aws.String("app-2")},
+							},
+						}, nil
+					},
+				}
+			},
+			wantCount: 2,
+			wantErr:   false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -96,7 +132,7 @@ func TestListAllApplications(t *testing.T) {
 			t.Parallel()
 
 			client := &Client{
-				AppConfig: tt.setupMock(),
+				appConfig: tt.setupMock(),
 			}
 
 			ctx := context.Background()
@@ -196,7 +232,7 @@ func TestListAllConfigurationProfiles(t *testing.T) {
 			t.Parallel()
 
 			client := &Client{
-				AppConfig: tt.setupMock(),
+				appConfig: tt.setupMock(),
 			}
 
 			ctx := context.Background()
@@ -295,7 +331,7 @@ func TestListAllEnvironments(t *testing.T) {
 			t.Parallel()
 
 			client := &Client{
-				AppConfig: tt.setupMock(),
+				appConfig: tt.setupMock(),
 			}
 
 			ctx := context.Background()
@@ -390,7 +426,7 @@ func TestListAllDeploymentStrategies(t *testing.T) {
 			t.Parallel()
 
 			client := &Client{
-				AppConfig: tt.setupMock(),
+				appConfig: tt.setupMock(),
 			}
 
 			ctx := context.Background()
@@ -494,7 +530,7 @@ func TestListAllDeployments(t *testing.T) {
 			t.Parallel()
 
 			client := &Client{
-				AppConfig: tt.setupMock(),
+				appConfig: tt.setupMock(),
 			}
 
 			ctx := context.Background()
@@ -597,7 +633,7 @@ func TestListAllHostedConfigurationVersions(t *testing.T) {
 			t.Parallel()
 
 			client := &Client{
-				AppConfig: tt.setupMock(),
+				appConfig: tt.setupMock(),
 			}
 
 			ctx := context.Background()

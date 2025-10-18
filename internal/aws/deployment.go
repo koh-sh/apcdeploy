@@ -46,7 +46,7 @@ func (c *Client) CreateHostedConfigurationVersion(
 		input.Description = aws.String(description)
 	}
 
-	output, err := c.AppConfig.CreateHostedConfigurationVersion(ctx, input)
+	output, err := c.appConfig.CreateHostedConfigurationVersion(ctx, input)
 	if err != nil {
 		return 0, wrapAWSError(err, "failed to create hosted configuration version")
 	}
@@ -75,7 +75,7 @@ func (c *Client) StartDeployment(
 		input.Description = aws.String(description)
 	}
 
-	output, err := c.AppConfig.StartDeployment(ctx, input)
+	output, err := c.appConfig.StartDeployment(ctx, input)
 	if err != nil {
 		return 0, wrapAWSError(err, "failed to start deployment")
 	}
@@ -126,7 +126,7 @@ func (c *Client) waitForDeploymentWithCondition(
 			DeploymentNumber: &deploymentNumber,
 		}
 
-		output, err := c.AppConfig.GetDeployment(ctx, input)
+		output, err := c.appConfig.GetDeployment(ctx, input)
 		if err != nil {
 			return false, wrapAWSError(err, "failed to get deployment status")
 		}
@@ -258,7 +258,7 @@ func getLatestDeploymentInternal(ctx context.Context, client *Client, applicatio
 			DeploymentNumber: &summary.DeploymentNumber,
 		}
 
-		deployment, err := client.AppConfig.GetDeployment(ctx, getInput)
+		deployment, err := client.appConfig.GetDeployment(ctx, getInput)
 		if err != nil {
 			continue // Skip this deployment if we can't get details
 		}
@@ -299,7 +299,7 @@ func GetHostedConfigurationVersion(ctx context.Context, client *Client, applicat
 	}
 	input.VersionNumber = aws.Int32(version)
 
-	output, err := client.AppConfig.GetHostedConfigurationVersion(ctx, input)
+	output, err := client.appConfig.GetHostedConfigurationVersion(ctx, input)
 	if err != nil {
 		return nil, wrapAWSError(err, "failed to get hosted configuration version")
 	}
@@ -332,7 +332,7 @@ func GetDeploymentDetails(ctx context.Context, client *Client, applicationID, en
 		DeploymentNumber: &deploymentNumber,
 	}
 
-	output, err := client.AppConfig.GetDeployment(ctx, input)
+	output, err := client.appConfig.GetDeployment(ctx, input)
 	if err != nil {
 		return nil, wrapAWSError(err, "failed to get deployment details")
 	}

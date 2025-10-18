@@ -94,20 +94,16 @@ func TestResolveApplication(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &mock.MockAppConfigClient{
-				ListApplicationsFunc: func(ctx context.Context, params *appconfig.ListApplicationsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListApplicationsOutput, error) {
+				ListAllApplicationsFunc: func(ctx context.Context) ([]types.Application, error) {
 					if tt.mockErr != nil {
 						return nil, tt.mockErr
 					}
-					return &appconfig.ListApplicationsOutput{
-						Items: tt.mockApps,
-					}, nil
+					return tt.mockApps, nil
 				},
 			}
 
 			resolver := &Resolver{
-				client: &Client{
-					AppConfig: mockClient,
-				},
+				client: mockClient,
 			}
 
 			ctx := context.Background()
@@ -137,31 +133,19 @@ func TestResolveApplication(t *testing.T) {
 
 func TestResolveApplicationPagination(t *testing.T) {
 	t.Run("pagination - application found on second page", func(t *testing.T) {
-		callCount := 0
 		mockClient := &mock.MockAppConfigClient{
-			ListApplicationsFunc: func(ctx context.Context, params *appconfig.ListApplicationsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListApplicationsOutput, error) {
-				callCount++
-				if callCount == 1 {
-					// First page
-					return &appconfig.ListApplicationsOutput{
-						Items: []types.Application{
-							{Id: aws.String("app-1"), Name: aws.String("app-1")},
-							{Id: aws.String("app-2"), Name: aws.String("app-2")},
-						},
-						NextToken: aws.String("page2"),
-					}, nil
-				}
-				// Second page
-				return &appconfig.ListApplicationsOutput{
-					Items: []types.Application{
-						{Id: aws.String("app-3"), Name: aws.String("target-app")},
-						{Id: aws.String("app-4"), Name: aws.String("app-4")},
-					},
+			ListAllApplicationsFunc: func(ctx context.Context) ([]types.Application, error) {
+				// Return all applications from all pages
+				return []types.Application{
+					{Id: aws.String("app-1"), Name: aws.String("app-1")},
+					{Id: aws.String("app-2"), Name: aws.String("app-2")},
+					{Id: aws.String("app-3"), Name: aws.String("target-app")},
+					{Id: aws.String("app-4"), Name: aws.String("app-4")},
 				}, nil
 			},
 		}
 
-		resolver := &Resolver{client: &Client{AppConfig: mockClient}}
+		resolver := &Resolver{client: mockClient}
 		ctx := context.Background()
 		appID, err := resolver.ResolveApplication(ctx, "target-app")
 		if err != nil {
@@ -170,10 +154,6 @@ func TestResolveApplicationPagination(t *testing.T) {
 
 		if appID != "app-3" {
 			t.Errorf("appID = %v, want %v", appID, "app-3")
-		}
-
-		if callCount != 2 {
-			t.Errorf("expected 2 API calls, got %d", callCount)
 		}
 	})
 }
@@ -273,13 +253,11 @@ func TestResolveConfigurationProfile(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &mock.MockAppConfigClient{
-				ListConfigurationProfilesFunc: func(ctx context.Context, params *appconfig.ListConfigurationProfilesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListConfigurationProfilesOutput, error) {
+				ListAllConfigurationProfilesFunc: func(ctx context.Context, appID string) ([]types.ConfigurationProfileSummary, error) {
 					if tt.mockListErr != nil {
 						return nil, tt.mockListErr
 					}
-					return &appconfig.ListConfigurationProfilesOutput{
-						Items: tt.mockProfiles,
-					}, nil
+					return tt.mockProfiles, nil
 				},
 				GetConfigurationProfileFunc: func(ctx context.Context, params *appconfig.GetConfigurationProfileInput, optFns ...func(*appconfig.Options)) (*appconfig.GetConfigurationProfileOutput, error) {
 					if tt.mockGetErr != nil {
@@ -290,9 +268,7 @@ func TestResolveConfigurationProfile(t *testing.T) {
 			}
 
 			resolver := &Resolver{
-				client: &Client{
-					AppConfig: mockClient,
-				},
+				client: mockClient,
 			}
 
 			ctx := context.Background()
@@ -326,26 +302,14 @@ func TestResolveConfigurationProfile(t *testing.T) {
 
 func TestResolveConfigurationProfilePagination(t *testing.T) {
 	t.Run("pagination - profile found on second page", func(t *testing.T) {
-		callCount := 0
 		mockClient := &mock.MockAppConfigClient{
-			ListConfigurationProfilesFunc: func(ctx context.Context, params *appconfig.ListConfigurationProfilesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListConfigurationProfilesOutput, error) {
-				callCount++
-				if callCount == 1 {
-					// First page
-					return &appconfig.ListConfigurationProfilesOutput{
-						Items: []types.ConfigurationProfileSummary{
-							{Id: aws.String("prof-1"), Name: aws.String("prof-1")},
-							{Id: aws.String("prof-2"), Name: aws.String("prof-2")},
-						},
-						NextToken: aws.String("page2"),
-					}, nil
-				}
-				// Second page
-				return &appconfig.ListConfigurationProfilesOutput{
-					Items: []types.ConfigurationProfileSummary{
-						{Id: aws.String("prof-3"), Name: aws.String("target-profile")},
-						{Id: aws.String("prof-4"), Name: aws.String("prof-4")},
-					},
+			ListAllConfigurationProfilesFunc: func(ctx context.Context, appID string) ([]types.ConfigurationProfileSummary, error) {
+				// Return all profiles from all pages
+				return []types.ConfigurationProfileSummary{
+					{Id: aws.String("prof-1"), Name: aws.String("prof-1")},
+					{Id: aws.String("prof-2"), Name: aws.String("prof-2")},
+					{Id: aws.String("prof-3"), Name: aws.String("target-profile")},
+					{Id: aws.String("prof-4"), Name: aws.String("prof-4")},
 				}, nil
 			},
 			GetConfigurationProfileFunc: func(ctx context.Context, params *appconfig.GetConfigurationProfileInput, optFns ...func(*appconfig.Options)) (*appconfig.GetConfigurationProfileOutput, error) {
@@ -357,7 +321,7 @@ func TestResolveConfigurationProfilePagination(t *testing.T) {
 			},
 		}
 
-		resolver := &Resolver{client: &Client{AppConfig: mockClient}}
+		resolver := &Resolver{client: mockClient}
 		ctx := context.Background()
 		profile, err := resolver.ResolveConfigurationProfile(ctx, "app-123", "target-profile")
 		if err != nil {
@@ -366,10 +330,6 @@ func TestResolveConfigurationProfilePagination(t *testing.T) {
 
 		if profile.ID != "prof-3" {
 			t.Errorf("profile.ID = %v, want %v", profile.ID, "prof-3")
-		}
-
-		if callCount != 2 {
-			t.Errorf("expected 2 API calls, got %d", callCount)
 		}
 	})
 }
@@ -441,20 +401,16 @@ func TestResolveEnvironment(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &mock.MockAppConfigClient{
-				ListEnvironmentsFunc: func(ctx context.Context, params *appconfig.ListEnvironmentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListEnvironmentsOutput, error) {
+				ListAllEnvironmentsFunc: func(ctx context.Context, appID string) ([]types.Environment, error) {
 					if tt.mockErr != nil {
 						return nil, tt.mockErr
 					}
-					return &appconfig.ListEnvironmentsOutput{
-						Items: tt.mockEnvs,
-					}, nil
+					return tt.mockEnvs, nil
 				},
 			}
 
 			resolver := &Resolver{
-				client: &Client{
-					AppConfig: mockClient,
-				},
+				client: mockClient,
 			}
 
 			ctx := context.Background()
@@ -484,31 +440,19 @@ func TestResolveEnvironment(t *testing.T) {
 
 func TestResolveEnvironmentPagination(t *testing.T) {
 	t.Run("pagination - environment found on second page", func(t *testing.T) {
-		callCount := 0
 		mockClient := &mock.MockAppConfigClient{
-			ListEnvironmentsFunc: func(ctx context.Context, params *appconfig.ListEnvironmentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListEnvironmentsOutput, error) {
-				callCount++
-				if callCount == 1 {
-					// First page
-					return &appconfig.ListEnvironmentsOutput{
-						Items: []types.Environment{
-							{Id: aws.String("env-1"), Name: aws.String("env-1")},
-							{Id: aws.String("env-2"), Name: aws.String("env-2")},
-						},
-						NextToken: aws.String("page2"),
-					}, nil
-				}
-				// Second page
-				return &appconfig.ListEnvironmentsOutput{
-					Items: []types.Environment{
-						{Id: aws.String("env-3"), Name: aws.String("target-env")},
-						{Id: aws.String("env-4"), Name: aws.String("env-4")},
-					},
+			ListAllEnvironmentsFunc: func(ctx context.Context, appID string) ([]types.Environment, error) {
+				// Return all environments from all pages
+				return []types.Environment{
+					{Id: aws.String("env-1"), Name: aws.String("env-1")},
+					{Id: aws.String("env-2"), Name: aws.String("env-2")},
+					{Id: aws.String("env-3"), Name: aws.String("target-env")},
+					{Id: aws.String("env-4"), Name: aws.String("env-4")},
 				}, nil
 			},
 		}
 
-		resolver := &Resolver{client: &Client{AppConfig: mockClient}}
+		resolver := &Resolver{client: mockClient}
 		ctx := context.Background()
 		envID, err := resolver.ResolveEnvironment(ctx, "app-123", "target-env")
 		if err != nil {
@@ -517,10 +461,6 @@ func TestResolveEnvironmentPagination(t *testing.T) {
 
 		if envID != "env-3" {
 			t.Errorf("envID = %v, want %v", envID, "env-3")
-		}
-
-		if callCount != 2 {
-			t.Errorf("expected 2 API calls, got %d", callCount)
 		}
 	})
 }
@@ -583,20 +523,16 @@ func TestResolveDeploymentStrategy(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &mock.MockAppConfigClient{
-				ListDeploymentStrategiesFunc: func(ctx context.Context, params *appconfig.ListDeploymentStrategiesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentStrategiesOutput, error) {
+				ListAllDeploymentStrategiesFunc: func(ctx context.Context) ([]types.DeploymentStrategy, error) {
 					if tt.mockErr != nil {
 						return nil, tt.mockErr
 					}
-					return &appconfig.ListDeploymentStrategiesOutput{
-						Items: tt.mockStrategies,
-					}, nil
+					return tt.mockStrategies, nil
 				},
 			}
 
 			resolver := &Resolver{
-				client: &Client{
-					AppConfig: mockClient,
-				},
+				client: mockClient,
 			}
 
 			ctx := context.Background()
@@ -626,31 +562,19 @@ func TestResolveDeploymentStrategy(t *testing.T) {
 
 func TestResolveDeploymentStrategyPagination(t *testing.T) {
 	t.Run("pagination - strategy found on second page", func(t *testing.T) {
-		callCount := 0
 		mockClient := &mock.MockAppConfigClient{
-			ListDeploymentStrategiesFunc: func(ctx context.Context, params *appconfig.ListDeploymentStrategiesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentStrategiesOutput, error) {
-				callCount++
-				if callCount == 1 {
-					// First page
-					return &appconfig.ListDeploymentStrategiesOutput{
-						Items: []types.DeploymentStrategy{
-							{Id: aws.String("start-1"), Name: aws.String("start-1")},
-							{Id: aws.String("start-2"), Name: aws.String("start-2")},
-						},
-						NextToken: aws.String("page2"),
-					}, nil
-				}
-				// Second page
-				return &appconfig.ListDeploymentStrategiesOutput{
-					Items: []types.DeploymentStrategy{
-						{Id: aws.String("start-3"), Name: aws.String("target-strategy")},
-						{Id: aws.String("start-4"), Name: aws.String("start-4")},
-					},
+			ListAllDeploymentStrategiesFunc: func(ctx context.Context) ([]types.DeploymentStrategy, error) {
+				// Return all strategies from all pages
+				return []types.DeploymentStrategy{
+					{Id: aws.String("start-1"), Name: aws.String("start-1")},
+					{Id: aws.String("start-2"), Name: aws.String("start-2")},
+					{Id: aws.String("start-3"), Name: aws.String("target-strategy")},
+					{Id: aws.String("start-4"), Name: aws.String("start-4")},
 				}, nil
 			},
 		}
 
-		resolver := &Resolver{client: &Client{AppConfig: mockClient}}
+		resolver := &Resolver{client: mockClient}
 		ctx := context.Background()
 		strategyID, err := resolver.ResolveDeploymentStrategy(ctx, "target-strategy")
 		if err != nil {
@@ -659,10 +583,6 @@ func TestResolveDeploymentStrategyPagination(t *testing.T) {
 
 		if strategyID != "start-3" {
 			t.Errorf("strategyID = %v, want %v", strategyID, "start-3")
-		}
-
-		if callCount != 2 {
-			t.Errorf("expected 2 API calls, got %d", callCount)
 		}
 	})
 }
@@ -737,20 +657,16 @@ func TestResolveDeploymentStrategyIDToName(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &mock.MockAppConfigClient{
-				ListDeploymentStrategiesFunc: func(ctx context.Context, params *appconfig.ListDeploymentStrategiesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentStrategiesOutput, error) {
+				ListAllDeploymentStrategiesFunc: func(ctx context.Context) ([]types.DeploymentStrategy, error) {
 					if tt.mockErr != nil {
 						return nil, tt.mockErr
 					}
-					return &appconfig.ListDeploymentStrategiesOutput{
-						Items: tt.mockStrategies,
-					}, nil
+					return tt.mockStrategies, nil
 				},
 			}
 
 			resolver := &Resolver{
-				client: &Client{
-					AppConfig: mockClient,
-				},
+				client: mockClient,
 			}
 
 			ctx := context.Background()
@@ -780,31 +696,19 @@ func TestResolveDeploymentStrategyIDToName(t *testing.T) {
 
 func TestResolveDeploymentStrategyIDToNamePagination(t *testing.T) {
 	t.Run("pagination - strategy found on second page", func(t *testing.T) {
-		callCount := 0
 		mockClient := &mock.MockAppConfigClient{
-			ListDeploymentStrategiesFunc: func(ctx context.Context, params *appconfig.ListDeploymentStrategiesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentStrategiesOutput, error) {
-				callCount++
-				if callCount == 1 {
-					// First page
-					return &appconfig.ListDeploymentStrategiesOutput{
-						Items: []types.DeploymentStrategy{
-							{Id: aws.String("id-1"), Name: aws.String("start-1")},
-							{Id: aws.String("id-2"), Name: aws.String("start-2")},
-						},
-						NextToken: aws.String("page2"),
-					}, nil
-				}
-				// Second page
-				return &appconfig.ListDeploymentStrategiesOutput{
-					Items: []types.DeploymentStrategy{
-						{Id: aws.String("target-id"), Name: aws.String("target-strategy")},
-						{Id: aws.String("id-4"), Name: aws.String("start-4")},
-					},
+			ListAllDeploymentStrategiesFunc: func(ctx context.Context) ([]types.DeploymentStrategy, error) {
+				// Return all strategies from all pages
+				return []types.DeploymentStrategy{
+					{Id: aws.String("id-1"), Name: aws.String("start-1")},
+					{Id: aws.String("id-2"), Name: aws.String("start-2")},
+					{Id: aws.String("target-id"), Name: aws.String("target-strategy")},
+					{Id: aws.String("id-4"), Name: aws.String("start-4")},
 				}, nil
 			},
 		}
 
-		resolver := &Resolver{client: &Client{AppConfig: mockClient}}
+		resolver := &Resolver{client: mockClient}
 		ctx := context.Background()
 		strategyName, err := resolver.ResolveDeploymentStrategyIDToName(ctx, "target-id")
 		if err != nil {
@@ -813,10 +717,6 @@ func TestResolveDeploymentStrategyIDToNamePagination(t *testing.T) {
 
 		if strategyName != "target-strategy" {
 			t.Errorf("strategyName = %v, want %v", strategyName, "target-strategy")
-		}
-
-		if callCount != 2 {
-			t.Errorf("expected 2 API calls, got %d", callCount)
 		}
 	})
 }
@@ -924,35 +824,25 @@ func TestResolveAll(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &mock.MockAppConfigClient{
-				ListApplicationsFunc: func(ctx context.Context, params *appconfig.ListApplicationsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListApplicationsOutput, error) {
-					return &appconfig.ListApplicationsOutput{
-						Items: tt.mockApps,
-					}, nil
+				ListAllApplicationsFunc: func(ctx context.Context) ([]types.Application, error) {
+					return tt.mockApps, nil
 				},
-				ListConfigurationProfilesFunc: func(ctx context.Context, params *appconfig.ListConfigurationProfilesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListConfigurationProfilesOutput, error) {
-					return &appconfig.ListConfigurationProfilesOutput{
-						Items: tt.mockProfiles,
-					}, nil
+				ListAllConfigurationProfilesFunc: func(ctx context.Context, appID string) ([]types.ConfigurationProfileSummary, error) {
+					return tt.mockProfiles, nil
 				},
 				GetConfigurationProfileFunc: func(ctx context.Context, params *appconfig.GetConfigurationProfileInput, optFns ...func(*appconfig.Options)) (*appconfig.GetConfigurationProfileOutput, error) {
 					return tt.mockProfile, nil
 				},
-				ListEnvironmentsFunc: func(ctx context.Context, params *appconfig.ListEnvironmentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListEnvironmentsOutput, error) {
-					return &appconfig.ListEnvironmentsOutput{
-						Items: tt.mockEnvs,
-					}, nil
+				ListAllEnvironmentsFunc: func(ctx context.Context, appID string) ([]types.Environment, error) {
+					return tt.mockEnvs, nil
 				},
-				ListDeploymentStrategiesFunc: func(ctx context.Context, params *appconfig.ListDeploymentStrategiesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentStrategiesOutput, error) {
-					return &appconfig.ListDeploymentStrategiesOutput{
-						Items: tt.mockStrategies,
-					}, nil
+				ListAllDeploymentStrategiesFunc: func(ctx context.Context) ([]types.DeploymentStrategy, error) {
+					return tt.mockStrategies, nil
 				},
 			}
 
 			resolver := &Resolver{
-				client: &Client{
-					AppConfig: mockClient,
-				},
+				client: mockClient,
 			}
 
 			ctx := context.Background()

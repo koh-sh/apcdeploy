@@ -274,9 +274,7 @@ func TestInteractiveSelector_SelectApplication(t *testing.T) {
 			}
 
 			selector := NewInteractiveSelector(mockPrompter, mockReporter)
-			client := &awsInternal.Client{
-				AppConfig: mockAppConfigClient,
-			}
+			client := awsInternal.NewTestClient(mockAppConfigClient)
 
 			app, err := selector.SelectApplication(ctx, client, tt.providedApp)
 
@@ -429,9 +427,7 @@ func TestInteractiveSelector_SelectConfigurationProfile(t *testing.T) {
 			}
 
 			selector := NewInteractiveSelector(mockPrompter, mockReporter)
-			client := &awsInternal.Client{
-				AppConfig: mockAppConfigClient,
-			}
+			client := awsInternal.NewTestClient(mockAppConfigClient)
 
 			profile, err := selector.SelectConfigurationProfile(ctx, client, tt.appID, tt.providedProfile)
 
@@ -584,9 +580,7 @@ func TestInteractiveSelector_SelectEnvironment(t *testing.T) {
 			}
 
 			selector := NewInteractiveSelector(mockPrompter, mockReporter)
-			client := &awsInternal.Client{
-				AppConfig: mockAppConfigClient,
-			}
+			client := awsInternal.NewTestClient(mockAppConfigClient)
 
 			env, err := selector.SelectEnvironment(ctx, client, tt.appID, tt.providedEnv)
 

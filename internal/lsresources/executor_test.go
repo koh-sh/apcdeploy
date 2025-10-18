@@ -234,10 +234,9 @@ func TestExecutor_Execute(t *testing.T) {
 				if actualRegion == "" {
 					actualRegion = "us-east-1"
 				}
-				return &awsInternal.Client{
-					AppConfig: mockAppConfig,
-					Region:    actualRegion,
-				}, nil
+				client := awsInternal.NewTestClient(mockAppConfig)
+				client.Region = actualRegion
+				return client, nil
 			}
 
 			// Setup reporter

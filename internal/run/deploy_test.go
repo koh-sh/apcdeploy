@@ -344,9 +344,7 @@ func TestNewWithClient(t *testing.T) {
 	}
 
 	mockClient := &mock.MockAppConfigClient{}
-	awsClient := &awsInternal.Client{
-		AppConfig: mockClient,
-	}
+	awsClient := awsInternal.NewTestClient(mockClient)
 
 	deployer := NewWithClient(cfg, awsClient)
 
@@ -455,9 +453,7 @@ func TestResolveResourcesWithMock(t *testing.T) {
 				},
 			}
 
-			awsClient := &awsInternal.Client{
-				AppConfig: mockClient,
-			}
+			awsClient := awsInternal.NewTestClient(mockClient)
 
 			deployer := NewWithClient(cfg, awsClient)
 			resolved, err := deployer.ResolveResources(context.Background())
@@ -540,10 +536,8 @@ func TestCheckOngoingDeploymentWithMock(t *testing.T) {
 				},
 			}
 
-			awsClient := &awsInternal.Client{
-				AppConfig:       mockClient,
-				PollingInterval: 100 * time.Millisecond, // Fast polling for tests
-			}
+			awsClient := awsInternal.NewTestClient(mockClient)
+			awsClient.PollingInterval = 100 * time.Millisecond // Fast polling for tests
 
 			deployer := NewWithClient(cfg, awsClient)
 
@@ -587,9 +581,7 @@ func TestCreateVersionWithMock(t *testing.T) {
 		},
 	}
 
-	awsClient := &awsInternal.Client{
-		AppConfig: mockClient,
-	}
+	awsClient := awsInternal.NewTestClient(mockClient)
 
 	deployer := NewWithClient(cfg, awsClient)
 
@@ -631,9 +623,7 @@ func TestStartDeploymentWithMock(t *testing.T) {
 		},
 	}
 
-	awsClient := &awsInternal.Client{
-		AppConfig: mockClient,
-	}
+	awsClient := awsInternal.NewTestClient(mockClient)
 
 	deployer := NewWithClient(cfg, awsClient)
 
@@ -709,10 +699,8 @@ func TestWaitForDeploymentWithMock(t *testing.T) {
 				},
 			}
 
-			awsClient := &awsInternal.Client{
-				AppConfig:       mockClient,
-				PollingInterval: 100 * time.Millisecond, // Fast polling for tests
-			}
+			awsClient := awsInternal.NewTestClient(mockClient)
+			awsClient.PollingInterval = 100 * time.Millisecond // Fast polling for tests
 
 			deployer := NewWithClient(cfg, awsClient)
 
@@ -745,7 +733,7 @@ func TestIsValidationError(t *testing.T) {
 	}
 
 	mockClient := &mock.MockAppConfigClient{}
-	awsClient := &awsInternal.Client{AppConfig: mockClient}
+	awsClient := awsInternal.NewTestClient(mockClient)
 	deployer := NewWithClient(cfg, awsClient)
 
 	tests := []struct {
@@ -791,7 +779,7 @@ func TestFormatValidationError(t *testing.T) {
 	}
 
 	mockClient := &mock.MockAppConfigClient{}
-	awsClient := &awsInternal.Client{AppConfig: mockClient}
+	awsClient := awsInternal.NewTestClient(mockClient)
 	deployer := NewWithClient(cfg, awsClient)
 
 	tests := []struct {
@@ -1337,9 +1325,7 @@ func TestHasConfigurationChanges(t *testing.T) {
 				},
 			}
 
-			awsClient := &awsInternal.Client{
-				AppConfig: mockClient,
-			}
+			awsClient := awsInternal.NewTestClient(mockClient)
 
 			deployer := NewWithClient(cfg, awsClient)
 

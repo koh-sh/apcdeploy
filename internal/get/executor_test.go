@@ -161,10 +161,7 @@ region: us-east-1
 
 	// Create getter factory that uses the mock client
 	getterFactory := func(ctx context.Context, cfg *config.Config) (*Getter, error) {
-		awsClient := &awsInternal.Client{
-			AppConfig:     mockAppConfigClient,
-			AppConfigData: mockAppConfigDataClient,
-		}
+		awsClient := awsInternal.NewTestClientWithData(mockAppConfigClient, mockAppConfigDataClient)
 		return NewWithClient(cfg, awsClient), nil
 	}
 
@@ -240,9 +237,7 @@ region: us-east-1
 	}
 
 	getterFactory := func(ctx context.Context, cfg *config.Config) (*Getter, error) {
-		awsClient := &awsInternal.Client{
-			AppConfig: mockAppConfigClient,
-		}
+		awsClient := awsInternal.NewTestClient(mockAppConfigClient)
 		return NewWithClient(cfg, awsClient), nil
 	}
 
@@ -369,10 +364,7 @@ region: us-east-1
 	}
 
 	getterFactory := func(ctx context.Context, cfg *config.Config) (*Getter, error) {
-		awsClient := &awsInternal.Client{
-			AppConfig:     mockAppConfigClient,
-			AppConfigData: mockAppConfigDataClient,
-		}
+		awsClient := awsInternal.NewTestClientWithData(mockAppConfigClient, mockAppConfigDataClient)
 		return NewWithClient(cfg, awsClient), nil
 	}
 
@@ -435,9 +427,7 @@ region: us-east-1
 	}
 
 	getterFactory := func(ctx context.Context, cfg *config.Config) (*Getter, error) {
-		awsClient := &awsInternal.Client{
-			AppConfig: mockAppConfigClient,
-		}
+		awsClient := awsInternal.NewTestClient(mockAppConfigClient)
 		return NewWithClient(cfg, awsClient), nil
 	}
 
@@ -510,9 +500,7 @@ region: us-east-1
 	}
 
 	getterFactory := func(ctx context.Context, cfg *config.Config) (*Getter, error) {
-		awsClient := &awsInternal.Client{
-			AppConfig: mockAppConfigClient,
-		}
+		awsClient := awsInternal.NewTestClient(mockAppConfigClient)
 		return NewWithClient(cfg, awsClient), nil
 	}
 
@@ -585,9 +573,7 @@ region: us-east-1
 	}
 
 	getterFactory := func(ctx context.Context, cfg *config.Config) (*Getter, error) {
-		awsClient := &awsInternal.Client{
-			AppConfig: mockAppConfigClient,
-		}
+		awsClient := awsInternal.NewTestClient(mockAppConfigClient)
 		return NewWithClient(cfg, awsClient), nil
 	}
 
@@ -761,10 +747,7 @@ region: us-east-1
 			}
 
 			getterFactory := func(ctx context.Context, cfg *config.Config) (*Getter, error) {
-				awsClient := &awsInternal.Client{
-					AppConfig:     mockAppConfigClient,
-					AppConfigData: mockAppConfigDataClient,
-				}
+				awsClient := awsInternal.NewTestClientWithData(mockAppConfigClient, mockAppConfigDataClient)
 				return NewWithClient(cfg, awsClient), nil
 			}
 

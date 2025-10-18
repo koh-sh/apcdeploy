@@ -95,14 +95,14 @@ AWS AppConfig client wrapper with:
 
 - `Client`: Wraps AWS SDK AppConfig client with polling interval configuration
 - `AppConfigAPI`: Interface for AppConfig operations (enables mocking in tests)
-- `list.go`: **Centralized list operations with pagination handling** - All AWS List APIs should use these methods
+- `client_list_paginated.go`: **Centralized list operations with pagination handling** - All AWS List APIs should use these methods
 - `resolver.go`: Resolves resource names (application, profile, environment) to AWS IDs
 - `deployment.go`: Deployment creation and monitoring logic
 - Version info is injected at build time via `main.go` variables
 
 **IMPORTANT - AWS List API Usage:**
 
-Always use the centralized list methods in `list.go` instead of calling AWS SDK List APIs directly:
+Always use the centralized list methods in `client_list_paginated.go` instead of calling AWS SDK List APIs directly:
 
 - `ListAllApplications()` - Lists all applications with pagination
 - `ListAllConfigurationProfiles(appID)` - Lists all profiles with pagination

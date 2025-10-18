@@ -157,9 +157,7 @@ func TestExecutorFullWorkflowWithMock(t *testing.T) {
 
 	// Create workflow factory that uses the mock client
 	workflowFactory := func(ctx context.Context, opts *Options, prompter prompt.Prompter, reporter reporter.ProgressReporter) (*InitWorkflow, error) {
-		awsClient := &awsInternal.Client{
-			AppConfig: mockClient,
-		}
+		awsClient := awsInternal.NewTestClient(mockClient)
 		return NewInitWorkflowWithClient(awsClient, prompter, reporter), nil
 	}
 
@@ -320,9 +318,7 @@ func TestExecutorWithInteractiveSelection(t *testing.T) {
 
 	// Create workflow factory that uses the mock client
 	workflowFactory := func(ctx context.Context, opts *Options, prompter prompt.Prompter, reporter reporter.ProgressReporter) (*InitWorkflow, error) {
-		awsClient := &awsInternal.Client{
-			AppConfig: mockClient,
-		}
+		awsClient := awsInternal.NewTestClient(mockClient)
 		return NewInitWorkflowWithClient(awsClient, prompter, reporter), nil
 	}
 
@@ -451,9 +447,7 @@ func TestExecutorTTYErrorFromWorkflowRun(t *testing.T) {
 
 	// Create workflow factory that uses the mock client
 	workflowFactory := func(ctx context.Context, opts *Options, prompter prompt.Prompter, reporter reporter.ProgressReporter) (*InitWorkflow, error) {
-		awsClient := &awsInternal.Client{
-			AppConfig: mockClient,
-		}
+		awsClient := awsInternal.NewTestClient(mockClient)
 		return NewInitWorkflowWithClient(awsClient, prompter, reporter), nil
 	}
 

@@ -12,7 +12,7 @@ import (
 
 // Resolver handles AWS resource name to ID resolution
 type Resolver struct {
-	client *Client
+	client AppConfigAPI
 }
 
 // NewResolver creates a new resolver with the given client
@@ -71,7 +71,7 @@ func (r *Resolver) ResolveConfigurationProfile(ctx context.Context, appID, profi
 
 	// Get detailed profile information
 	profileID := matches[0]
-	profileOutput, err := r.client.AppConfig.GetConfigurationProfile(ctx, &appconfig.GetConfigurationProfileInput{
+	profileOutput, err := r.client.GetConfigurationProfile(ctx, &appconfig.GetConfigurationProfileInput{
 		ApplicationId:          &appID,
 		ConfigurationProfileId: &profileID,
 	})

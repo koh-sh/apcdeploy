@@ -18,7 +18,7 @@ type ConfigVersionInfo struct {
 
 // ConfigVersionFetcher handles fetching configuration versions
 type ConfigVersionFetcher struct {
-	client *Client
+	client AppConfigAPI
 }
 
 // NewConfigVersionFetcher creates a new config version fetcher
@@ -48,7 +48,7 @@ func (f *ConfigVersionFetcher) GetLatestVersion(ctx context.Context, appID, prof
 	latestItem := versions[0]
 
 	// Get the full version content
-	versionOutput, err := f.client.AppConfig.GetHostedConfigurationVersion(ctx, &appconfig.GetHostedConfigurationVersionInput{
+	versionOutput, err := f.client.GetHostedConfigurationVersion(ctx, &appconfig.GetHostedConfigurationVersionInput{
 		ApplicationId:          aws.String(appID),
 		ConfigurationProfileId: aws.String(profileID),
 		VersionNumber:          aws.Int32(latestItem.VersionNumber),

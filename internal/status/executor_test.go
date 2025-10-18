@@ -137,9 +137,7 @@ region: us-east-1
 
 	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, func(ctx context.Context, region string) (*awsInternal.Client, error) {
-		return &awsInternal.Client{
-			AppConfig: mockClient,
-		}, nil
+		return awsInternal.NewTestClient(mockClient), nil
 	})
 
 	opts := &Options{
@@ -273,9 +271,7 @@ region: us-east-1
 
 	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, func(ctx context.Context, region string) (*awsInternal.Client, error) {
-		return &awsInternal.Client{
-			AppConfig: mockClient,
-		}, nil
+		return awsInternal.NewTestClient(mockClient), nil
 	})
 
 	opts := &Options{
@@ -330,9 +326,7 @@ func TestGetDeploymentByIDWrongProfile(t *testing.T) {
 
 	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, func(ctx context.Context, region string) (*awsInternal.Client, error) {
-		return &awsInternal.Client{
-			AppConfig: mockClient,
-		}, nil
+		return awsInternal.NewTestClient(mockClient), nil
 	})
 
 	resources := &awsInternal.ResolvedResources{
@@ -346,7 +340,7 @@ func TestGetDeploymentByIDWrongProfile(t *testing.T) {
 
 	_, err := executor.getDeploymentByID(
 		context.Background(),
-		&awsInternal.Client{AppConfig: mockClient},
+		awsInternal.NewTestClient(mockClient),
 		resources,
 		"1",
 	)
@@ -392,9 +386,7 @@ func TestGetDeploymentByIDSuccess(t *testing.T) {
 
 	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, func(ctx context.Context, region string) (*awsInternal.Client, error) {
-		return &awsInternal.Client{
-			AppConfig: mockClient,
-		}, nil
+		return awsInternal.NewTestClient(mockClient), nil
 	})
 
 	resources := &awsInternal.ResolvedResources{
@@ -408,7 +400,7 @@ func TestGetDeploymentByIDSuccess(t *testing.T) {
 
 	deployment, err := executor.getDeploymentByID(
 		context.Background(),
-		&awsInternal.Client{AppConfig: mockClient},
+		awsInternal.NewTestClient(mockClient),
 		resources,
 		"1",
 	)
@@ -472,9 +464,7 @@ func TestGetLatestDeploymentSuccess(t *testing.T) {
 
 	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, func(ctx context.Context, region string) (*awsInternal.Client, error) {
-		return &awsInternal.Client{
-			AppConfig: mockClient,
-		}, nil
+		return awsInternal.NewTestClient(mockClient), nil
 	})
 
 	resources := &awsInternal.ResolvedResources{
@@ -488,7 +478,7 @@ func TestGetLatestDeploymentSuccess(t *testing.T) {
 
 	deployment, err := executor.getLatestDeployment(
 		context.Background(),
-		&awsInternal.Client{AppConfig: mockClient},
+		awsInternal.NewTestClient(mockClient),
 		resources,
 	)
 	if err != nil {
@@ -603,9 +593,7 @@ region: us-east-1
 
 	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, func(ctx context.Context, region string) (*awsInternal.Client, error) {
-		return &awsInternal.Client{
-			AppConfig: mockClient,
-		}, nil
+		return awsInternal.NewTestClient(mockClient), nil
 	})
 
 	opts := &Options{
@@ -713,9 +701,7 @@ region: us-east-1
 
 	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, func(ctx context.Context, region string) (*awsInternal.Client, error) {
-		return &awsInternal.Client{
-			AppConfig: mockClient,
-		}, nil
+		return awsInternal.NewTestClient(mockClient), nil
 	})
 
 	opts := &Options{
@@ -741,9 +727,7 @@ func TestGetDeploymentByIDGetDetailsError(t *testing.T) {
 
 	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, func(ctx context.Context, region string) (*awsInternal.Client, error) {
-		return &awsInternal.Client{
-			AppConfig: mockClient,
-		}, nil
+		return awsInternal.NewTestClient(mockClient), nil
 	})
 
 	resources := &awsInternal.ResolvedResources{
@@ -757,7 +741,7 @@ func TestGetDeploymentByIDGetDetailsError(t *testing.T) {
 
 	_, err := executor.getDeploymentByID(
 		context.Background(),
-		&awsInternal.Client{AppConfig: mockClient},
+		awsInternal.NewTestClient(mockClient),
 		resources,
 		"1",
 	)
@@ -776,9 +760,7 @@ func TestGetLatestDeploymentListError(t *testing.T) {
 
 	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, func(ctx context.Context, region string) (*awsInternal.Client, error) {
-		return &awsInternal.Client{
-			AppConfig: mockClient,
-		}, nil
+		return awsInternal.NewTestClient(mockClient), nil
 	})
 
 	resources := &awsInternal.ResolvedResources{
@@ -792,7 +774,7 @@ func TestGetLatestDeploymentListError(t *testing.T) {
 
 	_, err := executor.getLatestDeployment(
 		context.Background(),
-		&awsInternal.Client{AppConfig: mockClient},
+		awsInternal.NewTestClient(mockClient),
 		resources,
 	)
 
@@ -834,9 +816,7 @@ func TestGetLatestDeploymentNoMatchingProfile(t *testing.T) {
 
 	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, func(ctx context.Context, region string) (*awsInternal.Client, error) {
-		return &awsInternal.Client{
-			AppConfig: mockClient,
-		}, nil
+		return awsInternal.NewTestClient(mockClient), nil
 	})
 
 	resources := &awsInternal.ResolvedResources{
@@ -850,7 +830,7 @@ func TestGetLatestDeploymentNoMatchingProfile(t *testing.T) {
 
 	deployment, err := executor.getLatestDeployment(
 		context.Background(),
-		&awsInternal.Client{AppConfig: mockClient},
+		awsInternal.NewTestClient(mockClient),
 		resources,
 	)
 	if err != nil {
