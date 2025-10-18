@@ -12,18 +12,13 @@ import (
 
 // CheckOngoingDeployment checks if there is an ongoing deployment
 func (c *Client) CheckOngoingDeployment(ctx context.Context, applicationID, environmentID string) (bool, *types.DeploymentSummary, error) {
-	input := &appconfig.ListDeploymentsInput{
-		ApplicationId: aws.String(applicationID),
-		EnvironmentId: aws.String(environmentID),
-	}
-
-	output, err := c.AppConfig.ListDeployments(ctx, input)
+	deployments, err := c.ListAllDeployments(ctx, applicationID, environmentID)
 	if err != nil {
 		return false, nil, wrapAWSError(err, "failed to list deployments")
 	}
 
 	// Check for ongoing deployments (DEPLOYING or BAKING state)
-	for _, deployment := range output.Items {
+	for _, deployment := range deployments {
 		if deployment.State == types.DeploymentStateDeploying ||
 			deployment.State == types.DeploymentStateBaking {
 			return true, &deployment, nil
@@ -245,12 +240,7 @@ func GetLatestDeploymentIncludingRollback(ctx context.Context, client *Client, a
 
 // getLatestDeploymentInternal is the internal implementation for retrieving the latest deployment
 func getLatestDeploymentInternal(ctx context.Context, client *Client, applicationID, environmentID, profileID string, skipRolledBack bool) (*DeploymentInfo, error) {
-	input := &appconfig.ListDeploymentsInput{
-		ApplicationId: aws.String(applicationID),
-		EnvironmentId: aws.String(environmentID),
-	}
-
-	output, err := client.AppConfig.ListDeployments(ctx, input)
+	deployments, err := client.ListAllDeployments(ctx, applicationID, environmentID)
 	if err != nil {
 		return nil, wrapAWSError(err, "failed to list deployments")
 	}
@@ -258,8 +248,8 @@ func getLatestDeploymentInternal(ctx context.Context, client *Client, applicatio
 	// Find the latest deployment for this configuration profile
 	// We need to get full deployment details to access ConfigurationProfileId
 	var latestDeployment *DeploymentInfo
-	for i := range output.Items {
-		summary := &output.Items[i]
+	for i := range deployments {
+		summary := &deployments[i]
 
 		// Get full deployment details
 		getInput := &appconfig.GetDeploymentInput{

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/aws/aws-sdk-go-v2/service/appconfig"
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
 )
 
@@ -39,13 +38,13 @@ func (l *Lister) ListResources(ctx context.Context) (*ResourcesTree, error) {
 	tree.DeploymentStrategies = strategies
 
 	// List applications
-	appsOutput, err := l.client.AppConfig.ListApplications(ctx, &appconfig.ListApplicationsInput{})
+	applications, err := l.client.ListAllApplications(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list applications: %w", err)
 	}
 
 	// Process each application
-	for _, appSummary := range appsOutput.Items {
+	for _, appSummary := range applications {
 		if appSummary.Id == nil || appSummary.Name == nil {
 			continue
 		}
@@ -84,15 +83,13 @@ func (l *Lister) ListResources(ctx context.Context) (*ResourcesTree, error) {
 
 // listProfiles fetches all configuration profiles for an application
 func (l *Lister) listProfiles(ctx context.Context, appID string) ([]ConfigurationProfile, error) {
-	output, err := l.client.AppConfig.ListConfigurationProfiles(ctx, &appconfig.ListConfigurationProfilesInput{
-		ApplicationId: &appID,
-	})
+	items, err := l.client.ListAllConfigurationProfiles(ctx, appID)
 	if err != nil {
 		return nil, err
 	}
 
-	profiles := make([]ConfigurationProfile, 0, len(output.Items))
-	for _, item := range output.Items {
+	profiles := make([]ConfigurationProfile, 0, len(items))
+	for _, item := range items {
 		if item.Id != nil && item.Name != nil {
 			profiles = append(profiles, ConfigurationProfile{
 				Name: *item.Name,
@@ -111,15 +108,13 @@ func (l *Lister) listProfiles(ctx context.Context, appID string) ([]Configuratio
 
 // listEnvironments fetches all environments for an application
 func (l *Lister) listEnvironments(ctx context.Context, appID string) ([]Environment, error) {
-	output, err := l.client.AppConfig.ListEnvironments(ctx, &appconfig.ListEnvironmentsInput{
-		ApplicationId: &appID,
-	})
+	items, err := l.client.ListAllEnvironments(ctx, appID)
 	if err != nil {
 		return nil, err
 	}
 
-	environments := make([]Environment, 0, len(output.Items))
-	for _, item := range output.Items {
+	environments := make([]Environment, 0, len(items))
+	for _, item := range items {
 		if item.Id != nil && item.Name != nil {
 			environments = append(environments, Environment{
 				Name: *item.Name,
@@ -138,13 +133,13 @@ func (l *Lister) listEnvironments(ctx context.Context, appID string) ([]Environm
 
 // listDeploymentStrategies fetches all deployment strategies
 func (l *Lister) listDeploymentStrategies(ctx context.Context) ([]DeploymentStrategy, error) {
-	output, err := l.client.AppConfig.ListDeploymentStrategies(ctx, &appconfig.ListDeploymentStrategiesInput{})
+	items, err := l.client.ListAllDeploymentStrategies(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	strategies := make([]DeploymentStrategy, 0, len(output.Items))
-	for _, item := range output.Items {
+	strategies := make([]DeploymentStrategy, 0, len(items))
+	for _, item := range items {
 		if item.Id != nil && item.Name != nil {
 			strategy := DeploymentStrategy{
 				Name: *item.Name,

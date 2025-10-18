@@ -105,7 +105,9 @@ func TestResolveApplication(t *testing.T) {
 			}
 
 			resolver := &Resolver{
-				client: mockClient,
+				client: &Client{
+					AppConfig: mockClient,
+				},
 			}
 
 			ctx := context.Background()
@@ -159,7 +161,7 @@ func TestResolveApplicationPagination(t *testing.T) {
 			},
 		}
 
-		resolver := &Resolver{client: mockClient}
+		resolver := &Resolver{client: &Client{AppConfig: mockClient}}
 		ctx := context.Background()
 		appID, err := resolver.ResolveApplication(ctx, "target-app")
 		if err != nil {
@@ -288,7 +290,9 @@ func TestResolveConfigurationProfile(t *testing.T) {
 			}
 
 			resolver := &Resolver{
-				client: mockClient,
+				client: &Client{
+					AppConfig: mockClient,
+				},
 			}
 
 			ctx := context.Background()
@@ -353,7 +357,7 @@ func TestResolveConfigurationProfilePagination(t *testing.T) {
 			},
 		}
 
-		resolver := &Resolver{client: mockClient}
+		resolver := &Resolver{client: &Client{AppConfig: mockClient}}
 		ctx := context.Background()
 		profile, err := resolver.ResolveConfigurationProfile(ctx, "app-123", "target-profile")
 		if err != nil {
@@ -448,7 +452,9 @@ func TestResolveEnvironment(t *testing.T) {
 			}
 
 			resolver := &Resolver{
-				client: mockClient,
+				client: &Client{
+					AppConfig: mockClient,
+				},
 			}
 
 			ctx := context.Background()
@@ -502,7 +508,7 @@ func TestResolveEnvironmentPagination(t *testing.T) {
 			},
 		}
 
-		resolver := &Resolver{client: mockClient}
+		resolver := &Resolver{client: &Client{AppConfig: mockClient}}
 		ctx := context.Background()
 		envID, err := resolver.ResolveEnvironment(ctx, "app-123", "target-env")
 		if err != nil {
@@ -588,7 +594,9 @@ func TestResolveDeploymentStrategy(t *testing.T) {
 			}
 
 			resolver := &Resolver{
-				client: mockClient,
+				client: &Client{
+					AppConfig: mockClient,
+				},
 			}
 
 			ctx := context.Background()
@@ -642,7 +650,7 @@ func TestResolveDeploymentStrategyPagination(t *testing.T) {
 			},
 		}
 
-		resolver := &Resolver{client: mockClient}
+		resolver := &Resolver{client: &Client{AppConfig: mockClient}}
 		ctx := context.Background()
 		strategyID, err := resolver.ResolveDeploymentStrategy(ctx, "target-strategy")
 		if err != nil {
@@ -740,7 +748,9 @@ func TestResolveDeploymentStrategyIDToName(t *testing.T) {
 			}
 
 			resolver := &Resolver{
-				client: mockClient,
+				client: &Client{
+					AppConfig: mockClient,
+				},
 			}
 
 			ctx := context.Background()
@@ -794,7 +804,7 @@ func TestResolveDeploymentStrategyIDToNamePagination(t *testing.T) {
 			},
 		}
 
-		resolver := &Resolver{client: mockClient}
+		resolver := &Resolver{client: &Client{AppConfig: mockClient}}
 		ctx := context.Background()
 		strategyName, err := resolver.ResolveDeploymentStrategyIDToName(ctx, "target-id")
 		if err != nil {
@@ -940,7 +950,9 @@ func TestResolveAll(t *testing.T) {
 			}
 
 			resolver := &Resolver{
-				client: mockClient,
+				client: &Client{
+					AppConfig: mockClient,
+				},
 			}
 
 			ctx := context.Background()

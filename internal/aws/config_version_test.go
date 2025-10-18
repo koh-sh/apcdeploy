@@ -139,7 +139,9 @@ func TestGetLatestVersion(t *testing.T) {
 			}
 
 			fetcher := &ConfigVersionFetcher{
-				client: mockClient,
+				client: &Client{
+					AppConfig: mockClient,
+				},
 			}
 
 			ctx := context.Background()

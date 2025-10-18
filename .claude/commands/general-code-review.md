@@ -33,5 +33,9 @@ Please review with particular attention to the following aspects:
 - Is there proper separation of responsibilities between Cobra commands and executors? Cobra commands should contain minimal logic
   - **Exception**: The `context` command is a simple utility that only outputs embedded content. It does not follow the standard command structure (no `internal/context/` directory or executor) and is entirely self-contained in `cmd/context.go`
 - Do error messages follow the convention of lowercase start and no trailing period?
+- **AWS List API Usage**: Are AWS List operations using the centralized methods from `internal/aws/list.go`?
+  - Code should call `client.ListAllApplications()`, `client.ListAllConfigurationProfiles()`, etc.
+  - Direct SDK calls like `client.AppConfig.ListApplications()` should NOT be used (except within `list.go` itself)
+  - This ensures pagination is handled correctly and all resources are retrieved
 
 ultrathink

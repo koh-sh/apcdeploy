@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/aws/aws-sdk-go-v2/service/appconfig"
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/prompt"
 	"github.com/koh-sh/apcdeploy/internal/reporter"
@@ -86,14 +85,14 @@ func (s *InteractiveSelector) SelectApplication(ctx context.Context, client *aws
 	s.reporter.Progress("Fetching applications...")
 
 	// List applications
-	output, err := client.AppConfig.ListApplications(ctx, &appconfig.ListApplicationsInput{})
+	applications, err := client.ListAllApplications(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to list applications: %w", err)
 	}
 
 	// Extract and sort names
-	apps := make([]string, 0, len(output.Items))
-	for _, item := range output.Items {
+	apps := make([]string, 0, len(applications))
+	for _, item := range applications {
 		if item.Name != nil {
 			apps = append(apps, *item.Name)
 		}
@@ -123,16 +122,14 @@ func (s *InteractiveSelector) SelectConfigurationProfile(ctx context.Context, cl
 	s.reporter.Progress("Fetching configuration profiles...")
 
 	// List profiles
-	output, err := client.AppConfig.ListConfigurationProfiles(ctx, &appconfig.ListConfigurationProfilesInput{
-		ApplicationId: &appID,
-	})
+	configProfiles, err := client.ListAllConfigurationProfiles(ctx, appID)
 	if err != nil {
 		return "", fmt.Errorf("failed to list configuration profiles: %w", err)
 	}
 
 	// Extract and sort names
-	profiles := make([]string, 0, len(output.Items))
-	for _, item := range output.Items {
+	profiles := make([]string, 0, len(configProfiles))
+	for _, item := range configProfiles {
 		if item.Name != nil {
 			profiles = append(profiles, *item.Name)
 		}
@@ -162,16 +159,14 @@ func (s *InteractiveSelector) SelectEnvironment(ctx context.Context, client *aws
 	s.reporter.Progress("Fetching environments...")
 
 	// List environments
-	output, err := client.AppConfig.ListEnvironments(ctx, &appconfig.ListEnvironmentsInput{
-		ApplicationId: &appID,
-	})
+	environments, err := client.ListAllEnvironments(ctx, appID)
 	if err != nil {
 		return "", fmt.Errorf("failed to list environments: %w", err)
 	}
 
 	// Extract and sort names
-	envs := make([]string, 0, len(output.Items))
-	for _, item := range output.Items {
+	envs := make([]string, 0, len(environments))
+	for _, item := range environments {
 		if item.Name != nil {
 			envs = append(envs, *item.Name)
 		}
