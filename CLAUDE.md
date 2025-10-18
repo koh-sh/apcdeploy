@@ -115,9 +115,11 @@ Progress reporting interface used across all commands:
 
 Interactive prompt interface for user input:
 
-- `Prompter`: Interface with `Select()` method for interactive selection
+- `Prompter`: Interface with `Select()`, `Input()`, and `CheckTTY()` methods for interactive operations
 - `internal/prompt/huh.go`: Implementation using `huh` library for terminal UI
+- `internal/prompt/tty.go`: TTY detection utility that checks if stdin is a terminal
 - `internal/prompt/testing/mock.go`: Mock implementation for unit tests
+- TTY checking prevents interactive prompts from hanging in non-interactive environments (CI/CD, scripts)
 
 ### Key Workflows
 
@@ -141,24 +143,29 @@ Interactive prompt interface for user input:
 
 #### Initialization (init command)
 
-1. If flags are omitted, use interactive prompts to select:
+1. TTY check: If any flags are omitted (requiring interactive prompts), verify stdin is a terminal
+   - Returns `ErrNoTTY` with helpful message suggesting to provide all flags if not a TTY
+2. If flags are omitted, use interactive prompts to select:
    - AWS region (with account ID detection)
    - Application
    - Configuration profile
    - Environment
-2. Fetch existing AppConfig configuration from AWS
-3. Auto-detect ContentType from configuration profile
-4. Generate `apcdeploy.yml` with resolved settings
-5. Save data file with appropriate extension (`.json`, `.yaml`, `.txt`)
+3. Fetch existing AppConfig configuration from AWS
+4. Auto-detect ContentType from configuration profile
+5. Generate `apcdeploy.yml` with resolved settings
+6. Save data file with appropriate extension (`.json`, `.yaml`, `.txt`)
 
-Interactive mode uses `huh` library for terminal UI prompts.
+Interactive mode uses `huh` library for terminal UI prompts. TTY checking prevents the command from hanging in non-interactive environments (CI/CD pipelines, scripts).
 
 #### Get Flow (get command)
 
 1. Load local config (`apcdeploy.yml`)
 2. Resolve resource names to AWS IDs
-3. Fetch latest deployed configuration from AppConfig
-4. Output configuration to stdout (respects content type formatting)
+3. Check TTY availability (if confirmation prompt required)
+   - Returns `ErrNoTTY` with helpful message suggesting `--yes` flag if not a TTY
+4. Show confirmation prompt (unless `--yes` flag is used)
+5. Fetch latest deployed configuration from AppConfig
+6. Output configuration to stdout (respects content type formatting)
 
 ### Testing Patterns
 

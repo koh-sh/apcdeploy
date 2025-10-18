@@ -260,7 +260,7 @@ apcdeploy get -c apcdeploy.yml
 
 Options:
 
-- `-y, --yes`: Skip confirmation prompt (useful for scripts and automation)
+- `-y, --yes`: Skip confirmation prompt (for scripts and automation)
 
 ### context
 

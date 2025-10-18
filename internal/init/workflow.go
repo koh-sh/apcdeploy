@@ -22,6 +22,14 @@ type InitWorkflow struct {
 
 // NewInitWorkflow creates a new InitWorkflow
 func NewInitWorkflow(ctx context.Context, opts *Options, prompter prompt.Prompter, reporter reporter.ProgressReporter) (*InitWorkflow, error) {
+	// Check TTY availability if any interactive prompts will be needed
+	needsInteractive := opts.Region == "" || opts.Application == "" || opts.Profile == "" || opts.Environment == ""
+	if needsInteractive {
+		if err := prompter.CheckTTY(); err != nil {
+			return nil, fmt.Errorf("%w: please provide --region, --app, --profile, and --env flags", err)
+		}
+	}
+
 	// Step 1: Region selection (needed before creating AWS client)
 	selectedRegion, err := selectOrUseRegion(ctx, opts.Region, prompter, reporter)
 	if err != nil {
@@ -38,6 +46,7 @@ func NewInitWorkflow(ctx context.Context, opts *Options, prompter prompt.Prompte
 }
 
 // selectOrUseRegion returns the provided region or prompts user to select one
+// TTY availability is checked by the caller (NewInitWorkflow)
 func selectOrUseRegion(ctx context.Context, providedRegion string, prompter prompt.Prompter, reporter reporter.ProgressReporter) (string, error) {
 	// Return provided region if available
 	if providedRegion != "" {
@@ -70,6 +79,14 @@ func NewInitWorkflowWithClient(awsClient *awsInternal.Client, prompter prompt.Pr
 
 // Run executes the initialization workflow
 func (w *InitWorkflow) Run(ctx context.Context, opts *Options) error {
+	// Check TTY availability if any interactive prompts will be needed
+	needsInteractive := opts.Application == "" || opts.Profile == "" || opts.Environment == ""
+	if needsInteractive {
+		if err := w.prompter.CheckTTY(); err != nil {
+			return fmt.Errorf("%w: please provide --region, --app, --profile, and --env flags", err)
+		}
+	}
+
 	// Step 3: Application selection
 	selectedApp := opts.Application
 	if selectedApp == "" {
