@@ -8,70 +8,80 @@ import (
 )
 
 func TestNewTestClient(t *testing.T) {
-	mockClient := &mock.MockAppConfigClient{}
-	client := NewTestClient(mockClient)
+	t.Parallel()
 
-	if client == nil {
-		t.Fatal("NewTestClient() returned nil")
+	tests := []struct {
+		name                    string
+		createClient            func() *Client
+		expectedRegion          string
+		expectedPollingInterval time.Duration
+		checkAppConfig          bool
+		checkAppConfigData      bool
+	}{
+		{
+			name: "NewTestClient sets defaults",
+			createClient: func() *Client {
+				mockClient := &mock.MockAppConfigClient{}
+				return NewTestClient(mockClient)
+			},
+			expectedRegion:          "us-east-1",
+			expectedPollingInterval: 0, // NewTestClient does not set PollingInterval
+			checkAppConfig:          true,
+			checkAppConfigData:      false,
+		},
+		{
+			name: "NewTestClientWithData sets both clients",
+			createClient: func() *Client {
+				mockAppConfig := &mock.MockAppConfigClient{}
+				mockAppConfigData := &mock.MockAppConfigDataClient{}
+				return NewTestClientWithData(mockAppConfig, mockAppConfigData)
+			},
+			expectedRegion:          "us-east-1",
+			expectedPollingInterval: 0, // NewTestClientWithData does not set PollingInterval
+			checkAppConfig:          true,
+			checkAppConfigData:      true,
+		},
+		{
+			name: "NewTestClientFull sets custom values",
+			createClient: func() *Client {
+				mockAppConfig := &mock.MockAppConfigClient{}
+				mockAppConfigData := &mock.MockAppConfigDataClient{}
+				testRegion := "ap-northeast-1"
+				testInterval := 10 * time.Second
+				return NewTestClientFull(mockAppConfig, mockAppConfigData, testRegion, testInterval)
+			},
+			expectedRegion:          "ap-northeast-1",
+			expectedPollingInterval: 10 * time.Second,
+			checkAppConfig:          true,
+			checkAppConfigData:      true,
+		},
 	}
 
-	if client.appConfig != mockClient {
-		t.Error("NewTestClient() did not set appConfig correctly")
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	if client.Region != "us-east-1" {
-		t.Errorf("NewTestClient() Region = %s, want us-east-1", client.Region)
-	}
-}
+			client := tt.createClient()
 
-func TestNewTestClientWithData(t *testing.T) {
-	mockAppConfig := &mock.MockAppConfigClient{}
-	mockAppConfigData := &mock.MockAppConfigDataClient{}
+			if client == nil {
+				t.Fatal("client creation returned nil")
+			}
 
-	client := NewTestClientWithData(mockAppConfig, mockAppConfigData)
+			if tt.checkAppConfig && client.appConfig == nil {
+				t.Error("appConfig not set correctly")
+			}
 
-	if client == nil {
-		t.Fatal("NewTestClientWithData() returned nil")
-	}
+			if tt.checkAppConfigData && client.AppConfigData == nil {
+				t.Error("AppConfigData not set correctly")
+			}
 
-	if client.appConfig != mockAppConfig {
-		t.Error("NewTestClientWithData() did not set appConfig correctly")
-	}
+			if client.Region != tt.expectedRegion {
+				t.Errorf("Region = %s, want %s", client.Region, tt.expectedRegion)
+			}
 
-	if client.AppConfigData != mockAppConfigData {
-		t.Error("NewTestClientWithData() did not set AppConfigData correctly")
-	}
-
-	if client.Region != "us-east-1" {
-		t.Errorf("NewTestClientWithData() Region = %s, want us-east-1", client.Region)
-	}
-}
-
-func TestNewTestClientFull(t *testing.T) {
-	mockAppConfig := &mock.MockAppConfigClient{}
-	mockAppConfigData := &mock.MockAppConfigDataClient{}
-	testRegion := "ap-northeast-1"
-	testInterval := 10 * time.Second
-
-	client := NewTestClientFull(mockAppConfig, mockAppConfigData, testRegion, testInterval)
-
-	if client == nil {
-		t.Fatal("NewTestClientFull() returned nil")
-	}
-
-	if client.appConfig != mockAppConfig {
-		t.Error("NewTestClientFull() did not set appConfig correctly")
-	}
-
-	if client.AppConfigData != mockAppConfigData {
-		t.Error("NewTestClientFull() did not set AppConfigData correctly")
-	}
-
-	if client.Region != testRegion {
-		t.Errorf("NewTestClientFull() Region = %s, want %s", client.Region, testRegion)
-	}
-
-	if client.PollingInterval != testInterval {
-		t.Errorf("NewTestClientFull() PollingInterval = %v, want %v", client.PollingInterval, testInterval)
+			if client.PollingInterval != tt.expectedPollingInterval {
+				t.Errorf("PollingInterval = %v, want %v", client.PollingInterval, tt.expectedPollingInterval)
+			}
+		})
 	}
 }
