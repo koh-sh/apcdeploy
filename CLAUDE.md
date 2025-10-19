@@ -49,6 +49,7 @@ When implementing new features or fixing bugs, follow these absolute rules:
 ./apcdeploy run -c apcdeploy.yml --wait-deploy  # Wait for deploy phase only
 ./apcdeploy status -c apcdeploy.yml
 ./apcdeploy get -c apcdeploy.yml
+./apcdeploy pull -c apcdeploy.yml  # Pull latest deployed configuration to local data file
 ./apcdeploy context  # Output llms.md for AI assistants
 
 # Silent mode (suppress verbose output)
@@ -76,7 +77,7 @@ All commands follow the pattern: `cmd/<command>.go` → `internal/<command>/exec
 
 1. **cmd/**: Cobra command definitions and CLI flag parsing
    - `root.go`: Root command with global flags (`--config`, `--silent`)
-   - Each command file (`init.go`, `run.go`, `diff.go`, `status.go`, `get.go`, `ls_resources.go`) handles CLI concerns only
+   - Each command file (`init.go`, `run.go`, `diff.go`, `status.go`, `get.go`, `pull.go`, `ls_resources.go`) handles CLI concerns only
    - `context.go`: Simple command that outputs embedded `llms.md` content for AI assistants (no internal package)
    - `init.go`: Supports interactive mode for resource selection; all flags are optional
    - `ls_resources.go`: Lists AppConfig resources; does not require `apcdeploy.yml`; all flags are optional
@@ -199,6 +200,27 @@ Interactive mode uses `huh` library for terminal UI prompts. TTY checking preven
 4. Show confirmation prompt (unless `--yes` flag is used)
 5. Fetch latest deployed configuration from AppConfig
 6. Output configuration to stdout (respects content type formatting)
+
+#### Pull Flow (pull command)
+
+1. Load local config (`apcdeploy.yml`)
+2. Resolve resource names to AWS IDs (application, profile, environment)
+3. Get latest deployment for the configuration profile (`GetLatestDeployment`)
+   - Returns error if no deployment exists
+4. Get deployed configuration version (`GetHostedConfigurationVersion`)
+5. Compare local and remote content after normalization
+   - For FeatureFlags profiles: Removes `_updatedAt`/`_createdAt` metadata before comparison
+   - If no differences found, skip update and report "already up to date"
+6. Update local data file only if changes detected
+   - Automatically detects content type from the hosted configuration version
+   - Overwrites existing data file (force=true)
+
+Key characteristics:
+- **Idempotent**: Only updates file when changes exist; safe to run repeatedly
+- Does NOT use AppConfig Data API (no per-call charges)
+- Useful when configuration changes are made directly in AWS Console
+- Syncs local files with currently deployed state
+- Supports silent mode for script-friendly output
 
 #### Resource Listing Flow (ls-resources command)
 

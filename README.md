@@ -11,7 +11,7 @@ https://github.com/user-attachments/assets/392b7240-a406-40c0-9bc3-8f953d1b1d3f
 - **Resource Discovery**: List all AWS AppConfig resources (applications, profiles, environments) in a region
 - **Declarative Configuration**: Define your AppConfig resources in `apcdeploy.yml`
 - **Deployment Automation**: Deploy configuration changes with a single command
-- **Configuration Retrieval**: Fetch currently deployed configuration from AWS AppConfig
+- **Configuration Retrieval**: Fetch deployed configuration (`get`) or sync local files with deployed state (`pull`)
 - **Diff Previews**: See exactly what will change before deploying
 - **Status Monitoring**: Track deployment progress and completion
 - **Multiple Content Types**: Support for both Feature Flags and Freeform configuration profiles
@@ -286,6 +286,16 @@ apcdeploy get -c apcdeploy.yml
 Options:
 
 - `-y, --yes`: Skip confirmation prompt (for scripts and automation)
+
+### pull
+
+Pull the latest deployed configuration and update your local data file:
+
+```bash
+apcdeploy pull -c apcdeploy.yml
+```
+
+This command is useful when configuration changes are made directly in the AWS Console and you want to sync your local files with the deployed state.
 
 ### context
 
