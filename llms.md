@@ -14,6 +14,7 @@ This file provides guidelines for AI assistants when using the `apcdeploy` comma
 - Compare differences between local files and deployed configurations (`diff`)
 - Monitor deployment status (`status`)
 - Retrieve deployed configurations (`get`)
+- Sync local files with deployed configurations (`pull`)
 
 ### Important Constraints
 
@@ -107,6 +108,20 @@ apcdeploy run -c apcdeploy.yml
 
 # 5. Check status (as needed)
 apcdeploy status -c apcdeploy.yml
+```
+
+### Sync Flow (When Changes Made in AWS Console)
+
+```bash
+# 1. Pull latest deployed configuration to local file
+apcdeploy pull -c apcdeploy.yml
+
+# 2. Verify local file was updated
+# Human users: cat data.json
+# AI agents: Use Read tool to view the file
+
+# 3. Continue with normal workflow
+apcdeploy diff -c apcdeploy.yml  # Should show no differences
 ```
 
 ### Troubleshooting Flow
@@ -799,6 +814,93 @@ echo "$DEPLOYED_CONFIG" | jq '.features.new_feature'
 apcdeploy get -c apcdeploy.yml --yes
 ```
 
+### pull command
+
+Syncs local data file with the currently deployed configuration from AWS AppConfig.
+
+#### Usage
+
+```bash
+# Pull latest deployed configuration to local file
+apcdeploy pull -c apcdeploy.yml
+
+# Use in silent mode (for scripts)
+apcdeploy pull -c apcdeploy.yml --silent
+```
+
+#### Flags
+
+No command-specific flags. Uses global flags only (`-c, --config` and `-s, --silent`).
+
+#### Operation Details
+
+1. **Load configuration file**: Load `apcdeploy.yml` to determine data file path
+2. **Resolve resources**: Resolve application, profile, and environment names to AWS IDs
+3. **Get latest deployment**: Fetch the most recent deployment for the configuration profile
+   - Returns error if no deployment exists
+4. **Fetch deployed configuration**: Get the hosted configuration version from the deployment
+5. **Compare content**: Compare local and remote content after normalization
+   - For FeatureFlags profiles: Removes `_updatedAt` and `_createdAt` metadata before comparison
+   - If no differences found, skips update and reports "already up to date"
+6. **Update local file**: Only updates the data file if changes are detected
+   - Automatically detects content type from the hosted configuration version
+   - Overwrites existing data file with deployed content
+
+#### Key Characteristics
+
+- **No API charges**: Does NOT use AWS AppConfig Data API
+- **Idempotent**: Only updates file when changes exist; safe to run repeatedly
+- **Smart comparison**: Normalizes content and ignores FeatureFlags metadata fields
+- **Non-interactive**: No TTY required; works in all environments
+- **Safe**: Will not overwrite if local file already matches deployed state
+
+#### When to Use
+
+- Configuration changes were made directly in the AWS Console
+- You want to ensure local files match the deployed state
+- Setting up automation to keep local files synchronized
+- Working in version control workflows where local files should always match deployed state
+
+#### Notes
+
+- **AWS credentials required**: Required to fetch deployment and configuration
+- **No TTY required**: Can be used in non-interactive environments (CI/CD, scripts, AI agents)
+- **Requires existing deployment**: Returns error if no deployment has been made yet
+  - Error message: `no deployment found for this configuration profile: run 'apcdeploy run' to create the first deployment`
+- **Content-Type detection**: Automatically detects and respects content type from AWS
+- **Supports silent mode**: Use `--silent` flag to suppress verbose output
+- **Exit codes**: 0 on success, 1 on error
+
+#### Examples
+
+```bash
+# Pull latest deployed configuration
+apcdeploy pull -c apcdeploy.yml
+
+# Use in scripts with silent mode
+apcdeploy pull -c apcdeploy.yml --silent
+
+# Typical workflow: modify in AWS Console, then sync locally
+# 1. Make changes in AWS Console
+# 2. Pull changes to local file
+apcdeploy pull -c apcdeploy.yml
+# 3. Verify changes
+cat data.json
+# 4. Commit to version control
+git add data.json
+git commit -m "Sync with AWS Console changes"
+
+# AI agent workflow: ensure local file is up to date
+apcdeploy pull -c apcdeploy.yml
+# Then read the file to see current state
+# Human users: cat data.json
+# AI agents: Use Read tool to view the file
+
+# Check if pull updated the file (idempotency test)
+apcdeploy pull -c apcdeploy.yml  # First pull
+apcdeploy pull -c apcdeploy.yml  # Second pull - will report "already up to date"
+```
+
 ### context command
 
 Outputs context information for AI assistants.
@@ -1086,7 +1188,7 @@ To use `apcdeploy`, the following AWS AppConfig IAM permissions are required:
 }
 ```
 
-#### Deployment Permissions (run, diff, and status commands)
+#### Deployment Permissions (run, diff, status, and pull commands)
 
 ```json
 {

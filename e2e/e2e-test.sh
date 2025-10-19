@@ -20,7 +20,7 @@ function title() {
 
 cd "$WORKDIR"
 
-echo "Basic workflow: ls-resources -> init -> diff -> run -> status -> get -> update -> run"
+echo "Basic workflow: ls-resources -> init -> diff -> run -> status -> get -> pull -> update -> run"
 title "========== S1: Workflow =========="
 echo "Test ls-resources command"
 $APCDEPLOY ls-resources --region "$REGION" --silent | grep -q "$APP"
@@ -42,10 +42,14 @@ fi
 echo "Rest of tests use --silent for cleaner output"
 $APCDEPLOY run --wait-bake --silent
 $APCDEPLOY status --silent | grep -q "COMPLETE"
-$APCDEPLOY get --silent --yes | grep -q '"v":"1"'
+$APCDEPLOY get --silent --yes | jq -e '.v == "1"' > /dev/null
+echo "Test pull command: modify local file, then pull to restore deployed state"
+echo '{"v":"modified"}' > data.json
+$APCDEPLOY pull --silent
+jq -e '.v == "1"' data.json > /dev/null
 echo '{"v":"2"}' > data.json
 $APCDEPLOY run --wait-bake --silent
-$APCDEPLOY get --silent --yes | grep -q '"v":"2"'
+$APCDEPLOY get --silent --yes | jq -e '.v == "2"' > /dev/null
 
 echo "Support for different content types: FeatureFlags, YAML, text"
 title "========== S2: Content Types =========="

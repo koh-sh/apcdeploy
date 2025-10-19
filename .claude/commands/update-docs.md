@@ -21,6 +21,13 @@ Review recent source code updates or local git diffs in detail, and update the r
 - This is documentation for users of the apcdeploy command
 - Strive for simple and clear descriptions that allow users to use the tool smoothly
 - Do not add sections indiscriminately. Respect the existing format. If there is no appropriate place to add content within existing sections, first propose adding a new section and obtain permission before executing
+- **CRITICAL: When adding new command documentation, STRICTLY follow the existing format and length of other command sections**
+  - Read existing command sections first to understand the exact format
+  - Match the structure: command name, brief description, code example, optional note
+  - Keep descriptions concise (typically 1-2 sentences)
+  - DO NOT add extra subsections like "Key characteristics", "When to use", bullet lists, or detailed explanations
+  - DO NOT compare commands with each other (e.g., "Unlike X, this command...")
+  - If uncertain about the format, ask the user before writing
 
 ### CLAUDE.md
 
