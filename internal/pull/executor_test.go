@@ -182,8 +182,7 @@ region: us-east-1
 	expectedMessages := []string{
 		"Loading configuration",
 		"Resolving resources",
-		"Fetching latest deployment",
-		"Fetching deployed configuration",
+		"Fetching latest deployed configuration",
 		"Updating data file",
 	}
 

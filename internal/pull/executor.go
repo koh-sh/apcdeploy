@@ -5,11 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"strconv"
 	"strings"
 
-	awsSdk "github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/appconfig"
 	"github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/config"
 	"github.com/koh-sh/apcdeploy/internal/reporter"
@@ -71,53 +68,25 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 		resources.EnvironmentID,
 	))
 
-	// Step 4: Get latest deployment
-	e.reporter.Progress("Fetching latest deployment...")
-	deployment, err := aws.GetLatestDeployment(ctx, awsClient, resources.ApplicationID, resources.EnvironmentID, resources.Profile.ID)
+	// Step 4: Get latest deployed configuration
+	e.reporter.Progress("Fetching latest deployed configuration...")
+	deployedConfig, err := aws.GetLatestDeployedConfiguration(ctx, awsClient, resources.ApplicationID, resources.EnvironmentID, resources.Profile.ID)
 	if err != nil {
-		return fmt.Errorf("failed to get latest deployment: %w", err)
+		return fmt.Errorf("failed to get latest deployed configuration: %w", err)
 	}
 
 	// Handle case when no deployment exists
-	if deployment == nil {
+	if deployedConfig == nil {
 		return fmt.Errorf("%w: run 'apcdeploy run' to create the first deployment", ErrNoDeployment)
 	}
 
-	e.reporter.Success(fmt.Sprintf("Found deployment #%d (version %s)",
-		deployment.DeploymentNumber,
-		deployment.ConfigurationVersion,
+	e.reporter.Success(fmt.Sprintf("Found deployment #%d (version %d)",
+		deployedConfig.DeploymentNumber,
+		deployedConfig.VersionNumber,
 	))
 
-	// Step 5: Get deployed configuration
-	e.reporter.Progress("Fetching deployed configuration...")
-
-	// Parse version number
-	versionNum, err := strconv.ParseInt(deployment.ConfigurationVersion, 10, 32)
-	if err != nil {
-		return fmt.Errorf("invalid version number %s: %w", deployment.ConfigurationVersion, err)
-	}
-
-	// Get hosted configuration version with content type
-	versionInput := &appconfig.GetHostedConfigurationVersionInput{
-		ApplicationId:          awsSdk.String(resources.ApplicationID),
-		ConfigurationProfileId: awsSdk.String(resources.Profile.ID),
-		VersionNumber:          awsSdk.Int32(int32(versionNum)),
-	}
-
-	versionOutput, err := awsClient.GetHostedConfigurationVersion(ctx, versionInput)
-	if err != nil {
-		return fmt.Errorf("failed to get deployed configuration: %w", err)
-	}
-	e.reporter.Success("Deployed configuration retrieved")
-
-	// Step 6: Check for changes between local and remote
+	// Step 5: Check for changes between local and remote
 	e.reporter.Progress("Checking for changes...")
-
-	// Get content type from the version output
-	contentType := "application/json" // Default fallback
-	if versionOutput.ContentType != nil {
-		contentType = *versionOutput.ContentType
-	}
 
 	// Determine the full path to the data file
 	dataFilePath := cfg.DataFile
@@ -133,30 +102,30 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 		e.reporter.Warning(fmt.Sprintf("Could not read local data file: %v", err))
 	} else {
 		// Compare local and remote content after normalization
-		hasChanges, err := e.hasChanges(string(localData), string(versionOutput.Content), dataFilePath, resources.Profile.Type)
+		hasChanges, err := e.hasChanges(string(localData), string(deployedConfig.Content), dataFilePath, resources.Profile.Type)
 		if err != nil {
 			return fmt.Errorf("failed to check for changes: %w", err)
 		}
 
 		if !hasChanges {
 			e.reporter.Success("No changes detected - local data file is already up to date")
-			e.reporter.Success(fmt.Sprintf("Local file matches deployment #%d", deployment.DeploymentNumber))
+			e.reporter.Success(fmt.Sprintf("Local file matches deployment #%d", deployedConfig.DeploymentNumber))
 			return nil
 		}
 
 		e.reporter.Success("Changes detected")
 	}
 
-	// Step 7: Update data file
+	// Step 6: Update data file
 	e.reporter.Progress("Updating data file...")
 
 	// Write data file (force=true to overwrite existing file)
-	if err := config.WriteDataFile(versionOutput.Content, contentType, dataFilePath, resources.Profile.Type, true); err != nil {
+	if err := config.WriteDataFile(deployedConfig.Content, deployedConfig.ContentType, dataFilePath, resources.Profile.Type, true); err != nil {
 		return fmt.Errorf("failed to write data file: %w", err)
 	}
 
 	e.reporter.Success(fmt.Sprintf("Data file updated: %s", dataFilePath))
-	e.reporter.Success(fmt.Sprintf("Successfully pulled configuration from deployment #%d", deployment.DeploymentNumber))
+	e.reporter.Success(fmt.Sprintf("Successfully pulled configuration from deployment #%d", deployedConfig.DeploymentNumber))
 
 	return nil
 }

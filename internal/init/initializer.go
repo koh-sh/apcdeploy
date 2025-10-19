@@ -89,21 +89,30 @@ func (i *Initializer) resolveResources(ctx context.Context, opts *Options) (*Res
 	}, nil
 }
 
-// fetchConfigVersion fetches the latest configuration version
+// fetchConfigVersion fetches the latest deployed configuration version
 func (i *Initializer) fetchConfigVersion(ctx context.Context, result *Result) error {
-	i.reporter.Progress("Fetching latest configuration version...")
+	i.reporter.Progress("Fetching latest deployed configuration...")
 
-	versionFetcher := awsInternal.NewConfigVersionFetcher(i.awsClient)
-	versionInfo, err := versionFetcher.GetLatestVersion(ctx, result.AppID, result.ProfileID)
+	// Get latest deployed configuration
+	deployedConfig, err := awsInternal.GetLatestDeployedConfiguration(ctx, i.awsClient, result.AppID, result.EnvID, result.ProfileID)
 	if err != nil {
-		// If no version exists, we'll create config without data file
-		i.reporter.Warning("No configuration versions found - config file will be created without data")
-		result.VersionInfo = nil
+		return fmt.Errorf("failed to get latest deployed configuration: %w", err)
+	}
+
+	// If no deployment exists, we'll create config without data file
+	if deployedConfig == nil {
+		i.reporter.Warning("No deployment found - config file will be created without data")
+		result.DeployedConfig = nil
 		return nil
 	}
 
-	i.reporter.Success(fmt.Sprintf("Found version: %d (ContentType: %s)", versionInfo.VersionNumber, versionInfo.ContentType))
-	result.VersionInfo = versionInfo
+	i.reporter.Success(fmt.Sprintf("Found deployment #%d (version %d, ContentType: %s)",
+		deployedConfig.DeploymentNumber,
+		deployedConfig.VersionNumber,
+		deployedConfig.ContentType))
+
+	result.DeployedConfig = deployedConfig
+
 	return nil
 }
 
@@ -147,8 +156,8 @@ func (i *Initializer) determineDataFileName(opts *Options, result *Result) {
 	switch {
 	case opts.OutputData != "":
 		result.DataFile = opts.OutputData
-	case result.VersionInfo != nil:
-		result.DataFile = config.DetermineDataFileName(result.VersionInfo.ContentType)
+	case result.DeployedConfig != nil:
+		result.DataFile = config.DetermineDataFileName(result.DeployedConfig.ContentType)
 	default:
 		result.DataFile = "data.json" // Default if no version exists
 	}
@@ -166,12 +175,12 @@ func (i *Initializer) generateFiles(opts *Options, result *Result) error {
 
 	i.reporter.Success(fmt.Sprintf("Created: %s", result.ConfigFile))
 
-	// Write data file if version exists
-	if result.VersionInfo != nil {
+	// Write data file if deployed config exists
+	if result.DeployedConfig != nil {
 		dataFilePath := filepath.Join(filepath.Dir(result.ConfigFile), result.DataFile)
 		i.reporter.Progress(fmt.Sprintf("Writing configuration data: %s", dataFilePath))
 
-		if err := config.WriteDataFile(result.VersionInfo.Content, result.VersionInfo.ContentType, dataFilePath, result.ProfileType, opts.Force); err != nil {
+		if err := config.WriteDataFile(result.DeployedConfig.Content, result.DeployedConfig.ContentType, dataFilePath, result.ProfileType, opts.Force); err != nil {
 			return fmt.Errorf("failed to write data file: %w", err)
 		}
 

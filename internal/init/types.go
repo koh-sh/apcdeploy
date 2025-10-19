@@ -25,7 +25,7 @@ type Result struct {
 	ProfileType        string
 	EnvID              string
 	EnvName            string
-	VersionInfo        *awsInternal.ConfigVersionInfo
+	DeployedConfig     *awsInternal.DeployedConfigInfo
 	ConfigFile         string
 	DataFile           string
 	DeploymentStrategy string
