@@ -2,38 +2,86 @@ package cli
 
 import (
 	"testing"
+
+	"github.com/koh-sh/apcdeploy/internal/reporter"
 )
 
 func TestNewReporter(t *testing.T) {
+	t.Parallel()
+
 	reporter := NewReporter()
 	if reporter == nil {
 		t.Error("NewReporter() returned nil")
 	}
 }
 
-func TestReporter_Progress(t *testing.T) {
-	reporter := NewReporter()
+func TestReporter_Methods(t *testing.T) {
+	t.Parallel()
 
-	// Should not panic
-	reporter.Progress("test progress message")
-}
+	tests := []struct {
+		name    string
+		method  func(*Reporter, string)
+		message string
+	}{
+		{
+			name: "Progress should not panic",
+			method: func(r *Reporter, msg string) {
+				r.Progress(msg)
+			},
+			message: "test progress message",
+		},
+		{
+			name: "Success should not panic",
+			method: func(r *Reporter, msg string) {
+				r.Success(msg)
+			},
+			message: "test success message",
+		},
+		{
+			name: "Warning should not panic",
+			method: func(r *Reporter, msg string) {
+				r.Warning(msg)
+			},
+			message: "test warning message",
+		},
+		{
+			name: "Progress with empty message",
+			method: func(r *Reporter, msg string) {
+				r.Progress(msg)
+			},
+			message: "",
+		},
+		{
+			name: "Success with empty message",
+			method: func(r *Reporter, msg string) {
+				r.Success(msg)
+			},
+			message: "",
+		},
+		{
+			name: "Warning with empty message",
+			method: func(r *Reporter, msg string) {
+				r.Warning(msg)
+			},
+			message: "",
+		},
+	}
 
-func TestReporter_Success(t *testing.T) {
-	reporter := NewReporter()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	// Should not panic
-	reporter.Success("test success message")
-}
-
-func TestReporter_Warning(t *testing.T) {
-	reporter := NewReporter()
-
-	// Should not panic
-	reporter.Warning("test warning message")
+			r := NewReporter()
+			// Should not panic when called
+			tt.method(r, tt.message)
+		})
+	}
 }
 
 func TestReporter_ImplementsInterface(t *testing.T) {
+	t.Parallel()
+
 	// This test verifies that Reporter implements the ProgressReporter interface
 	// The compilation will fail if it doesn't implement the interface
-	_ = (*Reporter)(nil)
+	var _ reporter.ProgressReporter = (*Reporter)(nil)
 }

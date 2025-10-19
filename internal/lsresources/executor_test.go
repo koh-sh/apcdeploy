@@ -29,7 +29,62 @@ func TestNewExecutor(t *testing.T) {
 	}
 }
 
-func TestExecutor_Execute(t *testing.T) {
+func TestExecutor_ExecuteUsesStdout(t *testing.T) {
+	t.Parallel()
+
+	// Setup mock AWS client
+	mockAppConfig := &awsMock.MockAppConfigClient{}
+	mockAppConfig.ListDeploymentStrategiesFunc = func(ctx context.Context, params *appconfig.ListDeploymentStrategiesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentStrategiesOutput, error) {
+		return &appconfig.ListDeploymentStrategiesOutput{
+			Items: []appconfigTypes.DeploymentStrategy{},
+		}, nil
+	}
+	mockAppConfig.ListApplicationsFunc = func(ctx context.Context, params *appconfig.ListApplicationsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListApplicationsOutput, error) {
+		return &appconfig.ListApplicationsOutput{
+			Items: []appconfigTypes.Application{
+				{Name: aws.String("test-app"), Id: aws.String("app-id-1")},
+			},
+		}, nil
+	}
+	mockAppConfig.ListConfigurationProfilesFunc = func(ctx context.Context, params *appconfig.ListConfigurationProfilesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListConfigurationProfilesOutput, error) {
+		return &appconfig.ListConfigurationProfilesOutput{
+			Items: []appconfigTypes.ConfigurationProfileSummary{},
+		}, nil
+	}
+	mockAppConfig.ListEnvironmentsFunc = func(ctx context.Context, params *appconfig.ListEnvironmentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListEnvironmentsOutput, error) {
+		return &appconfig.ListEnvironmentsOutput{
+			Items: []appconfigTypes.Environment{},
+		}, nil
+	}
+
+	// Create factory function that returns our mock client
+	factory := func(ctx context.Context, region string) (*awsInternal.Client, error) {
+		client := awsInternal.NewTestClient(mockAppConfig)
+		client.Region = "us-east-1"
+		return client, nil
+	}
+
+	// Setup reporter
+	mockReporter := &reporterTesting.MockReporter{}
+
+	// Create executor with factory
+	executor := NewExecutorWithFactory(mockReporter, factory)
+
+	opts := &Options{
+		Region: "us-east-1",
+		JSON:   true,
+		Silent: false,
+	}
+
+	// Execute should use os.Stdout and succeed without error
+	// We can't easily capture os.Stdout in a test, but we can verify no error occurs
+	err := executor.Execute(context.Background(), opts)
+	if err != nil {
+		t.Errorf("Execute() error = %v, want nil", err)
+	}
+}
+
+func TestExecutor_ExecuteWithWriter(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
