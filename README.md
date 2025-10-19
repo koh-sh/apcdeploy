@@ -12,6 +12,7 @@ https://github.com/user-attachments/assets/392b7240-a406-40c0-9bc3-8f953d1b1d3f
 - **Declarative Configuration**: Define your AppConfig resources in `apcdeploy.yml`
 - **Deployment Automation**: Deploy configuration changes with a single command
 - **Configuration Retrieval**: Fetch deployed configuration (`get`) or sync local files with deployed state (`pull`)
+- **Deployment Rollback**: Stop ongoing deployments with a single command
 - **Diff Previews**: See exactly what will change before deploying
 - **Status Monitoring**: Track deployment progress and completion
 - **Multiple Content Types**: Support for both Feature Flags and Freeform configuration profiles
@@ -296,6 +297,22 @@ apcdeploy pull -c apcdeploy.yml
 ```
 
 This command is useful when configuration changes are made directly in the AWS Console and you want to sync your local files with the deployed state.
+
+### rollback
+
+Stop an ongoing deployment:
+
+```bash
+apcdeploy rollback -c apcdeploy.yml
+```
+
+This command stops an in-progress deployment (DEPLOYING or BAKING state) by calling the AWS AppConfig StopDeployment API. It automatically detects the current ongoing deployment and stops it.
+
+**Note:** This only stops deployments currently in progress. It does not revert previously completed deployments.
+
+Options:
+
+- `-y, --yes`: Skip confirmation prompt (for scripts and automation)
 
 ### context
 

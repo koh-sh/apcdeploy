@@ -50,6 +50,8 @@ When implementing new features or fixing bugs, follow these absolute rules:
 ./apcdeploy status -c apcdeploy.yml
 ./apcdeploy get -c apcdeploy.yml
 ./apcdeploy pull -c apcdeploy.yml  # Pull latest deployed configuration to local data file
+./apcdeploy rollback -c apcdeploy.yml  # Stop ongoing deployment (rollback)
+./apcdeploy rollback -c apcdeploy.yml --yes  # Skip confirmation
 ./apcdeploy context  # Output llms.md for AI assistants
 
 # Silent mode (suppress verbose output)
@@ -77,10 +79,11 @@ All commands follow the pattern: `cmd/<command>.go` → `internal/<command>/exec
 
 1. **cmd/**: Cobra command definitions and CLI flag parsing
    - `root.go`: Root command with global flags (`--config`, `--silent`)
-   - Each command file (`init.go`, `run.go`, `diff.go`, `status.go`, `get.go`, `pull.go`, `ls_resources.go`) handles CLI concerns only
+   - Each command file (`init.go`, `run.go`, `diff.go`, `status.go`, `get.go`, `pull.go`, `rollback.go`, `ls_resources.go`) handles CLI concerns only
    - `context.go`: Simple command that outputs embedded `llms.md` content for AI assistants (no internal package)
    - `init.go`: Supports interactive mode for resource selection; all flags are optional
    - `ls_resources.go`: Lists AppConfig resources; does not require `apcdeploy.yml`; all flags are optional
+   - `rollback.go`: Stops an ongoing deployment; supports confirmation prompt
 
 2. **internal/\<command\>/**: Business logic for each command
    - `executor.go`: Main execution logic using Factory pattern for testability
@@ -98,7 +101,7 @@ AWS AppConfig client wrapper with:
 - `AppConfigAPI`: Interface for AppConfig operations (enables mocking in tests)
 - `client_list_paginated.go`: **Centralized list operations with pagination handling** - All AWS List APIs should use these methods
 - `resolver.go`: Resolves resource names (application, profile, environment) to AWS IDs
-- `deployment.go`: Deployment creation and monitoring logic
+- `deployment.go`: Deployment creation, monitoring, and rollback logic (includes `StopDeployment` method)
 - `config_fetcher.go`: Provides `GetLatestDeployedConfiguration` function to retrieve deployed configuration from latest deployment
 - Version info is injected at build time via `main.go` variables
 
@@ -248,6 +251,29 @@ Key characteristics:
 - Supports silent mode for script-friendly output
 - Deployment strategies fetched but hidden by default (use `--show-strategies` to display)
 - All resources sorted alphabetically for consistent output
+
+#### Rollback Flow (rollback command)
+
+1. Load local config (`apcdeploy.yml`)
+2. Resolve resource names to AWS IDs (application, profile, environment)
+3. Find ongoing deployment:
+   - Automatically detects the current ongoing deployment (DEPLOYING or BAKING state)
+   - Returns `ErrNoOngoingDeployment` if no ongoing deployment exists
+4. Get deployment details for confirmation display
+5. Prompt for confirmation (unless `--yes` flag is used):
+   - Check TTY availability before interactive prompt
+   - Returns `ErrNoTTY` with helpful message suggesting `--yes` flag if not a TTY
+   - Display deployment status and ask for confirmation
+   - Returns `ErrUserDeclined` if user declines
+6. Stop deployment using AWS AppConfig StopDeployment API
+7. Report success
+
+Key characteristics:
+- **Does NOT support AllowRevert**: Only stops in-progress deployments
+- Maintains local files as source of truth (no AWS version history dependency)
+- Automatically detects and stops the current ongoing deployment
+- Requires confirmation by default for safety
+- Supports silent mode for script-friendly output
 
 ### Testing Patterns
 

@@ -34,6 +34,9 @@ type AppConfigSDKAPI interface {
 	// Create/Start methods (used by convenience wrappers in deployment.go)
 	CreateHostedConfigurationVersion(ctx context.Context, params *appconfig.CreateHostedConfigurationVersionInput, optFns ...func(*appconfig.Options)) (*appconfig.CreateHostedConfigurationVersionOutput, error)
 	StartDeployment(ctx context.Context, params *appconfig.StartDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.StartDeploymentOutput, error)
+
+	// Stop methods (used by convenience wrappers in deployment.go)
+	StopDeployment(ctx context.Context, params *appconfig.StopDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.StopDeploymentOutput, error)
 }
 
 // AppConfigAPI defines the interface for external code that needs AppConfig operations.
