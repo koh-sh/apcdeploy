@@ -99,6 +99,7 @@ AWS AppConfig client wrapper with:
 - `client_list_paginated.go`: **Centralized list operations with pagination handling** - All AWS List APIs should use these methods
 - `resolver.go`: Resolves resource names (application, profile, environment) to AWS IDs
 - `deployment.go`: Deployment creation and monitoring logic
+- `config_fetcher.go`: Provides `GetLatestDeployedConfiguration` function to retrieve deployed configuration from latest deployment
 - Version info is injected at build time via `main.go` variables
 
 **IMPORTANT - AWS List API Usage:**
@@ -184,8 +185,11 @@ Resource listing functionality for discovering AppConfig resources:
    - Application
    - Configuration profile
    - Environment
-3. Fetch existing AppConfig configuration from AWS
-4. Auto-detect ContentType from configuration profile
+3. Fetch latest deployed configuration from AWS using `GetLatestDeployedConfiguration`
+   - Gets the latest deployment for the selected profile/environment
+   - Retrieves the configuration content from that deployment
+   - If no deployment exists, creates config file without data file
+4. Auto-detect ContentType from the hosted configuration version
 5. Generate `apcdeploy.yml` with resolved settings
 6. Save data file with appropriate extension (`.json`, `.yaml`, `.txt`)
 
@@ -205,13 +209,14 @@ Interactive mode uses `huh` library for terminal UI prompts. TTY checking preven
 
 1. Load local config (`apcdeploy.yml`)
 2. Resolve resource names to AWS IDs (application, profile, environment)
-3. Get latest deployment for the configuration profile (`GetLatestDeployment`)
+3. Get latest deployed configuration using `GetLatestDeployedConfiguration`
+   - Fetches the latest deployment for the configuration profile
+   - Retrieves configuration content, content type, and deployment metadata
    - Returns error if no deployment exists
-4. Get deployed configuration version (`GetHostedConfigurationVersion`)
-5. Compare local and remote content after normalization
+4. Compare local and remote content after normalization
    - For FeatureFlags profiles: Removes `_updatedAt`/`_createdAt` metadata before comparison
    - If no differences found, skip update and report "already up to date"
-6. Update local data file only if changes detected
+5. Update local data file only if changes detected
    - Automatically detects content type from the hosted configuration version
    - Overwrites existing data file (force=true)
 

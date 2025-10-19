@@ -138,15 +138,30 @@ func TestInitializer_FetchConfigVersion(t *testing.T) {
 		validate    func(*testing.T, *Result, *reportertest.MockReporter)
 	}{
 		{
-			name: "version found",
+			name: "deployment found",
 			mockSetup: func(m *mock.MockAppConfigClient) {
-				m.ListHostedConfigurationVersionsFunc = func(ctx context.Context, params *appconfig.ListHostedConfigurationVersionsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListHostedConfigurationVersionsOutput, error) {
-					return &appconfig.ListHostedConfigurationVersionsOutput{
-						Items: []types.HostedConfigurationVersionSummary{
-							{VersionNumber: 1, ContentType: aws.String("application/json")},
+				// Mock ListDeployments
+				m.ListDeploymentsFunc = func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
+					return &appconfig.ListDeploymentsOutput{
+						Items: []types.DeploymentSummary{
+							{
+								DeploymentNumber:     1,
+								ConfigurationVersion: aws.String("1"),
+								State:                types.DeploymentStateComplete,
+							},
 						},
 					}, nil
 				}
+				// Mock GetDeployment
+				m.GetDeploymentFunc = func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
+					return &appconfig.GetDeploymentOutput{
+						DeploymentNumber:       1,
+						ConfigurationProfileId: aws.String("prof-456"),
+						ConfigurationVersion:   aws.String("1"),
+						State:                  types.DeploymentStateComplete,
+					}, nil
+				}
+				// Mock GetHostedConfigurationVersion
 				m.GetHostedConfigurationVersionFunc = func(ctx context.Context, params *appconfig.GetHostedConfigurationVersionInput, optFns ...func(*appconfig.Options)) (*appconfig.GetHostedConfigurationVersionOutput, error) {
 					return &appconfig.GetHostedConfigurationVersionOutput{
 						Content:     []byte(`{"key":"value"}`),
@@ -156,25 +171,28 @@ func TestInitializer_FetchConfigVersion(t *testing.T) {
 			},
 			wantWarning: false,
 			validate: func(t *testing.T, result *Result, reporter *reportertest.MockReporter) {
-				if result.VersionInfo == nil {
-					t.Error("expected VersionInfo to be set")
+				if result.DeployedConfig == nil {
+					t.Error("expected DeployedConfig to be set")
 				}
-				if result.VersionInfo != nil && result.VersionInfo.VersionNumber != 1 {
-					t.Errorf("expected version number 1, got %d", result.VersionInfo.VersionNumber)
+				if result.DeployedConfig != nil && result.DeployedConfig.VersionNumber != 1 {
+					t.Errorf("expected version number 1, got %d", result.DeployedConfig.VersionNumber)
 				}
 			},
 		},
 		{
-			name: "no versions found",
+			name: "no deployment found",
 			mockSetup: func(m *mock.MockAppConfigClient) {
-				m.ListHostedConfigurationVersionsFunc = func(ctx context.Context, params *appconfig.ListHostedConfigurationVersionsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListHostedConfigurationVersionsOutput, error) {
-					return nil, errors.New("no configuration versions found")
+				// Mock ListDeployments - return empty
+				m.ListDeploymentsFunc = func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
+					return &appconfig.ListDeploymentsOutput{
+						Items: []types.DeploymentSummary{},
+					}, nil
 				}
 			},
 			wantWarning: true,
 			validate: func(t *testing.T, result *Result, reporter *reportertest.MockReporter) {
-				if result.VersionInfo != nil {
-					t.Error("expected VersionInfo to be nil")
+				if result.DeployedConfig != nil {
+					t.Error("expected DeployedConfig to be nil")
 				}
 				hasWarning := false
 				for _, msg := range reporter.Messages {
@@ -202,6 +220,7 @@ func TestInitializer_FetchConfigVersion(t *testing.T) {
 			result := &Result{
 				AppID:     "app-123",
 				ProfileID: "prof-456",
+				EnvID:     "env-789",
 			}
 
 			err := initializer.fetchConfigVersion(context.Background(), result)
@@ -346,7 +365,7 @@ func TestInitializer_DetermineDataFileName(t *testing.T) {
 	tests := []struct {
 		name     string
 		opts     *Options
-		version  *awsInternal.ConfigVersionInfo
+		version  *awsInternal.DeployedConfigInfo
 		expected string
 	}{
 		{
@@ -360,7 +379,7 @@ func TestInitializer_DetermineDataFileName(t *testing.T) {
 		{
 			name: "determine from version content type",
 			opts: &Options{},
-			version: &awsInternal.ConfigVersionInfo{
+			version: &awsInternal.DeployedConfigInfo{
 				ContentType: "application/json",
 			},
 			expected: "data.json",
@@ -381,7 +400,7 @@ func TestInitializer_DetermineDataFileName(t *testing.T) {
 			initializer := New(awsClient, reporter)
 
 			result := &Result{
-				VersionInfo: tt.version,
+				DeployedConfig: tt.version,
 			}
 
 			initializer.determineDataFileName(tt.opts, result)
@@ -447,12 +466,27 @@ func TestInitializer_Run(t *testing.T) {
 					}, nil
 				}
 
-				// Mock ListHostedConfigurationVersions
-				m.ListHostedConfigurationVersionsFunc = func(ctx context.Context, params *appconfig.ListHostedConfigurationVersionsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListHostedConfigurationVersionsOutput, error) {
-					return &appconfig.ListHostedConfigurationVersionsOutput{
-						Items: []types.HostedConfigurationVersionSummary{
-							{VersionNumber: 1, ContentType: aws.String("application/json")},
+				// Mock ListDeployments - return a deployment
+				m.ListDeploymentsFunc = func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
+					return &appconfig.ListDeploymentsOutput{
+						Items: []types.DeploymentSummary{
+							{
+								DeploymentNumber:     1,
+								ConfigurationVersion: aws.String("1"),
+								State:                types.DeploymentStateComplete,
+							},
 						},
+					}, nil
+				}
+
+				// Mock GetDeployment
+				m.GetDeploymentFunc = func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
+					return &appconfig.GetDeploymentOutput{
+						DeploymentNumber:       1,
+						ConfigurationProfileId: aws.String("prof-456"),
+						ConfigurationVersion:   aws.String("1"),
+						DeploymentStrategyId:   aws.String("AppConfig.AllAtOnce"),
+						State:                  types.DeploymentStateComplete,
 					}, nil
 				}
 
@@ -464,14 +498,7 @@ func TestInitializer_Run(t *testing.T) {
 					}, nil
 				}
 
-				// Mock ListDeployments - return empty (no previous deployments)
-				m.ListDeploymentsFunc = func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
-					return &appconfig.ListDeploymentsOutput{
-						Items: []types.DeploymentSummary{},
-					}, nil
-				}
-
-				// Mock ListDeploymentStrategies - not needed but for completeness
+				// Mock ListDeploymentStrategies
 				m.ListDeploymentStrategiesFunc = func(ctx context.Context, params *appconfig.ListDeploymentStrategiesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentStrategiesOutput, error) {
 					return &appconfig.ListDeploymentStrategiesOutput{
 						Items: []types.DeploymentStrategy{},
@@ -551,10 +578,7 @@ func TestInitializer_Run(t *testing.T) {
 						},
 					}, nil
 				}
-				m.ListHostedConfigurationVersionsFunc = func(ctx context.Context, params *appconfig.ListHostedConfigurationVersionsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListHostedConfigurationVersionsOutput, error) {
-					return nil, errors.New("no versions")
-				}
-				// Mock ListDeployments - return empty
+				// Mock ListDeployments - return empty (no deployment)
 				m.ListDeploymentsFunc = func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
 					return &appconfig.ListDeploymentsOutput{
 						Items: []types.DeploymentSummary{},
@@ -616,11 +640,7 @@ func TestInitializer_Run(t *testing.T) {
 					}, nil
 				}
 
-				// Mock no versions
-				m.ListHostedConfigurationVersionsFunc = func(ctx context.Context, params *appconfig.ListHostedConfigurationVersionsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListHostedConfigurationVersionsOutput, error) {
-					return nil, errors.New("no configuration versions found")
-				}
-				// Mock ListDeployments - return empty
+				// Mock ListDeployments - return empty (no deployment)
 				m.ListDeploymentsFunc = func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
 					return &appconfig.ListDeploymentsOutput{
 						Items: []types.DeploymentSummary{},
@@ -636,8 +656,8 @@ func TestInitializer_Run(t *testing.T) {
 			},
 			wantErr: false,
 			validate: func(t *testing.T, result *Result, reporter *reportertest.MockReporter) {
-				if result.VersionInfo != nil {
-					t.Error("expected VersionInfo to be nil")
+				if result.DeployedConfig != nil {
+					t.Error("expected DeployedConfig to be nil")
 				}
 				hasWarning := false
 				for _, msg := range reporter.Messages {
@@ -647,7 +667,7 @@ func TestInitializer_Run(t *testing.T) {
 					}
 				}
 				if !hasWarning {
-					t.Error("expected warning message about no versions")
+					t.Error("expected warning message about no deployment")
 				}
 			},
 		},
@@ -706,7 +726,7 @@ func TestInitializer_GenerateFiles(t *testing.T) {
 				EnvName:     "test-env",
 				DataFile:    "data.json",
 				ConfigFile:  "apcdeploy.yml",
-				VersionInfo: &awsInternal.ConfigVersionInfo{
+				DeployedConfig: &awsInternal.DeployedConfigInfo{
 					VersionNumber: 1,
 					Content:       []byte(`{"key":"value"}`),
 					ContentType:   "application/json",
@@ -721,12 +741,12 @@ func TestInitializer_GenerateFiles(t *testing.T) {
 				ConfigFile: "apcdeploy.yml",
 			},
 			result: &Result{
-				AppName:     "test-app",
-				ProfileName: "test-profile",
-				EnvName:     "test-env",
-				DataFile:    "data.json",
-				ConfigFile:  "apcdeploy.yml",
-				VersionInfo: nil,
+				AppName:        "test-app",
+				ProfileName:    "test-profile",
+				EnvName:        "test-env",
+				DataFile:       "data.json",
+				ConfigFile:     "apcdeploy.yml",
+				DeployedConfig: nil,
 			},
 			wantErr:   false,
 			wantFiles: []string{"apcdeploy.yml"},
