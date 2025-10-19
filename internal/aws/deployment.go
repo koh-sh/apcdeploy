@@ -83,6 +83,26 @@ func (c *Client) StartDeployment(
 	return output.DeploymentNumber, nil
 }
 
+// StopDeployment stops an in-progress deployment
+func (c *Client) StopDeployment(
+	ctx context.Context,
+	applicationID, environmentID string,
+	deploymentNumber int32,
+) error {
+	input := &appconfig.StopDeploymentInput{
+		ApplicationId:    aws.String(applicationID),
+		EnvironmentId:    aws.String(environmentID),
+		DeploymentNumber: &deploymentNumber,
+	}
+
+	_, err := c.appConfig.StopDeployment(ctx, input)
+	if err != nil {
+		return wrapAWSError(err, "failed to stop deployment")
+	}
+
+	return nil
+}
+
 // extractRollbackReason extracts the rollback reason from deployment event log
 func extractRollbackReason(eventLog []types.DeploymentEvent) string {
 	// Look for rollback events in reverse order (most recent first)

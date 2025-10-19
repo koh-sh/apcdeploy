@@ -939,3 +939,68 @@ func TestWaitForDeploymentPhase_StopsAtBaking(t *testing.T) {
 		t.Errorf("Expected to stop at BAKING (2 calls), but made %d calls", callCount)
 	}
 }
+
+func TestStopDeployment(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		applicationID    string
+		environmentID    string
+		deploymentNumber int32
+		mockFunc         func(ctx context.Context, params *appconfig.StopDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.StopDeploymentOutput, error)
+		wantErr          bool
+		errContains      string
+	}{
+		{
+			name:             "successful stop deployment",
+			applicationID:    "app-123",
+			environmentID:    "env-123",
+			deploymentNumber: 1,
+			mockFunc: func(ctx context.Context, params *appconfig.StopDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.StopDeploymentOutput, error) {
+				return &appconfig.StopDeploymentOutput{}, nil
+			},
+			wantErr: false,
+		},
+		{
+			name:             "API error",
+			applicationID:    "app-123",
+			environmentID:    "env-123",
+			deploymentNumber: 1,
+			mockFunc: func(ctx context.Context, params *appconfig.StopDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.StopDeploymentOutput, error) {
+				return nil, errors.New("API error")
+			},
+			wantErr:     true,
+			errContains: "failed to stop deployment",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mockClient := &mock.MockAppConfigClient{
+				StopDeploymentFunc: tt.mockFunc,
+			}
+
+			client := &Client{appConfig: mockClient}
+			err := client.StopDeployment(
+				context.Background(),
+				tt.applicationID,
+				tt.environmentID,
+				tt.deploymentNumber,
+			)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("StopDeployment() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if tt.wantErr && err != nil && tt.errContains != "" {
+				if !strings.Contains(err.Error(), tt.errContains) {
+					t.Errorf("StopDeployment() error = %v, should contain %v", err, tt.errContains)
+				}
+			}
+		})
+	}
+}

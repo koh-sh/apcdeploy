@@ -102,6 +102,16 @@ if $APCDEPLOY diff --silent --exit-nonzero; then exit 1; fi
 $APCDEPLOY run --wait-bake --timeout 300 --silent
 $APCDEPLOY diff --silent --exit-nonzero
 
+echo "Rollback: stop ongoing deployment with slow strategy"
+title "========== S6: Rollback =========="
+$APCDEPLOY init --silent --app "$APP" --profile json-freeform --env dev --region "$REGION" --force
+use_slow_strategy
+echo '{"r":"1"}' > data.json
+$APCDEPLOY run --silent
+$APCDEPLOY rollback --silent --yes
+$APCDEPLOY status --silent | grep -q "ROLLED_BACK"
+if $APCDEPLOY rollback --silent --yes; then exit 1; fi
+
 echo "Error handling: non-existent resources (app/profile/env)"
 title "========== E1: Resource Errors =========="
 if $APCDEPLOY init --silent --app xxx --profile test --env dev --region "$REGION"; then exit 1; fi

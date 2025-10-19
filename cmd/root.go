@@ -39,6 +39,7 @@ It provides commands to initialize, deploy, diff, and check the status of config
 	rootCmd.AddCommand(StatusCommand())
 	rootCmd.AddCommand(GetCommand())
 	rootCmd.AddCommand(PullCommand())
+	rootCmd.AddCommand(RollbackCommand())
 	rootCmd.AddCommand(LsResourcesCommand())
 	rootCmd.AddCommand(ContextCommand())
 

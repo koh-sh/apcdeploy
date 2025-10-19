@@ -15,6 +15,7 @@ This file provides guidelines for AI assistants when using the `apcdeploy` comma
 - Monitor deployment status (`status`)
 - Retrieve deployed configurations (`get`)
 - Sync local files with deployed configurations (`pull`)
+- Stop ongoing deployments (`rollback`)
 
 ### Important Constraints
 
@@ -48,7 +49,12 @@ This file provides guidelines for AI assistants when using the `apcdeploy` comma
    - Without this flag, the command shows a confirmation prompt and will fail with TTY error
    - Error message: `interactive mode requires a TTY: use --yes to skip confirmation`
 
-3. Other commands (`run`, `diff`, `status`) do not require TTY and work in non-interactive environments
+3. **`rollback` command**: Stops ongoing deployments
+   - When necessary in non-interactive environments, use the `--yes` (or `-y`) flag to skip confirmation
+   - Without this flag, the command shows a confirmation prompt and will fail with TTY error
+   - Error message: `interactive mode requires a TTY: use --yes to skip confirmation`
+
+4. Other commands (`run`, `diff`, `status`, `pull`) do not require TTY and work in non-interactive environments
 
 ## Recommended Usage Flows
 
@@ -901,6 +907,180 @@ apcdeploy pull -c apcdeploy.yml  # First pull
 apcdeploy pull -c apcdeploy.yml  # Second pull - will report "already up to date"
 ```
 
+### rollback command
+
+Stops an ongoing deployment by calling the AWS AppConfig StopDeployment API.
+
+#### Usage
+
+```bash
+# Stop ongoing deployment with confirmation prompt
+apcdeploy rollback -c apcdeploy.yml
+
+# Skip confirmation (for scripts and automation)
+apcdeploy rollback -c apcdeploy.yml --yes
+
+# Use in silent mode
+apcdeploy rollback -c apcdeploy.yml --silent --yes
+```
+
+#### Flags
+
+- `-y, --yes`: Skip confirmation prompt (useful for scripts and automation)
+  - **For AI Assistants**: Use this flag when executing in non-interactive environments to avoid TTY errors
+
+#### Operation Details
+
+1. **Load configuration file**: Load `apcdeploy.yml`
+2. **Resolve resources**: Resolve application and environment names to AWS IDs
+3. **Find ongoing deployment**: Automatically detect the current ongoing deployment
+   - Only deployments in DEPLOYING or BAKING state can be stopped
+   - Returns `ErrNoOngoingDeployment` if no ongoing deployment exists
+4. **Prompt for confirmation** (unless `--yes` flag is used):
+   - Check TTY availability before interactive prompt
+   - Returns `ErrNoTTY` with helpful message suggesting `--yes` flag if not a TTY
+   - Display deployment details and ask for confirmation
+   - Returns `ErrUserDeclined` if user declines
+5. **Stop deployment**: Call AWS AppConfig StopDeployment API
+6. **Report success**: Confirm the deployment has been stopped
+
+#### Key Characteristics
+
+- **In-progress deployments only**: Only stops deployments in DEPLOYING or BAKING state
+- **No AllowRevert support**: Does NOT revert previously completed deployments
+- **Automatic detection**: Automatically finds the current ongoing deployment
+- **Safe by default**: Requires confirmation unless `--yes` flag is used
+- **Non-destructive**: Maintains local files as source of truth
+- **TTY checking**: Prevents hanging in non-interactive environments
+
+#### When to Use
+
+- A deployment is causing issues and needs to be stopped immediately
+- You deployed the wrong configuration and need to halt the rollout
+- Testing deployment workflows and need to stop test deployments
+- Automating deployment pipelines with rollback capabilities
+
+#### Post-Rollback Workflow
+
+**Important**: After rolling back a deployment, your local files and the deployed configuration will be out of sync. You must choose one of the following workflows to resolve this:
+
+**Option 1: Accept the rolled-back configuration (sync local with remote)**
+
+If you want to keep the configuration that was rolled back to (the previous version):
+
+```bash
+# 1. Stop the deployment
+apcdeploy rollback -c apcdeploy.yml --yes
+
+# 2. Pull the deployed configuration to sync local files
+apcdeploy pull -c apcdeploy.yml
+
+# 3. Verify local file was updated
+# Human users: cat data.json
+# AI agents: Use Read tool to view the file
+
+# 4. (Optional) Commit the synced state to version control
+git add data.json
+git commit -m "Sync with rolled-back configuration"
+```
+
+**Option 2: Fix and redeploy (update local and deploy again)**
+
+If you want to fix the problematic configuration and deploy the corrected version:
+
+```bash
+# 1. Stop the deployment
+apcdeploy rollback -c apcdeploy.yml --yes
+
+# 2. Fix the configuration in your local file
+# Human users: vim data.json
+# AI agents: Use Edit tool to modify the file
+
+# 3. Preview the changes
+apcdeploy diff -c apcdeploy.yml
+
+# 4. Deploy the fixed configuration
+apcdeploy run -c apcdeploy.yml
+
+# 5. Monitor the deployment
+apcdeploy status -c apcdeploy.yml
+```
+
+**Recommendation**: In most cases, Option 1 (pull to sync) is safer and faster. Use Option 2 only when you have identified and fixed the issue in the configuration.
+
+#### Important Notes
+
+**What rollback does:**
+- Stops an ongoing deployment (DEPLOYING or BAKING state)
+- The deployment state becomes ROLLED_BACK
+- The configuration reverts to the previous version automatically
+
+**What rollback does NOT do:**
+- Does NOT revert completed deployments (COMPLETE state)
+- Does NOT use AWS AppConfig's AllowRevert feature
+- Does NOT modify local files (local files remain your source of truth)
+
+**Alternative rollback strategy:**
+For reverting to a previous configuration after a deployment has completed, use Git-based rollback:
+
+```bash
+# Revert local files to previous version
+git revert HEAD
+# Or checkout specific commit
+git checkout <commit-hash> -- data.json
+
+# Deploy the reverted configuration
+apcdeploy run -c apcdeploy.yml
+```
+
+#### Notes
+
+- **AWS credentials required**: Required to stop deployment
+- **TTY checking**: When `--yes` flag is NOT used, checks for TTY availability before interactive prompt
+  - Error message if not a TTY: `interactive mode requires a TTY: use --yes to skip confirmation`
+- **No ongoing deployment**: Returns error if no deployment is currently in progress
+  - Error message: `no ongoing deployment found`
+- **Requires confirmation by default**: For safety, prompts for confirmation unless `--yes` is used
+- **Supports silent mode**: Use `--silent` flag to suppress verbose output
+- **Exit codes**: 0 on success, 1 on error or user decline
+- **Post-rollback action required**: After rollback, your local files will be out of sync with deployed configuration. You must either:
+  - Run `pull` to sync local files with the rolled-back state, OR
+  - Fix the local configuration and redeploy with `run`
+
+#### Examples
+
+```bash
+# Stop ongoing deployment with confirmation
+apcdeploy rollback -c apcdeploy.yml
+
+# Stop in automation (skip confirmation)
+apcdeploy rollback -c apcdeploy.yml --yes
+
+# Use in CI/CD pipeline
+apcdeploy rollback -c apcdeploy.yml --yes --silent
+
+# Error handling in scripts
+if apcdeploy rollback -c apcdeploy.yml --yes; then
+  echo "Deployment stopped successfully"
+else
+  echo "No ongoing deployment or rollback failed"
+fi
+
+# AI agent workflow: stop deployment without interactive prompt
+apcdeploy rollback -c apcdeploy.yml --yes
+
+# Complete workflow: rollback and sync local files
+apcdeploy rollback -c apcdeploy.yml --yes
+apcdeploy status -c apcdeploy.yml  # Should show ROLLED_BACK state
+apcdeploy pull -c apcdeploy.yml    # Sync local files with rolled-back state
+
+# Complete workflow: rollback, fix, and redeploy
+apcdeploy rollback -c apcdeploy.yml --yes
+# Edit data.json to fix the issue (use Edit tool for AI agents)
+apcdeploy diff -c apcdeploy.yml    # Preview the fix
+apcdeploy run -c apcdeploy.yml     # Deploy the fixed configuration
+```
+
 ### context command
 
 Outputs context information for AI assistants.
@@ -1188,7 +1368,7 @@ To use `apcdeploy`, the following AWS AppConfig IAM permissions are required:
 }
 ```
 
-#### Deployment Permissions (run, diff, status, and pull commands)
+#### Deployment Permissions (run, diff, status, pull, and rollback commands)
 
 ```json
 {
@@ -1198,7 +1378,8 @@ To use `apcdeploy`, the following AWS AppConfig IAM permissions are required:
     "appconfig:StartDeployment",
     "appconfig:GetDeployment",
     "appconfig:GetHostedConfigurationVersion",
-    "appconfig:ListDeployments"
+    "appconfig:ListDeployments",
+    "appconfig:StopDeployment"
   ],
   "Resource": "*"
 }
@@ -1239,7 +1420,13 @@ A: By default, it does not overwrite. Use the `-f, --force` flag to overwrite.
 
 ### Q2: Can I cancel a deployment in progress?
 
-A: You can interrupt the `apcdeploy` command itself, but the deployment on the AWS AppConfig side will continue. You need to stop the deployment from the AWS Console or AWS CLI.
+A: Yes, use the `rollback` command to stop an ongoing deployment:
+
+```bash
+apcdeploy rollback -c apcdeploy.yml --yes
+```
+
+This stops the deployment on the AWS AppConfig side. You can also stop deployments from the AWS Console or AWS CLI.
 
 ### Q3: Can I deploy to multiple environments simultaneously?
 
@@ -1251,7 +1438,33 @@ A: Yes, it supports both profile types. Content-Type is automatically detected.
 
 ### Q5: How do I perform a rollback?
 
-A: If you are managing configuration files with Git, you can rollback by reverting to a previous version and then executing `apcdeploy run`. Alternatively, you can rollback directly on the AppConfig side using the AWS Console/CLI.
+A: There are two rollback scenarios:
+
+**1. Stop an ongoing deployment (DEPLOYING or BAKING state):**
+
+Use the `rollback` command:
+
+```bash
+apcdeploy rollback -c apcdeploy.yml --yes
+```
+
+This stops the deployment and automatically reverts to the previous configuration.
+
+**2. Revert a completed deployment:**
+
+Use Git-based rollback by reverting to a previous version and then deploying:
+
+```bash
+# Revert local files to previous version
+git revert HEAD
+# Or checkout specific commit
+git checkout <commit-hash> -- data.json
+
+# Deploy the reverted configuration
+apcdeploy run -c apcdeploy.yml
+```
+
+Alternatively, you can revert directly on the AppConfig side using the AWS Console/CLI.
 
 ## Related Resources
 

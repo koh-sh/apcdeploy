@@ -30,6 +30,9 @@ type MockAppConfigClient struct {
 	// Start methods
 	StartDeploymentFunc func(ctx context.Context, params *appconfig.StartDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.StartDeploymentOutput, error)
 
+	// Stop methods
+	StopDeploymentFunc func(ctx context.Context, params *appconfig.StopDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.StopDeploymentOutput, error)
+
 	// Pagination-aware List methods
 	ListAllApplicationsFunc                func(ctx context.Context) ([]types.Application, error)
 	ListAllConfigurationProfilesFunc       func(ctx context.Context, appID string) ([]types.ConfigurationProfileSummary, error)
@@ -89,6 +92,12 @@ func (m *MockAppConfigClient) CreateHostedConfigurationVersion(ctx context.Conte
 
 func (m *MockAppConfigClient) StartDeployment(ctx context.Context, params *appconfig.StartDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.StartDeploymentOutput, error) {
 	return m.StartDeploymentFunc(ctx, params, optFns...)
+}
+
+// Stop methods
+
+func (m *MockAppConfigClient) StopDeployment(ctx context.Context, params *appconfig.StopDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.StopDeploymentOutput, error) {
+	return m.StopDeploymentFunc(ctx, params, optFns...)
 }
 
 // Pagination-aware List methods
