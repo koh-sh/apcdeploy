@@ -9,28 +9,39 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/appconfig"
 	appconfigTypes "github.com/aws/aws-sdk-go-v2/service/appconfig/types"
 	awsMock "github.com/koh-sh/apcdeploy/internal/aws/mock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestClient_ListApplications(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name      string
-		setupMock func(*awsMock.MockAppConfigClient)
-		wantErr   bool
+		name        string
+		setupMock   func(*awsMock.MockAppConfigClient)
+		checkResult func(*testing.T, *appconfig.ListApplicationsOutput, error)
 	}{
 		{
-			name: "successful list",
+			name: "successful list with data validation",
 			setupMock: func(m *awsMock.MockAppConfigClient) {
 				m.ListApplicationsFunc = func(ctx context.Context, params *appconfig.ListApplicationsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListApplicationsOutput, error) {
 					return &appconfig.ListApplicationsOutput{
 						Items: []appconfigTypes.Application{
 							{Name: aws.String("app1"), Id: aws.String("id1")},
+							{Name: aws.String("app2"), Id: aws.String("id2")},
 						},
 					}, nil
 				}
 			},
-			wantErr: false,
+			checkResult: func(t *testing.T, output *appconfig.ListApplicationsOutput, err error) {
+				require.NoError(t, err)
+				require.NotNil(t, output)
+				assert.Len(t, output.Items, 2)
+				assert.Equal(t, "app1", *output.Items[0].Name)
+				assert.Equal(t, "id1", *output.Items[0].Id)
+				assert.Equal(t, "app2", *output.Items[1].Name)
+				assert.Equal(t, "id2", *output.Items[1].Id)
+			},
 		},
 		{
 			name: "error from SDK",
@@ -39,7 +50,11 @@ func TestClient_ListApplications(t *testing.T) {
 					return nil, errors.New("API error")
 				}
 			},
-			wantErr: true,
+			checkResult: func(t *testing.T, output *appconfig.ListApplicationsOutput, err error) {
+				require.Error(t, err)
+				assert.EqualError(t, err, "API error")
+				assert.Nil(t, output)
+			},
 		},
 	}
 
@@ -52,11 +67,9 @@ func TestClient_ListApplications(t *testing.T) {
 
 			client := NewTestClient(mockClient)
 
-			_, err := client.ListApplications(context.Background(), &appconfig.ListApplicationsInput{})
+			output, err := client.ListApplications(context.Background(), &appconfig.ListApplicationsInput{})
 
-			if (err != nil) != tt.wantErr {
-				t.Errorf("ListApplications() error = %v, wantErr %v", err, tt.wantErr)
-			}
+			tt.checkResult(t, output, err)
 		})
 	}
 }
@@ -325,21 +338,30 @@ func TestClient_GetConfigurationProfile(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name      string
-		setupMock func(*awsMock.MockAppConfigClient)
-		wantErr   bool
+		name        string
+		setupMock   func(*awsMock.MockAppConfigClient)
+		checkResult func(*testing.T, *appconfig.GetConfigurationProfileOutput, error)
 	}{
 		{
-			name: "successful get",
+			name: "successful get with data validation",
 			setupMock: func(m *awsMock.MockAppConfigClient) {
 				m.GetConfigurationProfileFunc = func(ctx context.Context, params *appconfig.GetConfigurationProfileInput, optFns ...func(*appconfig.Options)) (*appconfig.GetConfigurationProfileOutput, error) {
 					return &appconfig.GetConfigurationProfileOutput{
-						Name: aws.String("profile1"),
-						Id:   aws.String("id1"),
+						Name:          aws.String("profile1"),
+						Id:            aws.String("id1"),
+						ApplicationId: aws.String("app-id"),
+						Type:          aws.String("AWS.AppConfig.FeatureFlags"),
 					}, nil
 				}
 			},
-			wantErr: false,
+			checkResult: func(t *testing.T, output *appconfig.GetConfigurationProfileOutput, err error) {
+				require.NoError(t, err)
+				require.NotNil(t, output)
+				assert.Equal(t, "profile1", *output.Name)
+				assert.Equal(t, "id1", *output.Id)
+				assert.Equal(t, "app-id", *output.ApplicationId)
+				assert.Equal(t, "AWS.AppConfig.FeatureFlags", *output.Type)
+			},
 		},
 		{
 			name: "error from SDK",
@@ -348,7 +370,11 @@ func TestClient_GetConfigurationProfile(t *testing.T) {
 					return nil, errors.New("API error")
 				}
 			},
-			wantErr: true,
+			checkResult: func(t *testing.T, output *appconfig.GetConfigurationProfileOutput, err error) {
+				require.Error(t, err)
+				assert.EqualError(t, err, "API error")
+				assert.Nil(t, output)
+			},
 		},
 	}
 
@@ -361,14 +387,12 @@ func TestClient_GetConfigurationProfile(t *testing.T) {
 
 			client := NewTestClient(mockClient)
 
-			_, err := client.GetConfigurationProfile(context.Background(), &appconfig.GetConfigurationProfileInput{
+			output, err := client.GetConfigurationProfile(context.Background(), &appconfig.GetConfigurationProfileInput{
 				ApplicationId:          aws.String("app-id"),
 				ConfigurationProfileId: aws.String("profile-id"),
 			})
 
-			if (err != nil) != tt.wantErr {
-				t.Errorf("GetConfigurationProfile() error = %v, wantErr %v", err, tt.wantErr)
-			}
+			tt.checkResult(t, output, err)
 		})
 	}
 }
@@ -377,20 +401,32 @@ func TestClient_GetHostedConfigurationVersion(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name      string
-		setupMock func(*awsMock.MockAppConfigClient)
-		wantErr   bool
+		name        string
+		setupMock   func(*awsMock.MockAppConfigClient)
+		checkResult func(*testing.T, *appconfig.GetHostedConfigurationVersionOutput, error)
 	}{
 		{
-			name: "successful get",
+			name: "successful get with data validation",
 			setupMock: func(m *awsMock.MockAppConfigClient) {
 				m.GetHostedConfigurationVersionFunc = func(ctx context.Context, params *appconfig.GetHostedConfigurationVersionInput, optFns ...func(*appconfig.Options)) (*appconfig.GetHostedConfigurationVersionOutput, error) {
 					return &appconfig.GetHostedConfigurationVersionOutput{
-						VersionNumber: 1,
+						VersionNumber:          1,
+						ApplicationId:          aws.String("app-id"),
+						ConfigurationProfileId: aws.String("profile-id"),
+						ContentType:            aws.String("application/json"),
+						Content:                []byte(`{"key":"value"}`),
 					}, nil
 				}
 			},
-			wantErr: false,
+			checkResult: func(t *testing.T, output *appconfig.GetHostedConfigurationVersionOutput, err error) {
+				require.NoError(t, err)
+				require.NotNil(t, output)
+				assert.Equal(t, int32(1), output.VersionNumber)
+				assert.Equal(t, "app-id", *output.ApplicationId)
+				assert.Equal(t, "profile-id", *output.ConfigurationProfileId)
+				assert.Equal(t, "application/json", *output.ContentType)
+				assert.Equal(t, []byte(`{"key":"value"}`), output.Content)
+			},
 		},
 		{
 			name: "error from SDK",
@@ -399,7 +435,11 @@ func TestClient_GetHostedConfigurationVersion(t *testing.T) {
 					return nil, errors.New("API error")
 				}
 			},
-			wantErr: true,
+			checkResult: func(t *testing.T, output *appconfig.GetHostedConfigurationVersionOutput, err error) {
+				require.Error(t, err)
+				assert.EqualError(t, err, "API error")
+				assert.Nil(t, output)
+			},
 		},
 	}
 
@@ -412,15 +452,13 @@ func TestClient_GetHostedConfigurationVersion(t *testing.T) {
 
 			client := NewTestClient(mockClient)
 
-			_, err := client.GetHostedConfigurationVersion(context.Background(), &appconfig.GetHostedConfigurationVersionInput{
+			output, err := client.GetHostedConfigurationVersion(context.Background(), &appconfig.GetHostedConfigurationVersionInput{
 				ApplicationId:          aws.String("app-id"),
 				ConfigurationProfileId: aws.String("profile-id"),
 				VersionNumber:          aws.Int32(1),
 			})
 
-			if (err != nil) != tt.wantErr {
-				t.Errorf("GetHostedConfigurationVersion() error = %v, wantErr %v", err, tt.wantErr)
-			}
+			tt.checkResult(t, output, err)
 		})
 	}
 }

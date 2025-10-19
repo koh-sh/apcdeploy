@@ -18,11 +18,9 @@ func TestListEnabledRegions(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name           string
-		setupMock      func() *mock.MockAccountClient
-		expectedResult []string
-		expectError    bool
-		checkResult    func(*testing.T, []string, error)
+		name        string
+		setupMock   func() *mock.MockAccountClient
+		checkResult func(*testing.T, []string, error)
 	}{
 		{
 			name: "success returns sorted regions",
@@ -39,8 +37,6 @@ func TestListEnabledRegions(t *testing.T) {
 					},
 				}
 			},
-			expectedResult: []string{"ap-northeast-1", "us-east-1", "us-west-2"},
-			expectError:    false,
 			checkResult: func(t *testing.T, regions []string, err error) {
 				require.NoError(t, err)
 				assert.Equal(t, []string{"ap-northeast-1", "us-east-1", "us-west-2"}, regions)
@@ -61,8 +57,6 @@ func TestListEnabledRegions(t *testing.T) {
 					},
 				}
 			},
-			expectedResult: []string{"us-east-1", "us-west-2"},
-			expectError:    false,
 			checkResult: func(t *testing.T, regions []string, err error) {
 				require.NoError(t, err)
 				assert.Equal(t, []string{"us-east-1", "us-west-2"}, regions)
@@ -80,8 +74,6 @@ func TestListEnabledRegions(t *testing.T) {
 					},
 				}
 			},
-			expectedResult: []string{},
-			expectError:    false,
 			checkResult: func(t *testing.T, regions []string, err error) {
 				require.NoError(t, err)
 				assert.Empty(t, regions)
@@ -96,8 +88,6 @@ func TestListEnabledRegions(t *testing.T) {
 					},
 				}
 			},
-			expectedResult: nil,
-			expectError:    true,
 			checkResult: func(t *testing.T, regions []string, err error) {
 				require.Error(t, err)
 				assert.EqualError(t, err, "API error")
@@ -119,8 +109,6 @@ func TestListEnabledRegions(t *testing.T) {
 					},
 				}
 			},
-			expectedResult: []string{"us-east-1", "us-west-2"},
-			expectError:    false,
 			checkResult: func(t *testing.T, regions []string, err error) {
 				require.NoError(t, err)
 				assert.Equal(t, []string{"us-east-1", "us-west-2"}, regions)
