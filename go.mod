@@ -8,12 +8,13 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/account v1.28.6
 	github.com/aws/aws-sdk-go-v2/service/appconfig v1.42.6
 	github.com/aws/aws-sdk-go-v2/service/appconfigdata v1.23.5
-	github.com/aws/smithy-go v1.23.0
+	github.com/aws/smithy-go v1.23.1
 	github.com/charmbracelet/huh v0.8.0
 	github.com/goccy/go-yaml v1.18.0
 	github.com/sergi/go-diff v1.4.0
 	github.com/spf13/cobra v1.10.1
 	github.com/stretchr/testify v1.11.1
+	golang.org/x/term v0.32.0
 )
 
 require (
@@ -235,7 +236,6 @@ require (
 	golang.org/x/mod v0.28.0 // indirect
 	golang.org/x/sync v0.17.0 // indirect
 	golang.org/x/sys v0.36.0 // indirect
-	golang.org/x/term v0.32.0 // indirect
 	golang.org/x/text v0.29.0 // indirect
 	golang.org/x/tools v0.37.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
