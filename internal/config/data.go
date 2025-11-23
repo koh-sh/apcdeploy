@@ -11,6 +11,7 @@ import (
 
 const (
 	// MaxDataFileSize is the maximum size for configuration data (2MB)
+	//
 	// Deprecated: Use MaxConfigSize instead
 	MaxDataFileSize = MaxConfigSize
 )
