@@ -14,7 +14,7 @@ require (
 	github.com/sergi/go-diff v1.4.0
 	github.com/spf13/cobra v1.10.1
 	github.com/stretchr/testify v1.11.1
-	golang.org/x/term v0.32.0
+	golang.org/x/term v0.37.0
 )
 
 require (
@@ -235,7 +235,7 @@ require (
 	golang.org/x/exp/typeparams v0.0.0-20250911091902-df9299821621 // indirect
 	golang.org/x/mod v0.28.0 // indirect
 	golang.org/x/sync v0.17.0 // indirect
-	golang.org/x/sys v0.36.0 // indirect
+	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/text v0.29.0 // indirect
 	golang.org/x/tools v0.37.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
