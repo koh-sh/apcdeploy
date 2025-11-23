@@ -8,7 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/account v1.29.0
 	github.com/aws/aws-sdk-go-v2/service/appconfig v1.42.9
 	github.com/aws/aws-sdk-go-v2/service/appconfigdata v1.23.8
-	github.com/aws/smithy-go v1.23.1
+	github.com/aws/smithy-go v1.23.2
 	github.com/charmbracelet/huh v0.8.0
 	github.com/goccy/go-yaml v1.18.0
 	github.com/sergi/go-diff v1.4.0
