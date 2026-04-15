@@ -125,7 +125,7 @@ func TestCreateHostedConfigurationVersion(t *testing.T) {
 			mockFunc: func(ctx context.Context, params *appconfig.CreateHostedConfigurationVersionInput, optFns ...func(*appconfig.Options)) (*appconfig.CreateHostedConfigurationVersionOutput, error) {
 				return &appconfig.CreateHostedConfigurationVersionOutput{
 					VersionNumber: 1,
-					ContentType:   aws_stringPtr("application/json"),
+					ContentType:   new("application/json"),
 				}, nil
 			},
 			wantErr: false,
@@ -138,7 +138,7 @@ func TestCreateHostedConfigurationVersion(t *testing.T) {
 			mockFunc: func(ctx context.Context, params *appconfig.CreateHostedConfigurationVersionInput, optFns ...func(*appconfig.Options)) (*appconfig.CreateHostedConfigurationVersionOutput, error) {
 				return &appconfig.CreateHostedConfigurationVersionOutput{
 					VersionNumber: 2,
-					ContentType:   aws_stringPtr("application/x-yaml"),
+					ContentType:   new("application/x-yaml"),
 				}, nil
 			},
 			wantErr: false,
@@ -281,7 +281,7 @@ func TestWaitForDeployment(t *testing.T) {
 			mockEventLog: []types.DeploymentEvent{
 				{
 					EventType:   types.DeploymentEventTypeRollbackStarted,
-					Description: aws_stringPtr("Rollback initiated by CloudWatch Alarm: arn:aws:cloudwatch:us-east-1:123456789012:alarm:HighErrorRate"),
+					Description: new("Rollback initiated by CloudWatch Alarm: arn:aws:cloudwatch:us-east-1:123456789012:alarm:HighErrorRate"),
 				},
 			},
 			timeout:      10 * time.Second,
@@ -296,7 +296,7 @@ func TestWaitForDeployment(t *testing.T) {
 			mockEventLog: []types.DeploymentEvent{
 				{
 					EventType:   types.DeploymentEventTypeRollbackStarted,
-					Description: aws_stringPtr("Rollback initiated manually"),
+					Description: new("Rollback initiated manually"),
 				},
 			},
 			timeout:      10 * time.Second,
@@ -311,7 +311,7 @@ func TestWaitForDeployment(t *testing.T) {
 			mockEventLog: []types.DeploymentEvent{
 				{
 					EventType:   types.DeploymentEventTypeRollbackCompleted,
-					Description: aws_stringPtr("Deployment rolled back by user request"),
+					Description: new("Deployment rolled back by user request"),
 				},
 			},
 			timeout:      10 * time.Second,
@@ -353,7 +353,7 @@ func TestWaitForDeployment(t *testing.T) {
 					return &appconfig.GetDeploymentOutput{
 						DeploymentNumber:   tt.deploymentNum,
 						State:              state,
-						PercentageComplete: aws_floatPtr(float32(callCount) * 50.0),
+						PercentageComplete: new(float32(callCount) * 50.0),
 						EventLog:           tt.mockEventLog,
 					}, nil
 				},
@@ -384,15 +384,6 @@ func TestWaitForDeployment(t *testing.T) {
 	}
 }
 
-// Helper functions for tests
-func aws_stringPtr(s string) *string {
-	return &s
-}
-
-func aws_floatPtr(f float32) *float32 {
-	return &f
-}
-
 func TestGetLatestDeployment(t *testing.T) {
 	tests := []struct {
 		name              string
@@ -420,10 +411,10 @@ func TestGetLatestDeployment(t *testing.T) {
 			getDeploymentFunc: func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
 				return &appconfig.GetDeploymentOutput{
 					DeploymentNumber:       1,
-					ConfigurationProfileId: aws_stringPtr("profile-123"),
-					ConfigurationVersion:   aws_stringPtr("5"),
+					ConfigurationProfileId: new("profile-123"),
+					ConfigurationVersion:   new("5"),
 					State:                  types.DeploymentStateComplete,
-					Description:            aws_stringPtr("test deployment"),
+					Description:            new("test deployment"),
 				}, nil
 			},
 			profileID: "profile-123",
@@ -446,8 +437,8 @@ func TestGetLatestDeployment(t *testing.T) {
 				deployNum := *params.DeploymentNumber
 				return &appconfig.GetDeploymentOutput{
 					DeploymentNumber:       deployNum,
-					ConfigurationProfileId: aws_stringPtr("profile-123"),
-					ConfigurationVersion:   aws_stringPtr("5"),
+					ConfigurationProfileId: new("profile-123"),
+					ConfigurationVersion:   new("5"),
 					State:                  types.DeploymentStateComplete,
 				}, nil
 			},
@@ -474,8 +465,8 @@ func TestGetLatestDeployment(t *testing.T) {
 				}
 				return &appconfig.GetDeploymentOutput{
 					DeploymentNumber:       deployNum,
-					ConfigurationProfileId: aws_stringPtr(profileID),
-					ConfigurationVersion:   aws_stringPtr("5"),
+					ConfigurationProfileId: new(profileID),
+					ConfigurationVersion:   new("5"),
 					State:                  types.DeploymentStateComplete,
 				}, nil
 			},
@@ -510,8 +501,8 @@ func TestGetLatestDeployment(t *testing.T) {
 				}
 				return &appconfig.GetDeploymentOutput{
 					DeploymentNumber:       deployNum,
-					ConfigurationProfileId: aws_stringPtr("profile-123"),
-					ConfigurationVersion:   aws_stringPtr(configVersion),
+					ConfigurationProfileId: new("profile-123"),
+					ConfigurationVersion:   new(configVersion),
 					State:                  state,
 				}, nil
 			},
@@ -601,8 +592,8 @@ func TestGetLatestDeploymentIncludingRollback(t *testing.T) {
 				}
 				return &appconfig.GetDeploymentOutput{
 					DeploymentNumber:       deployNum,
-					ConfigurationProfileId: aws_stringPtr("profile-123"),
-					ConfigurationVersion:   aws_stringPtr(configVersion),
+					ConfigurationProfileId: new("profile-123"),
+					ConfigurationVersion:   new(configVersion),
 					State:                  state,
 				}, nil
 			},
@@ -625,8 +616,8 @@ func TestGetLatestDeploymentIncludingRollback(t *testing.T) {
 				deployNum := *params.DeploymentNumber
 				return &appconfig.GetDeploymentOutput{
 					DeploymentNumber:       deployNum,
-					ConfigurationProfileId: aws_stringPtr("profile-123"),
-					ConfigurationVersion:   aws_stringPtr("10"),
+					ConfigurationProfileId: new("profile-123"),
+					ConfigurationVersion:   new("10"),
 					State:                  types.DeploymentStateComplete,
 				}, nil
 			},
@@ -699,7 +690,7 @@ func TestGetHostedConfigurationVersion(t *testing.T) {
 			mockFunc: func(ctx context.Context, params *appconfig.GetHostedConfigurationVersionInput, optFns ...func(*appconfig.Options)) (*appconfig.GetHostedConfigurationVersionOutput, error) {
 				return &appconfig.GetHostedConfigurationVersionOutput{
 					Content:     []byte(`{"key": "value"}`),
-					ContentType: aws_stringPtr("application/json"),
+					ContentType: new("application/json"),
 				}, nil
 			},
 			wantContent: []byte(`{"key": "value"}`),
@@ -814,7 +805,7 @@ func TestWaitForDeploymentPhase(t *testing.T) {
 			mockEventLog: []types.DeploymentEvent{
 				{
 					EventType:   types.DeploymentEventTypeRollbackStarted,
-					Description: aws_stringPtr("CloudWatch alarm triggered"),
+					Description: new("CloudWatch alarm triggered"),
 				},
 			},
 			timeout:    10 * time.Second,
@@ -857,7 +848,7 @@ func TestWaitForDeploymentPhase(t *testing.T) {
 					return &appconfig.GetDeploymentOutput{
 						DeploymentNumber:   tt.deploymentNum,
 						State:              state,
-						PercentageComplete: aws_floatPtr(float32(callCount) * 30.0),
+						PercentageComplete: new(float32(callCount) * 30.0),
 						EventLog:           tt.mockEventLog,
 					}, nil
 				},

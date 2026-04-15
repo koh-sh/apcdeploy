@@ -2,11 +2,11 @@
 install_before = "3d"
 
 [tools]
-go = "1.25.1"
+go = "1.26.2"
 terraform = "1.14.8"
-"github:golangci/golangci-lint" = "2.5.0"
+"github:golangci/golangci-lint" = "2.11.3"
 "github:mfridman/tparse" = "0.18.0"
-"github:mvdan/gofumpt" = "0.9.1"
+"github:mvdan/gofumpt" = "0.9.2"
 "github:k1LoW/octocov" = "0.75.4"
 "github:goreleaser/goreleaser" = "2.14.3"
 
@@ -19,12 +19,8 @@ description = "Format with gofumpt"
 run = "gofumpt -l -w ."
 
 [tasks.fix]
-description = "Run modernize -fix"
-run = "go run golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@latest -fix ./..."
-
-[tasks.modernize]
-description = "Run modernize -test (no fix)"
-run = "go run golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@latest -test ./..."
+description = "Run go fix (modernize)"
+run = "go fix ./..."
 
 [tasks.lint]
 description = "Run golangci-lint"

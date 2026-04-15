@@ -126,8 +126,8 @@ func TestShowDeploymentStatus(t *testing.T) {
 				State:                types.DeploymentStateComplete,
 				ConfigurationVersion: "v1.0.0",
 				Description:          "Test deployment",
-				StartedAt:            ptrTime(time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC)),
-				CompletedAt:          ptrTime(time.Date(2024, 1, 1, 10, 5, 0, 0, time.UTC)),
+				StartedAt:            new(time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC)),
+				CompletedAt:          new(time.Date(2024, 1, 1, 10, 5, 0, 0, time.UTC)),
 				PercentageComplete:   100,
 			},
 			cfg: &config.Config{
@@ -157,7 +157,7 @@ func TestShowDeploymentStatus(t *testing.T) {
 				DeploymentNumber:       2,
 				State:                  types.DeploymentStateDeploying,
 				ConfigurationVersion:   "v2.0.0",
-				StartedAt:              ptrTime(time.Now().Add(-5 * time.Minute)),
+				StartedAt:              new(time.Now().Add(-5 * time.Minute)),
 				PercentageComplete:     30,
 				GrowthFactor:           10,
 				FinalBakeTimeInMinutes: 5,
@@ -192,7 +192,7 @@ func TestShowDeploymentStatus(t *testing.T) {
 				DeploymentNumber:     3,
 				State:                types.DeploymentStateBaking,
 				ConfigurationVersion: "v3.0.0",
-				StartedAt:            ptrTime(time.Now().Add(-10 * time.Minute)),
+				StartedAt:            new(time.Now().Add(-10 * time.Minute)),
 				PercentageComplete:   100,
 			},
 			cfg: &config.Config{
@@ -217,12 +217,12 @@ func TestShowDeploymentStatus(t *testing.T) {
 				ConfigurationVersion:   "v4.0.0",
 				Description:            "Deploying new configuration",
 				DeploymentStrategyName: "AppConfig.Linear50PercentEvery30Seconds",
-				StartedAt:              ptrTime(time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC)),
-				CompletedAt:            ptrTime(time.Date(2024, 1, 1, 10, 2, 0, 0, time.UTC)),
+				StartedAt:              new(time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC)),
+				CompletedAt:            new(time.Date(2024, 1, 1, 10, 2, 0, 0, time.UTC)),
 				EventLog: []types.DeploymentEvent{
 					{
 						EventType:   types.DeploymentEventTypeRollbackStarted,
-						Description: ptrString("Rollback initiated by CloudWatch Alarm: arn:aws:cloudwatch:us-east-1:123456789012:alarm:HighErrorRate"),
+						Description: new("Rollback initiated by CloudWatch Alarm: arn:aws:cloudwatch:us-east-1:123456789012:alarm:HighErrorRate"),
 					},
 				},
 			},
@@ -484,14 +484,6 @@ func TestSeparator(t *testing.T) {
 	}
 }
 
-func ptrTime(t time.Time) *time.Time {
-	return &t
-}
-
-func ptrString(s string) *string {
-	return &s
-}
-
 func TestGetRollbackReason(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -503,7 +495,7 @@ func TestGetRollbackReason(t *testing.T) {
 			eventLog: []types.DeploymentEvent{
 				{
 					EventType:   types.DeploymentEventTypeRollbackStarted,
-					Description: ptrString("Rollback initiated by CloudWatch Alarm: arn:aws:cloudwatch:us-east-1:123456789012:alarm:HighErrorRate"),
+					Description: new("Rollback initiated by CloudWatch Alarm: arn:aws:cloudwatch:us-east-1:123456789012:alarm:HighErrorRate"),
 				},
 			},
 			want: "Rollback initiated by CloudWatch Alarm: arn:aws:cloudwatch:us-east-1:123456789012:alarm:HighErrorRate",
@@ -513,7 +505,7 @@ func TestGetRollbackReason(t *testing.T) {
 			eventLog: []types.DeploymentEvent{
 				{
 					EventType:   types.DeploymentEventTypeRollbackCompleted,
-					Description: ptrString("Rollback completed successfully"),
+					Description: new("Rollback completed successfully"),
 				},
 			},
 			want: "Rollback completed successfully",
@@ -523,7 +515,7 @@ func TestGetRollbackReason(t *testing.T) {
 			eventLog: []types.DeploymentEvent{
 				{
 					EventType:   types.DeploymentEventTypeDeploymentStarted,
-					Description: ptrString("Deployment started"),
+					Description: new("Deployment started"),
 				},
 			},
 			want: "",
@@ -548,15 +540,15 @@ func TestGetRollbackReason(t *testing.T) {
 			eventLog: []types.DeploymentEvent{
 				{
 					EventType:   types.DeploymentEventTypeDeploymentStarted,
-					Description: ptrString("Deployment started"),
+					Description: new("Deployment started"),
 				},
 				{
 					EventType:   types.DeploymentEventTypeRollbackStarted,
-					Description: ptrString("First rollback"),
+					Description: new("First rollback"),
 				},
 				{
 					EventType:   types.DeploymentEventTypeRollbackStarted,
-					Description: ptrString("Second rollback"),
+					Description: new("Second rollback"),
 				},
 			},
 			want: "Second rollback",

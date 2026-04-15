@@ -138,7 +138,7 @@ func TestIsResourceNotFoundError(t *testing.T) {
 		},
 		{
 			name: "typed resource not found error",
-			err:  &types.ResourceNotFoundException{Message: stringPtr("not found")},
+			err:  &types.ResourceNotFoundException{Message: new("not found")},
 			want: true,
 		},
 		{
@@ -292,7 +292,7 @@ func TestIsValidationError(t *testing.T) {
 		},
 		{
 			name: "typed bad request exception",
-			err:  &types.BadRequestException{Message: stringPtr("Invalid configuration")},
+			err:  &types.BadRequestException{Message: new("Invalid configuration")},
 			want: true,
 		},
 		{
@@ -332,7 +332,7 @@ func TestFormatValidationError(t *testing.T) {
 	}{
 		{
 			name: "typed bad request exception with message",
-			err:  &types.BadRequestException{Message: stringPtr("JSON Schema validation failed")},
+			err:  &types.BadRequestException{Message: new("JSON Schema validation failed")},
 			wantContain: []string{
 				"Configuration validation failed",
 				"JSON Schema validation failed",
@@ -373,9 +373,4 @@ func TestFormatValidationError(t *testing.T) {
 			}
 		})
 	}
-}
-
-// Helper function
-func stringPtr(s string) *string {
-	return &s
 }

@@ -28,8 +28,7 @@ Dev tools (Go toolchain, golangci-lint, gofumpt, tparse, octocov, goreleaser, te
 - **Lint**: `mise run lint` (uses golangci-lint v2)
 - **Fix lint issues**: `mise run lint-fix`
 - **Format code**: `mise run fmt` (uses gofumpt)
-- **Run modernize (check)**: `mise run modernize`
-- **Run modernize (fix)**: `mise run fix`
+- **Run go fix (modernize)**: `mise run fix`
 - **Generate coverage**: `mise run cov` (creates cover.html)
 - **Full CI workflow**: `mise run ci` (fmt, fix, lint-fix, build, cov)
 - **Upgrade managed tools**: `mise run upgrade-tools`
@@ -375,7 +374,7 @@ These flags are mutually exclusive and cannot be used together. Either flag can 
 
 Dev tools are managed by [mise](https://mise.jdx.dev/) via `.mise.toml` (GitHub-releases backend). Run `mise install` to provision them.
 
-- Go 1.25.1
+- Go 1.26.2
 - golangci-lint v2 with configuration in `.golangci.yml`
 - gofumpt for stricter formatting
 - tparse for test output formatting
