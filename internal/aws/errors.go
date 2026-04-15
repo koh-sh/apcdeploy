@@ -77,9 +77,9 @@ func isThrottlingError(err error) bool {
 func formatAccessDeniedError(operation string) string {
 	var sb strings.Builder
 
-	sb.WriteString(fmt.Sprintf("Access denied for operation: %s\n\n", operation))
+	fmt.Fprintf(&sb, "Access denied for operation: %s\n\n", operation)
 	sb.WriteString("Required IAM permissions:\n")
-	sb.WriteString(fmt.Sprintf("  - appconfig:%s\n", operation))
+	fmt.Fprintf(&sb, "  - appconfig:%s\n", operation)
 	sb.WriteString("\nPlease ensure your IAM user/role has the necessary AppConfig permissions.\n")
 	sb.WriteString("For more information, see: https://docs.aws.amazon.com/appconfig/latest/userguide/security-iam.html")
 
@@ -117,10 +117,10 @@ func FormatValidationError(err error) string {
 	var badRequestErr *types.BadRequestException
 	if errors.As(err, &badRequestErr) {
 		if badRequestErr.Message != nil {
-			sb.WriteString(fmt.Sprintf("  %s\n", *badRequestErr.Message))
+			fmt.Fprintf(&sb, "  %s\n", *badRequestErr.Message)
 		}
 	} else {
-		sb.WriteString(fmt.Sprintf("  %s\n", err.Error()))
+		fmt.Fprintf(&sb, "  %s\n", err.Error())
 	}
 
 	sb.WriteString("\nPossible causes:\n")
