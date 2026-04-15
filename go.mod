@@ -9,7 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/appconfig v1.43.8
 	github.com/aws/aws-sdk-go-v2/service/appconfigdata v1.23.17
 	github.com/aws/smithy-go v1.24.3
-	github.com/charmbracelet/huh v0.8.0
+	github.com/charmbracelet/huh v1.0.0
 	github.com/goccy/go-yaml v1.19.2
 	github.com/sergi/go-diff v1.4.0
 	github.com/spf13/cobra v1.10.2
