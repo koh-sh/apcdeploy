@@ -12,22 +12,27 @@ When implementing new features or fixing bugs, follow these absolute rules:
 
 - **TDD (Test-Driven Development)**: Write tests before implementation
 - **Code consistency**: Match existing code style and patterns
-- **CI validation**: Ensure `make ci` passes before considering work complete
+- **CI validation**: Ensure `mise run ci` passes before considering work complete
 - **Test coverage**: Maintain or improve test coverage (never decrease it)
 
 ## Common Commands
 
+Dev tools (Go toolchain, golangci-lint, gofumpt, tparse, octocov, goreleaser, terraform) are managed by [mise](https://mise.jdx.dev/) via `.mise.toml`. Run `mise install` once to provision them.
+
 ### Development
 
-- **Build**: `make build` or `go build`
-- **Run tests**: `make test` (uses tparse for formatted output)
+- **Install dev tools**: `mise install`
+- **Build**: `mise run build` (or `go build`)
+- **Run tests**: `mise run test` (uses tparse for formatted output)
 - **Run single test**: `go test -run TestName ./path/to/package`
-- **Lint**: `make lint` (uses golangci-lint v2)
-- **Fix lint issues**: `make lint-fix`
-- **Format code**: `make fmt` (uses gofumpt)
-- **Generate coverage**: `make cov` (creates cover.html)
-- **Full CI workflow**: `make ci` (fmt, modernize, lint, test, build)
-- **Install dev tools**: `make tool-install`
+- **Lint**: `mise run lint` (uses golangci-lint v2)
+- **Fix lint issues**: `mise run lint-fix`
+- **Format code**: `mise run fmt` (uses gofumpt)
+- **Run modernize (check)**: `mise run modernize`
+- **Run modernize (fix)**: `mise run fix`
+- **Generate coverage**: `mise run cov` (creates cover.html)
+- **Full CI workflow**: `mise run ci` (fmt, fix, lint-fix, build, cov)
+- **Upgrade managed tools**: `mise run upgrade-tools`
 
 ### Testing the CLI
 
@@ -64,10 +69,10 @@ When implementing new features or fixing bugs, follow these absolute rules:
 
 E2E tests require AWS credentials and use Terraform to provision resources:
 
-- **Setup resources**: `make e2e-setup` (provisions AWS resources via Terraform)
-- **Run tests**: `make e2e-run` (executes e2e test script)
-- **Clean up**: `make e2e-clean` (destroys test resources)
-- **Full workflow**: `make e2e-full` (setup, test, cleanup in one command)
+- **Setup resources**: `mise run e2e-setup` (provisions AWS resources via Terraform)
+- **Run tests**: `mise run e2e-run` (executes e2e test script)
+- **Clean up**: `mise run e2e-clean` (destroys test resources)
+- **Full workflow**: `mise run e2e-full` (setup, test, cleanup in one command)
 
 ## Architecture
 
@@ -368,7 +373,12 @@ These flags are mutually exclusive and cannot be used together. Either flag can 
 
 ## Go Version and Tools
 
-- Go 1.25.1 (uses `tool` directive in go.mod for managing dev tools)
+Dev tools are managed by [mise](https://mise.jdx.dev/) via `.mise.toml` (GitHub-releases backend). Run `mise install` to provision them.
+
+- Go 1.25.1
 - golangci-lint v2 with configuration in `.golangci.yml`
 - gofumpt for stricter formatting
 - tparse for test output formatting
+- octocov for coverage reporting
+- goreleaser for release builds
+- terraform for E2E resource provisioning

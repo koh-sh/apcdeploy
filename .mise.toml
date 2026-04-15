@@ -1,0 +1,89 @@
+[settings]
+install_before = "3d"
+
+[tools]
+go = "1.25.1"
+terraform = "1.14.8"
+"github:golangci/golangci-lint" = "2.5.0"
+"github:mfridman/tparse" = "0.18.0"
+"github:mvdan/gofumpt" = "0.9.1"
+"github:k1LoW/octocov" = "0.75.4"
+"github:goreleaser/goreleaser" = "2.14.3"
+
+[tasks.test]
+description = "Run all tests with tparse"
+run = "go test ./... -json | tparse -all"
+
+[tasks.fmt]
+description = "Format with gofumpt"
+run = "gofumpt -l -w ."
+
+[tasks.fix]
+description = "Run modernize -fix"
+run = "go run golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@latest -fix ./..."
+
+[tasks.modernize]
+description = "Run modernize -test (no fix)"
+run = "go run golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@latest -test ./..."
+
+[tasks.lint]
+description = "Run golangci-lint"
+run = "golangci-lint run"
+
+[tasks.lint-fix]
+description = "Run golangci-lint --fix"
+run = "golangci-lint run --fix"
+
+[tasks.build]
+description = "Build binary"
+run = "go build"
+
+[tasks.tidy]
+description = "Run go mod tidy -v"
+run = "go mod tidy -v"
+
+[tasks.cov]
+description = "Run tests with coverage and octocov"
+env = { CI = "1", GITHUB_REPOSITORY = "koh-sh/apcdeploy" }
+run = [
+    "go test -cover ./... -coverprofile=coverage.out",
+    "go tool cover -html=coverage.out -o cover.html",
+    "octocov",
+    "rm coverage.out",
+]
+
+[tasks.ci]
+description = "Run full CI pipeline (fmt -> fix -> lint-fix -> build -> cov)"
+run = [
+    { task = "fmt" },
+    { task = "fix" },
+    { task = "lint-fix" },
+    { task = "build" },
+    { task = "cov" },
+]
+
+[tasks.e2e-setup]
+description = "Provision AWS resources for E2E tests via Terraform"
+dir = "e2e/terraform"
+run = ["terraform init", "terraform apply -auto-approve"]
+
+[tasks.e2e-run]
+description = "Run E2E test script"
+run = "./e2e/e2e-test.sh"
+
+[tasks.e2e-clean]
+description = "Destroy E2E AWS resources"
+dir = "e2e/terraform"
+run = ["./cleanup.sh", "terraform destroy -auto-approve"]
+
+[tasks.e2e-full]
+description = "Full E2E workflow (setup -> run -> clean)"
+run = [
+    { task = "e2e-setup" },
+    { task = "e2e-run" },
+    { task = "e2e-clean" },
+]
+
+[tasks.upgrade-tools]
+description = "Upgrade dev tools managed by mise to latest versions"
+run = "mise up --local --bump"
