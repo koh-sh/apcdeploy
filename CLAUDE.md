@@ -56,6 +56,8 @@ Dev tools (Go toolchain, golangci-lint, gofumpt, tparse, octocov, goreleaser, te
 ./apcdeploy pull -c apcdeploy.yml  # Pull latest deployed configuration to local data file
 ./apcdeploy rollback -c apcdeploy.yml  # Stop ongoing deployment (rollback)
 ./apcdeploy rollback -c apcdeploy.yml --yes  # Skip confirmation
+./apcdeploy edit  # Edit deployed configuration directly in $EDITOR (no apcdeploy.yml)
+./apcdeploy edit --region us-east-1 --app my-app --profile my-profile --env prod
 ./apcdeploy context  # Output llms.md for AI assistants
 
 # Silent mode (suppress verbose output)
@@ -83,16 +85,17 @@ All commands follow the pattern: `cmd/<command>.go` → `internal/<command>/exec
 
 1. **cmd/**: Cobra command definitions and CLI flag parsing
    - `root.go`: Root command with global flags (`--config`, `--silent`)
-   - Each command file (`init.go`, `run.go`, `diff.go`, `status.go`, `get.go`, `pull.go`, `rollback.go`, `ls_resources.go`) handles CLI concerns only
+   - Each command file (`init.go`, `run.go`, `diff.go`, `status.go`, `get.go`, `pull.go`, `rollback.go`, `ls_resources.go`, `edit.go`) handles CLI concerns only
    - `context.go`: Simple command that outputs embedded `llms.md` content for AI assistants (no internal package)
    - `init.go`: Supports interactive mode for resource selection; all flags are optional
    - `ls_resources.go`: Lists AppConfig resources; does not require `apcdeploy.yml`; all flags are optional
    - `rollback.go`: Stops an ongoing deployment; supports confirmation prompt
+   - `edit.go`: Opens `$EDITOR` on the deployed configuration and deploys; does not require `apcdeploy.yml`; all flags are optional
 
 2. **internal/\<command\>/**: Business logic for each command
    - `executor.go`: Main execution logic using Factory pattern for testability
    - `options.go`: Command-specific options struct
-   - `workflow.go` (init command): Handles initialization workflow including interactive prompts
+   - `workflow.go` (init, edit commands): Handles multi-step workflow including interactive prompts and resource resolution
    - Executors accept a `reporter.ProgressReporter` for user feedback
 
 ### Core Packages
@@ -106,7 +109,7 @@ AWS AppConfig client wrapper with:
 - `client_list_paginated.go`: **Centralized list operations with pagination handling** - All AWS List APIs should use these methods
 - `resolver.go`: Resolves resource names (application, profile, environment) to AWS IDs
 - `deployment.go`: Deployment creation, monitoring, and rollback logic (includes `StopDeployment` method)
-- `config_fetcher.go`: Provides `GetLatestDeployedConfiguration` function to retrieve deployed configuration from latest deployment
+- `config_fetcher.go`: Provides `GetLatestDeployedConfiguration` to retrieve deployed configuration from the latest deployment; exposes `ErrNoDeployment` sentinel for callers (`pull`, `edit`) that need to detect "no prior deployment" via `errors.Is`
 - Version info is injected at build time via `main.go` variables
 
 **IMPORTANT - AWS List API Usage:**
@@ -129,7 +132,8 @@ Configuration file management:
 - `types.go`: Defines `Config` struct (application, profile, environment, deployment strategy, data file path)
 - `loader.go`: Loads and validates `apcdeploy.yml`, resolves relative paths
 - `data.go`: Loads data files (JSON/YAML/text) and detects content type
-- `normalize.go`: Normalizes JSON/YAML for consistent comparisons (removes FeatureFlags metadata)
+- `normalize.go`: Normalizes JSON/YAML for consistent comparisons (removes FeatureFlags metadata); also exposes `HasContentChanged` and `NormalizeByExtension` for diff detection shared by `run`, `pull`, and `edit`
+- `validate.go`: Validates configuration data before deployment (size limit + JSON/YAML syntax checks); shared by `run` and `edit`
 - `generator.go`: Generates `apcdeploy.yml` from AWS resources during init
 
 #### internal/reporter
@@ -150,6 +154,19 @@ Interactive prompt interface for user input:
 - `internal/prompt/tty.go`: TTY detection utility that checks if stdin is a terminal
 - `internal/prompt/testing/mock.go`: Mock implementation for unit tests
 - TTY checking prevents interactive prompts from hanging in non-interactive environments (CI/CD, scripts)
+
+#### internal/edit
+
+Edit command implementation:
+
+- `executor.go`: Orchestrates the edit workflow using a `WorkflowFactory` for testability
+- `workflow.go`: Resolves the target resources (region/app/profile/env) via flags or interactive prompts, fetches the latest deployed configuration, launches the editor, validates, and deploys
+- `editor.go`: Launches `$EDITOR` (falls back to `vi`) against a temp file whose extension is derived from the content type; cleans up the temp file after use
+- `options.go`: Command-specific options struct (`Region`, `Application`, `Profile`, `Environment`, `DeploymentStrategy`, `WaitDeploy`, `WaitBake`, `Timeout`, `Silent`)
+- Reuses `init.InteractiveSelector` for interactive resource selection
+- No configuration file required; operates independently of `apcdeploy.yml`
+- Validation parity with `run`: same size limit and JSON/YAML syntax checks
+- Deployment strategy defaults to the strategy of the most recent deployment when `--deployment-strategy` is omitted
 
 #### internal/lsresources
 
@@ -219,7 +236,7 @@ Interactive mode uses `huh` library for terminal UI prompts. TTY checking preven
 3. Get latest deployed configuration using `GetLatestDeployedConfiguration`
    - Fetches the latest deployment for the configuration profile
    - Retrieves configuration content, content type, and deployment metadata
-   - Returns error if no deployment exists
+   - Returns an error wrapping `aws.ErrNoDeployment` if no deployment exists
 4. Compare local and remote content after normalization
    - For FeatureFlags profiles: Removes `_updatedAt`/`_createdAt` metadata before comparison
    - If no differences found, skip update and report "already up to date"
@@ -255,6 +272,30 @@ Key characteristics:
 - Supports silent mode for script-friendly output
 - Deployment strategies fetched but hidden by default (use `--show-strategies` to display)
 - All resources sorted alphabetically for consistent output
+
+#### Edit Flow (edit command)
+
+1. Parse flags; run TTY check if any of `--region`/`--app`/`--profile`/`--env` are omitted
+2. Resolve region (flag or interactive prompt), then create the AWS client
+3. Select application/profile/environment via flag or interactive prompt
+4. Resolve resource names to AWS IDs
+5. Fetch the latest deployed configuration using `GetLatestDeployedConfiguration`
+   - Error wrapping `aws.ErrNoDeployment` if no prior deployment exists (shared with `pull`)
+6. Determine deployment strategy:
+   - If `--deployment-strategy` is provided, resolve it to an ID
+   - Otherwise reuse the strategy of the latest deployment (from `DeployedConfigInfo.DeploymentStrategyID`)
+7. Check for ongoing deployments; abort if one is in progress
+8. Launch `$EDITOR` (defaults to `vi`) on a temp file. Extension is derived from the content type (`.json`/`.yaml`/`.txt`)
+9. Validate the edited content (size + JSON/YAML syntax) with the same rules as `run`
+10. Normalize and compare; skip deployment if content is unchanged
+11. Create a new hosted configuration version and start deployment
+12. Optionally wait for `--wait-deploy` or `--wait-bake`
+
+Key characteristics:
+- **No `apcdeploy.yml` required**: Targets are specified via flags or interactive prompts
+- **Requires TTY**: Interactive selection (if any) and `$EDITOR` both need a terminal
+- **Strategy inheritance**: Omit `--deployment-strategy` to reuse the previous deployment's strategy
+- **Validation parity with `run`**: Same checks apply before AWS mutations
 
 #### Rollback Flow (rollback command)
 

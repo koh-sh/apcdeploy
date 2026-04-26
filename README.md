@@ -250,9 +250,37 @@ Options:
 
 - `--wait-deploy`: Wait for deployment phase to complete (until baking starts)
 - `--wait-bake`: Wait for complete deployment including baking phase
+- `--timeout`: Timeout in seconds for deployment wait (default: 600)
 - `--force`: Deploy even if content hasn't changed
 
 Note: `--wait-deploy` and `--wait-bake` are mutually exclusive.
+
+### edit
+
+Edit the currently deployed configuration directly in `$EDITOR` and deploy:
+
+```bash
+apcdeploy edit \
+  --region <region> \
+  --app <application> \
+  --profile <profile> \
+  --env <environment>
+```
+
+Flags are optional. If omitted, you will be prompted interactively to select from available resources. The deployment strategy of the most recent deployment is reused unless `--deployment-strategy` is specified.
+
+Options:
+
+- `--region`: AWS region
+- `--app`: Application name
+- `--profile`: Configuration profile name
+- `--env`: Environment name
+- `--deployment-strategy`: Deployment strategy name (defaults to the strategy of the latest deployment)
+- `--wait-deploy`: Wait for deployment phase to complete (until baking starts)
+- `--wait-bake`: Wait for complete deployment including baking phase
+- `--timeout`: Timeout in seconds for deployment wait (default: 600)
+
+**Note:** This command does not use `apcdeploy.yml`.
 
 ### diff
 
