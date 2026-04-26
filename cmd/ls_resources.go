@@ -50,7 +50,6 @@ func runLsResources(cmd *cobra.Command, args []string) error {
 		Region:         lsResourcesRegion,
 		JSON:           lsResourcesJSON,
 		ShowStrategies: lsResourcesShowStrategies,
-		Silent:         isSilent(),
 	}
 
 	// Create reporter

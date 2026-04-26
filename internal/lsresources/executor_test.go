@@ -73,7 +73,6 @@ func TestExecutor_ExecuteUsesStdout(t *testing.T) {
 	opts := &Options{
 		Region: "us-east-1",
 		JSON:   true,
-		Silent: false,
 	}
 
 	// Execute should use os.Stdout and succeed without error
@@ -100,7 +99,6 @@ func TestExecutor_ExecuteWithWriter(t *testing.T) {
 			opts: &Options{
 				Region: "us-east-1",
 				JSON:   true,
-				Silent: false,
 			},
 			setupMock: func(m *awsMock.MockAppConfigClient) {
 				m.ListDeploymentStrategiesFunc = func(ctx context.Context, params *appconfig.ListDeploymentStrategiesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentStrategiesOutput, error) {
@@ -148,7 +146,6 @@ func TestExecutor_ExecuteWithWriter(t *testing.T) {
 			opts: &Options{
 				Region: "us-west-2",
 				JSON:   false,
-				Silent: false,
 			},
 			setupMock: func(m *awsMock.MockAppConfigClient) {
 				m.ListDeploymentStrategiesFunc = func(ctx context.Context, params *appconfig.ListDeploymentStrategiesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentStrategiesOutput, error) {
@@ -189,7 +186,6 @@ func TestExecutor_ExecuteWithWriter(t *testing.T) {
 			opts: &Options{
 				Region: "eu-west-1",
 				JSON:   false,
-				Silent: false,
 			},
 			setupMock: func(m *awsMock.MockAppConfigClient) {
 				m.ListDeploymentStrategiesFunc = func(ctx context.Context, params *appconfig.ListDeploymentStrategiesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentStrategiesOutput, error) {
@@ -212,7 +208,6 @@ func TestExecutor_ExecuteWithWriter(t *testing.T) {
 			opts: &Options{
 				Region: "us-east-1",
 				JSON:   false,
-				Silent: false,
 			},
 			setupMock: func(m *awsMock.MockAppConfigClient) {
 				m.ListDeploymentStrategiesFunc = func(ctx context.Context, params *appconfig.ListDeploymentStrategiesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentStrategiesOutput, error) {
@@ -242,7 +237,6 @@ func TestExecutor_ExecuteWithWriter(t *testing.T) {
 			opts: &Options{
 				Region: "us-east-1",
 				JSON:   false,
-				Silent: false,
 			},
 			setupMock: func(m *awsMock.MockAppConfigClient) {
 				m.ListDeploymentStrategiesFunc = func(ctx context.Context, params *appconfig.ListDeploymentStrategiesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentStrategiesOutput, error) {

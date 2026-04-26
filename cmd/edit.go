@@ -66,7 +66,6 @@ func runEdit(cmd *cobra.Command, args []string) error {
 		WaitDeploy:         editWaitDeploy,
 		WaitBake:           editWaitBake,
 		Timeout:            editTimeout,
-		Silent:             isSilent(),
 	}
 
 	reporter := cli.GetReporter(isSilent())
