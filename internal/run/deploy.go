@@ -126,26 +126,10 @@ func (d *Deployer) StartDeployment(ctx context.Context, resolved *aws.ResolvedRe
 	return d.awsClient.StartDeployment(ctx, resolved.ApplicationID, resolved.EnvironmentID, resolved.Profile.ID, resolved.DeploymentStrategyID, versionNumber, "")
 }
 
-// WaitForDeployment waits for a deployment to complete (deploy + bake)
-func (d *Deployer) WaitForDeployment(ctx context.Context, resolved *aws.ResolvedResources, deploymentNumber int32, timeoutSeconds int) error {
-	timeout := time.Duration(timeoutSeconds) * time.Second
-	return d.awsClient.WaitForDeploymentPhase(ctx, resolved.ApplicationID, resolved.EnvironmentID, deploymentNumber, true, timeout)
-}
-
 // WaitForDeploymentPhase waits for a deployment to reach a specific phase
 func (d *Deployer) WaitForDeploymentPhase(ctx context.Context, resolved *aws.ResolvedResources, deploymentNumber int32, waitForBaking bool, timeoutSeconds int) error {
 	timeout := time.Duration(timeoutSeconds) * time.Second
 	return d.awsClient.WaitForDeploymentPhase(ctx, resolved.ApplicationID, resolved.EnvironmentID, deploymentNumber, waitForBaking, timeout)
-}
-
-// IsValidationError checks if the error is a validation error
-func (d *Deployer) IsValidationError(err error) bool {
-	return aws.IsValidationError(err)
-}
-
-// FormatValidationError formats a validation error with detailed information
-func (d *Deployer) FormatValidationError(err error) string {
-	return aws.FormatValidationError(err)
 }
 
 // HasConfigurationChanges checks if the local configuration differs from the deployed version
