@@ -44,9 +44,11 @@ type AppConfigSDKAPI interface {
 //   - Pagination-aware ListAll* methods (automatically handle pagination)
 //   - Raw SDK Get methods (for retrieving individual resources)
 //
-// Notably, this does NOT include Create/Start methods because those are exposed through
-// convenience wrapper methods on *Client (see deployment.go) with simplified signatures.
-// External code should use *Client directly when deploying configurations.
+// Notably, this does NOT include raw SDK List methods or Create/Start methods. Raw List
+// is internal to the pagination wrappers in client_list_paginated.go; Create/Start are
+// exposed through convenience wrapper methods on *Client (see deployment.go) with
+// simplified signatures. External code should use *Client directly when deploying
+// configurations.
 type AppConfigAPI interface {
 	// Pagination-aware List methods - automatically handle pagination to retrieve all resources
 	ListAllApplications(ctx context.Context) ([]types.Application, error)
