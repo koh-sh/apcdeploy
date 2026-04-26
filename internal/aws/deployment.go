@@ -197,17 +197,6 @@ func (c *Client) waitForDeploymentWithCondition(
 	}
 }
 
-// WaitForDeployment waits for a deployment to complete
-func (c *Client) WaitForDeployment(
-	ctx context.Context,
-	applicationID, environmentID string,
-	deploymentNumber int32,
-	timeout time.Duration,
-) error {
-	// Use WaitForDeploymentPhase with waitForBaking=true to wait for full completion
-	return c.WaitForDeploymentPhase(ctx, applicationID, environmentID, deploymentNumber, true, timeout)
-}
-
 // WaitForDeploymentPhase waits for a deployment to reach a specific phase
 // If waitForBaking is false, it waits until the deployment enters BAKING state (deploy phase complete)
 // If waitForBaking is true, it waits until the deployment reaches COMPLETE state (baking phase complete)

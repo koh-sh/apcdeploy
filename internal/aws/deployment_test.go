@@ -246,7 +246,10 @@ func TestStartDeployment(t *testing.T) {
 	}
 }
 
-func TestWaitForDeployment(t *testing.T) {
+// TestWaitForDeploymentPhase_FullCompletion exercises waitForBaking=true,
+// covering rollback-reason extraction paths that the parameterized
+// TestWaitForDeploymentPhase does not.
+func TestWaitForDeploymentPhase_FullCompletion(t *testing.T) {
 	tests := []struct {
 		name          string
 		deploymentNum int32
@@ -363,21 +366,22 @@ func TestWaitForDeployment(t *testing.T) {
 				appConfig:       mockClient,
 				PollingInterval: 100 * time.Millisecond, // Fast polling for tests
 			}
-			err := client.WaitForDeployment(
+			err := client.WaitForDeploymentPhase(
 				context.Background(),
 				"app-123",
 				"env-123",
 				tt.deploymentNum,
+				true, // waitForBaking=true matches the legacy WaitForDeployment behavior
 				tt.timeout,
 			)
 
 			if (err != nil) != tt.wantErr {
-				t.Errorf("WaitForDeployment() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("WaitForDeploymentPhase() error = %v, wantErr %v", err, tt.wantErr)
 			}
 
 			if tt.wantErrMsg != "" && err != nil {
 				if err.Error() != tt.wantErrMsg {
-					t.Errorf("WaitForDeployment() error message = %q, want %q", err.Error(), tt.wantErrMsg)
+					t.Errorf("WaitForDeploymentPhase() error message = %q, want %q", err.Error(), tt.wantErrMsg)
 				}
 			}
 		})

@@ -126,10 +126,10 @@ func (d *Deployer) StartDeployment(ctx context.Context, resolved *aws.ResolvedRe
 	return d.awsClient.StartDeployment(ctx, resolved.ApplicationID, resolved.EnvironmentID, resolved.Profile.ID, resolved.DeploymentStrategyID, versionNumber, "")
 }
 
-// WaitForDeployment waits for a deployment to complete
+// WaitForDeployment waits for a deployment to complete (deploy + bake)
 func (d *Deployer) WaitForDeployment(ctx context.Context, resolved *aws.ResolvedResources, deploymentNumber int32, timeoutSeconds int) error {
 	timeout := time.Duration(timeoutSeconds) * time.Second
-	return d.awsClient.WaitForDeployment(ctx, resolved.ApplicationID, resolved.EnvironmentID, deploymentNumber, timeout)
+	return d.awsClient.WaitForDeploymentPhase(ctx, resolved.ApplicationID, resolved.EnvironmentID, deploymentNumber, true, timeout)
 }
 
 // WaitForDeploymentPhase waits for a deployment to reach a specific phase
