@@ -1,10 +1,18 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
+	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/spf13/cobra"
+)
+
+// Exit codes used by the CLI. Anything other than 0/1 is considered a
+// distinguishable condition that scripts can branch on.
+const (
+	exitNoDeployment = 2
 )
 
 var (
@@ -70,6 +78,11 @@ func Execute() {
 			fmt.Fprintln(os.Stderr)
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			fmt.Fprintln(os.Stderr)
+		}
+		// Exit 2 when the failure is "no prior deployment" so scripts can
+		// distinguish that condition (e.g. first-time setup) from real errors.
+		if errors.Is(err, awsInternal.ErrNoDeployment) {
+			os.Exit(exitNoDeployment)
 		}
 		os.Exit(1)
 	}

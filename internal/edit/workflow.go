@@ -3,6 +3,8 @@ package edit
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
@@ -22,11 +24,17 @@ type workflow struct {
 
 // newWorkflow creates a workflow, resolving the AWS region interactively if needed.
 func newWorkflow(ctx context.Context, opts *Options, prompter prompt.Prompter, rep reporter.ProgressReporter) (*workflow, error) {
-	// Any missing flag triggers interactive mode; require a TTY up-front.
+	// A TTY is required in two cases:
+	//   - any targeting flag is missing (interactive selection is needed)
+	//   - $EDITOR is unset and we'll fall back to vi, which itself needs a TTY
+	// When all flags are provided AND the user has set $EDITOR explicitly,
+	// we trust them — automation can run a non-interactive editor (e.g. a
+	// test fixture) without a controlling terminal.
 	needsInteractive := opts.Region == "" || opts.Application == "" || opts.Profile == "" || opts.Environment == ""
-	if needsInteractive {
+	editorIsDefault := strings.TrimSpace(os.Getenv("EDITOR")) == ""
+	if needsInteractive || editorIsDefault {
 		if err := prompter.CheckTTY(); err != nil {
-			return nil, fmt.Errorf("%w: please provide --region, --app, --profile, and --env flags", err)
+			return nil, fmt.Errorf("%w: provide --region/--app/--profile/--env and set $EDITOR to run non-interactively", err)
 		}
 	}
 
@@ -116,7 +124,21 @@ func (w *workflow) resolveTargets(ctx context.Context, opts *Options) (*resolved
 
 // prepareDeployment fetches the latest deployment, determines the strategy to
 // use, and aborts if another deployment is already in progress.
+//
+// The ongoing-deployment check runs before announcing "Found deployment ..."
+// so users hitting that abort path don't see a misleading success message
+// immediately followed by an error.
 func (w *workflow) prepareDeployment(ctx context.Context, t *resolvedTargets, opts *Options) (*awsInternal.DeployedConfigInfo, string, error) {
+	w.reporter.Progress("Checking for ongoing deployments...")
+	ongoing, _, err := w.awsClient.CheckOngoingDeployment(ctx, t.AppID, t.EnvID)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to check ongoing deployments: %w", err)
+	}
+	if ongoing {
+		return nil, "", fmt.Errorf("deployment already in progress")
+	}
+	w.reporter.Success("No ongoing deployments")
+
 	w.reporter.Progress("Fetching latest deployed configuration...")
 	deployed, err := awsInternal.GetLatestDeployedConfiguration(ctx, w.awsClient, t.AppID, t.EnvID, t.Profile.ID)
 	if err != nil {
@@ -133,16 +155,6 @@ func (w *workflow) prepareDeployment(ctx context.Context, t *resolvedTargets, op
 		return nil, "", err
 	}
 
-	w.reporter.Progress("Checking for ongoing deployments...")
-	ongoing, _, err := w.awsClient.CheckOngoingDeployment(ctx, t.AppID, t.EnvID)
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to check ongoing deployments: %w", err)
-	}
-	if ongoing {
-		return nil, "", fmt.Errorf("deployment already in progress")
-	}
-	w.reporter.Success("No ongoing deployments")
-
 	return deployed, strategyID, nil
 }
 
@@ -150,9 +162,8 @@ func (w *workflow) prepareDeployment(ctx context.Context, t *resolvedTargets, op
 // configuration version when content changed, and starts the deployment.
 func (w *workflow) editAndDeploy(ctx context.Context, t *resolvedTargets, deployed *awsInternal.DeployedConfigInfo, strategyID string, opts *Options) error {
 	ext := config.ExtensionForContentType(deployed.ContentType)
-	editorName, _ := resolveEditorCommand()
-	w.reporter.Progress(fmt.Sprintf("Opening editor (%s)...", editorName))
-	edited, err := editBuffer(deployed.Content, ext)
+	w.reporter.Progress(fmt.Sprintf("Opening editor (%s)...", editorCommand()))
+	_, edited, err := editBuffer(deployed.Content, ext)
 	if err != nil {
 		return fmt.Errorf("failed to edit configuration: %w", err)
 	}

@@ -19,17 +19,19 @@ import (
 	reporterTesting "github.com/koh-sh/apcdeploy/internal/reporter/testing"
 )
 
-// fakeEditorScript writes a fake editor to a temp script that replaces the
-// file contents with newContent. It also sets $EDITOR via t.Setenv.
+// fakeEditorScript writes a fake editor that replaces the file contents with
+// newContent and sets $EDITOR to it. The new content is read from a sibling
+// file rather than embedded in the script to avoid heredoc-token collisions
+// (e.g. test inputs that themselves contain a chosen sentinel string).
 func fakeEditorScript(t *testing.T, newContent string) {
 	t.Helper()
 	dir := t.TempDir()
+	contentPath := filepath.Join(dir, "content")
+	if err := os.WriteFile(contentPath, []byte(newContent), 0o644); err != nil {
+		t.Fatalf("failed to write content fixture: %v", err)
+	}
 	script := filepath.Join(dir, "fake-editor.sh")
-	body := fmt.Sprintf(`#!/bin/sh
-cat > "$1" <<'APCDEPLOY_EOF'
-%s
-APCDEPLOY_EOF
-`, newContent)
+	body := fmt.Sprintf("#!/bin/sh\ncat %q > \"$1\"\n", contentPath)
 	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
 		t.Fatalf("failed to write fake editor: %v", err)
 	}
@@ -338,11 +340,6 @@ func assertContainsMessage(t *testing.T, messages []string, substr string) {
 	t.Errorf("expected message containing %q, got: %v", substr, messages)
 }
 
-// writeExec writes an executable script for use as a fake editor.
-func writeExec(path, body string) error {
-	return os.WriteFile(path, []byte(body), 0o755)
-}
-
 func TestNewWorkflowWithProvidedRegion(t *testing.T) {
 	// With all flags provided, newWorkflow should succeed without touching AWS,
 	// using awsConfig.LoadDefaultConfig. We just need it to construct a workflow.
@@ -365,19 +362,38 @@ func TestNewWorkflowWithProvidedRegion(t *testing.T) {
 }
 
 func TestNewWorkflowTTYCheckFails(t *testing.T) {
-	t.Parallel()
+	// Cannot t.Parallel() because subtests use t.Setenv.
+	// edit needs a TTY when interactive selection is required, or when
+	// $EDITOR is unset (vi fallback also needs a controlling terminal).
+	tests := []struct {
+		name string
+		opts *Options
+	}{
+		{
+			name: "missing region triggers TTY check",
+			opts: &Options{Application: "app", Profile: "prof", Environment: "env", Timeout: 300},
+		},
+		{
+			name: "all flags + default editor still triggers TTY check",
+			opts: &Options{Region: "us-east-1", Application: "app", Profile: "prof", Environment: "env", Timeout: 300},
+		},
+	}
 
-	prompter := &promptTesting.MockPrompter{
-		CheckTTYFunc: func() error { return fmt.Errorf("no tty") },
-	}
-	// Omit region to trigger needsInteractive path.
-	opts := &Options{Application: "app", Profile: "prof", Environment: "env", Timeout: 300}
-	_, err := newWorkflow(context.Background(), opts, prompter, &reporterTesting.MockReporter{})
-	if err == nil {
-		t.Fatal("expected TTY error")
-	}
-	if !strings.Contains(err.Error(), "no tty") {
-		t.Errorf("expected TTY error propagated, got: %v", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Force EDITOR empty so vi-default path enforces the TTY check.
+			t.Setenv("EDITOR", "")
+			prompter := &promptTesting.MockPrompter{
+				CheckTTYFunc: func() error { return fmt.Errorf("no tty") },
+			}
+			_, err := newWorkflow(context.Background(), tt.opts, prompter, &reporterTesting.MockReporter{})
+			if err == nil {
+				t.Fatal("expected TTY error")
+			}
+			if !strings.Contains(err.Error(), "no tty") {
+				t.Errorf("expected TTY error propagated, got: %v", err)
+			}
+		})
 	}
 }
 
@@ -484,9 +500,9 @@ func TestWaitIfRequested(t *testing.T) {
 
 func TestWorkflowInvalidSizeRejected(t *testing.T) {
 	dir := t.TempDir()
-	script := dir + "/big-editor.sh"
+	script := filepath.Join(dir, "big-editor.sh")
 	body := "#!/bin/sh\nprintf 'A%.0s' $(seq 1 2200000) > \"$1\"\n"
-	if err := writeExec(script, body); err != nil {
+	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
 		t.Fatalf("failed to write editor: %v", err)
 	}
 	t.Setenv("EDITOR", script)

@@ -3,44 +3,38 @@ package edit
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
 
-func TestResolveEditorCommand(t *testing.T) {
+func TestEditorCommand(t *testing.T) {
 	tests := []struct {
 		name     string
 		envValue string
-		wantName string
-		wantArgs []string
+		want     string
 	}{
-		{name: "uses EDITOR when set", envValue: "nano", wantName: "nano"},
-		{name: "defaults to vi when empty", envValue: "", wantName: "vi"},
-		{name: "trims whitespace", envValue: "  emacs  ", wantName: "emacs"},
-		{name: "splits args (code --wait)", envValue: "code --wait", wantName: "code", wantArgs: []string{"--wait"}},
-		{name: "preserves multiple args", envValue: "vim -n -u NONE", wantName: "vim", wantArgs: []string{"-n", "-u", "NONE"}},
+		{name: "uses EDITOR when set", envValue: "nano", want: "nano"},
+		{name: "defaults to vi when empty", envValue: "", want: "vi"},
+		{name: "trims surrounding whitespace", envValue: "  emacs  ", want: "emacs"},
+		{name: "preserves internal spaces and args", envValue: "code --wait", want: "code --wait"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("EDITOR", tt.envValue)
-			gotName, gotArgs := resolveEditorCommand()
-			if gotName != tt.wantName {
-				t.Errorf("resolveEditorCommand() name = %q, want %q", gotName, tt.wantName)
-			}
-			if len(gotArgs) != len(tt.wantArgs) {
-				t.Fatalf("resolveEditorCommand() args = %v, want %v", gotArgs, tt.wantArgs)
-			}
-			for i := range gotArgs {
-				if gotArgs[i] != tt.wantArgs[i] {
-					t.Errorf("resolveEditorCommand() args[%d] = %q, want %q", i, gotArgs[i], tt.wantArgs[i])
-				}
+			got := editorCommand()
+			if got != tt.want {
+				t.Errorf("editorCommand() = %q, want %q", got, tt.want)
 			}
 		})
 	}
 }
 
 func TestEditBufferLaunchesEditor(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("posix shell editor not available on windows")
+	}
 	tempDir := t.TempDir()
 	scriptPath := filepath.Join(tempDir, "fake-editor.sh")
 	script := `#!/bin/sh
@@ -53,9 +47,13 @@ echo ' edited' >> "$1"
 	t.Setenv("EDITOR", scriptPath)
 
 	original := []byte("initial content")
-	edited, err := editBuffer(original, ".txt")
+	name, edited, err := editBuffer(original, ".txt")
 	if err != nil {
 		t.Fatalf("editBuffer failed: %v", err)
+	}
+
+	if name != scriptPath {
+		t.Errorf("editor name = %q, want %q", name, scriptPath)
 	}
 
 	got := string(edited)
@@ -67,7 +65,39 @@ echo ' edited' >> "$1"
 	}
 }
 
+// TestEditBufferHandlesPathWithSpaces verifies that $EDITOR pointing to a
+// directory containing spaces works under sh -c parsing. This is the case
+// that the previous strings.Fields-based implementation broke.
+func TestEditBufferHandlesPathWithSpaces(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell parsing not used on windows")
+	}
+	parent := t.TempDir()
+	dirWithSpaces := filepath.Join(parent, "dir with spaces")
+	if err := os.MkdirAll(dirWithSpaces, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	scriptPath := filepath.Join(dirWithSpaces, "ed.sh")
+	if err := os.WriteFile(scriptPath, []byte("#!/bin/sh\necho ok > \"$1\"\n"), 0o755); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+
+	// Quote the editor path the way a real user would in a shell-parsed env.
+	t.Setenv("EDITOR", "'"+scriptPath+"'")
+
+	_, edited, err := editBuffer([]byte("seed"), ".txt")
+	if err != nil {
+		t.Fatalf("editBuffer failed: %v", err)
+	}
+	if !strings.Contains(string(edited), "ok") {
+		t.Errorf("expected edited content to contain 'ok', got %q", edited)
+	}
+}
+
 func TestEditBufferForwardsEditorArgs(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("posix shell editor not available on windows")
+	}
 	// Editor script that writes its received argv (excluding $0) to a record file.
 	tempDir := t.TempDir()
 	recordPath := filepath.Join(tempDir, "argv.txt")
@@ -79,7 +109,7 @@ func TestEditBufferForwardsEditorArgs(t *testing.T) {
 
 	t.Setenv("EDITOR", scriptPath+" --wait extra")
 
-	if _, err := editBuffer([]byte("x"), ".txt"); err != nil {
+	if _, _, err := editBuffer([]byte("x"), ".txt"); err != nil {
 		t.Fatalf("editBuffer failed: %v", err)
 	}
 
@@ -100,6 +130,9 @@ func TestEditBufferForwardsEditorArgs(t *testing.T) {
 }
 
 func TestEditBufferPropagatesEditorFailure(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("posix shell editor not available on windows")
+	}
 	tempDir := t.TempDir()
 	scriptPath := filepath.Join(tempDir, "fail-editor.sh")
 	script := `#!/bin/sh
@@ -111,13 +144,15 @@ exit 2
 
 	t.Setenv("EDITOR", scriptPath)
 
-	_, err := editBuffer([]byte("x"), ".txt")
-	if err == nil {
+	if _, _, err := editBuffer([]byte("x"), ".txt"); err == nil {
 		t.Fatal("expected error when editor fails")
 	}
 }
 
 func TestEditBufferCleansUpTempFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("posix shell editor not available on windows")
+	}
 	tempDir := t.TempDir()
 	scriptPath := filepath.Join(tempDir, "record-editor.sh")
 	recordPath := filepath.Join(tempDir, "path.txt")
@@ -130,7 +165,7 @@ echo "$1" > "` + recordPath + `"
 
 	t.Setenv("EDITOR", scriptPath)
 
-	if _, err := editBuffer([]byte("x"), ".json"); err != nil {
+	if _, _, err := editBuffer([]byte("x"), ".json"); err != nil {
 		t.Fatalf("editBuffer failed: %v", err)
 	}
 

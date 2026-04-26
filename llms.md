@@ -878,7 +878,10 @@ No command-specific flags. Uses global flags only (`-c, --config` and `-s, --sil
   - Error message: `no deployment found for this configuration profile: run 'apcdeploy run' to create the first deployment`
 - **Content-Type detection**: Automatically detects and respects content type from AWS
 - **Supports silent mode**: Use `--silent` flag to suppress verbose output
-- **Exit codes**: 0 on success, 1 on error
+- **Exit codes**:
+  - 0: success (including no-op when local file already matches)
+  - 1: general error (AWS, I/O, etc.)
+  - 2: no prior deployment exists for the profile (first-time setup needed)
 
 #### Examples
 
@@ -1150,7 +1153,10 @@ apcdeploy edit --wait-bake --timeout 1800
 - **`$EDITOR` resolution**: Uses the `$EDITOR` environment variable; falls back to `vi`
 - **TTY required**: Both for interactive target selection and for the editor itself
 - **Safe on invalid edits**: Syntax or size errors abort before any AWS write
-- **Exit codes**: 0 on success (including no-op), non-zero on error or editor failure
+- **Exit codes**:
+  - 0: success (including no-op when content is unchanged)
+  - 1: general error, validation failure, or editor non-zero exit
+  - 2: no prior deployment exists for the profile (first-time setup needed)
 
 #### Examples
 
