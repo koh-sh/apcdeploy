@@ -1,9 +1,6 @@
 package display
 
 import (
-	"bytes"
-	"io"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -11,113 +8,23 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/appconfig/types"
 	"github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/config"
+	mockreporter "github.com/koh-sh/apcdeploy/internal/reporter/testing"
 )
 
-func captureOutput(f func()) string {
-	old := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-
-	f()
-
-	w.Close()
-	os.Stdout = old
-
-	var buf bytes.Buffer
-	_, _ = io.Copy(&buf, r)
-	return buf.String()
-}
-
-func captureStderr(f func()) string {
-	old := os.Stderr
-	r, w, _ := os.Pipe()
-	os.Stderr = w
-
-	f()
-
-	w.Close()
-	os.Stderr = old
-
-	var buf bytes.Buffer
-	_, _ = io.Copy(&buf, r)
-	return buf.String()
-}
-
-func TestShowDeploymentStatusSilent(t *testing.T) {
+func TestDeploymentStatus(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
-		name       string
-		deployment *aws.DeploymentDetails
-		want       string
-	}{
-		{
-			name: "completed deployment",
-			deployment: &aws.DeploymentDetails{
-				State: types.DeploymentStateComplete,
-			},
-			want: "COMPLETE",
-		},
-		{
-			name: "deploying deployment",
-			deployment: &aws.DeploymentDetails{
-				State: types.DeploymentStateDeploying,
-			},
-			want: "DEPLOYING",
-		},
-		{
-			name: "baking deployment",
-			deployment: &aws.DeploymentDetails{
-				State: types.DeploymentStateBaking,
-			},
-			want: "BAKING",
-		},
-		{
-			name: "rolled back deployment",
-			deployment: &aws.DeploymentDetails{
-				State: types.DeploymentStateRolledBack,
-			},
-			want: "ROLLED_BACK",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			output := captureOutput(func() {
-				ShowDeploymentStatusSilent(tt.deployment)
-			})
-
-			// Verify only the status is shown
-			if !strings.Contains(output, tt.want) {
-				t.Errorf("ShowDeploymentStatusSilent() = %q, want to contain %q", output, tt.want)
-			}
-
-			// Verify no verbose information is shown
-			verboseKeywords := []string{
-				"Deployment Status",
-				"Application:",
-				"Profile:",
-				"Environment:",
-				"Deployment #:",
-				"Version:",
-				"Progress",
-			}
-			for _, keyword := range verboseKeywords {
-				if strings.Contains(output, keyword) {
-					t.Errorf("ShowDeploymentStatusSilent() should not contain verbose keyword %q\nGot:\n%s", keyword, output)
-				}
-			}
-		})
-	}
-}
-
-func TestShowDeploymentStatus(t *testing.T) {
-	tests := []struct {
-		name       string
-		deployment *aws.DeploymentDetails
-		cfg        *config.Config
-		resources  *aws.ResolvedResources
-		wantText   []string
+		name         string
+		deployment   *aws.DeploymentDetails
+		cfg          *config.Config
+		resources    *aws.ResolvedResources
+		wantStdout   string
+		wantTableHas []string // substrings expected in the main table rows
+		wantHeaders  []string // headers expected via Reporter.Header
+		wantWarn     bool
+		wantWarnText string
+		denyTableHas []string // substrings that must NOT appear in the main table
 	}{
 		{
 			name: "completed deployment",
@@ -130,29 +37,16 @@ func TestShowDeploymentStatus(t *testing.T) {
 				CompletedAt:          new(time.Date(2024, 1, 1, 10, 5, 0, 0, time.UTC)),
 				PercentageComplete:   100,
 			},
-			cfg: &config.Config{
-				Application: "test-app",
-				Environment: "test-env",
-			},
+			cfg: &config.Config{Application: "test-app", Environment: "test-env"},
 			resources: &aws.ResolvedResources{
 				Profile: &aws.ProfileInfo{Name: "test-profile"},
 			},
-			wantText: []string{
-				"Deployment Status",
-				"Application:   test-app",
-				"Profile:       test-profile",
-				"Environment:   test-env",
-				"Deployment #:  1",
-				"COMPLETE",
-				"Version:       v1.0.0",
-				"Description:   Test deployment",
-				"Started:",
-				"Completed:",
-				"Duration:",
-			},
+			wantStdout:   "COMPLETE\n",
+			wantHeaders:  []string{"Deployment Status"},
+			wantTableHas: []string{"test-app", "test-profile", "test-env", "v1.0.0", "Test deployment", "COMPLETE"},
 		},
 		{
-			name: "deploying deployment",
+			name: "deploying deployment shows progress section",
 			deployment: &aws.DeploymentDetails{
 				DeploymentNumber:       2,
 				State:                  types.DeploymentStateDeploying,
@@ -162,55 +56,14 @@ func TestShowDeploymentStatus(t *testing.T) {
 				GrowthFactor:           10,
 				FinalBakeTimeInMinutes: 5,
 			},
-			cfg: &config.Config{
-				Application: "test-app",
-				Environment: "prod-env",
-			},
-			resources: &aws.ResolvedResources{
-				Profile: &aws.ProfileInfo{Name: "prod-profile"},
-			},
-			wantText: []string{
-				"Deployment Status",
-				"Application:   test-app",
-				"Profile:       prod-profile",
-				"Environment:   prod-env",
-				"Deployment #:  2",
-				"DEPLOYING",
-				"Version:       v2.0.0",
-				"Progress",
-				"Percentage:    30.0%",
-				"Elapsed:",
-				"Estimated:",
-				"Growth Factor: 10.0%",
-				"Bake Time:     5 minutes",
-				"Current Phase:",
-			},
+			cfg:          &config.Config{Application: "test-app", Environment: "prod-env"},
+			resources:    &aws.ResolvedResources{Profile: &aws.ProfileInfo{Name: "prod-profile"}},
+			wantStdout:   "DEPLOYING\n",
+			wantHeaders:  []string{"Deployment Status", "Progress"},
+			wantTableHas: []string{"DEPLOYING", "v2.0.0", "30.0%", "10.0%", "5 minutes"},
 		},
 		{
-			name: "baking deployment",
-			deployment: &aws.DeploymentDetails{
-				DeploymentNumber:     3,
-				State:                types.DeploymentStateBaking,
-				ConfigurationVersion: "v3.0.0",
-				StartedAt:            new(time.Now().Add(-10 * time.Minute)),
-				PercentageComplete:   100,
-			},
-			cfg: &config.Config{
-				Application: "test-app",
-				Environment: "staging",
-			},
-			resources: &aws.ResolvedResources{
-				Profile: &aws.ProfileInfo{Name: "staging-profile"},
-			},
-			wantText: []string{
-				"Deployment Status",
-				"BAKING",
-				"Progress",
-				"Current Phase: Baking",
-			},
-		},
-		{
-			name: "rolled back deployment with reason",
+			name: "rolled back deployment surfaces warn + reason",
 			deployment: &aws.DeploymentDetails{
 				DeploymentNumber:       4,
 				State:                  types.DeploymentStateRolledBack,
@@ -222,118 +75,91 @@ func TestShowDeploymentStatus(t *testing.T) {
 				EventLog: []types.DeploymentEvent{
 					{
 						EventType:   types.DeploymentEventTypeRollbackStarted,
-						Description: new("Rollback initiated by CloudWatch Alarm: arn:aws:cloudwatch:us-east-1:123456789012:alarm:HighErrorRate"),
+						Description: new("Rollback initiated by CloudWatch Alarm"),
 					},
 				},
 			},
-			cfg: &config.Config{
-				Application: "test-app",
-				Environment: "prod",
-			},
-			resources: &aws.ResolvedResources{
-				Profile: &aws.ProfileInfo{Name: "prod-profile"},
-			},
-			wantText: []string{
-				"Deployment Status",
-				"ROLLED_BACK",
-				"Deployment was rolled back",
-				"Rollback initiated by CloudWatch Alarm",
-				"Strategy:      AppConfig.Linear50PercentEvery30Seconds",
-			},
+			cfg:          &config.Config{Application: "test-app", Environment: "prod"},
+			resources:    &aws.ResolvedResources{Profile: &aws.ProfileInfo{Name: "prod-profile"}},
+			wantStdout:   "ROLLED_BACK\n",
+			wantHeaders:  []string{"Deployment Status"},
+			wantTableHas: []string{"ROLLED_BACK", "AppConfig.Linear50PercentEvery30Seconds"},
+			denyTableHas: []string{"Deploying new configuration"}, // Description suppressed for ROLLED_BACK
+			wantWarn:     true,
+			wantWarnText: "Deployment was rolled back",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			output := captureStderr(func() {
-				ShowDeploymentStatus(tt.deployment, tt.cfg, tt.resources)
-			})
+			t.Parallel()
 
-			for _, want := range tt.wantText {
-				if !strings.Contains(output, want) {
-					t.Errorf("ShowDeploymentStatus() output missing %q\nGot:\n%s", want, output)
+			r := &mockreporter.MockReporter{}
+			DeploymentStatus(r, tt.deployment, tt.cfg, tt.resources)
+
+			if got := string(r.Stdout); got != tt.wantStdout {
+				t.Errorf("stdout payload = %q, want %q", got, tt.wantStdout)
+			}
+
+			for _, h := range tt.wantHeaders {
+				if !r.HasMessage("header: " + h) {
+					t.Errorf("expected Header(%q) to be emitted; messages=%v", h, r.Messages)
 				}
 			}
 
-			// For rolled back deployment, verify Description is NOT shown
-			if tt.deployment.State == types.DeploymentStateRolledBack && tt.deployment.Description != "" {
-				if strings.Contains(output, "Description:") {
-					t.Errorf("ShowDeploymentStatus() should not show Description for ROLLED_BACK deployment\nGot:\n%s", output)
+			tableContent := flattenTables(r.Tables)
+			for _, want := range tt.wantTableHas {
+				if !strings.Contains(tableContent, want) {
+					t.Errorf("expected table cells to contain %q; got %q", want, tableContent)
+				}
+			}
+			for _, deny := range tt.denyTableHas {
+				if strings.Contains(tableContent, deny) {
+					t.Errorf("expected table cells NOT to contain %q; got %q", deny, tableContent)
+				}
+			}
+
+			if tt.wantWarn {
+				if !r.HasMessage("warn: " + tt.wantWarnText) {
+					t.Errorf("expected Warn(%q); messages=%v", tt.wantWarnText, r.Messages)
 				}
 			}
 		})
 	}
 }
 
-func TestFormatDeploymentState(t *testing.T) {
-	tests := []struct {
-		name  string
-		state types.DeploymentState
-		want  string
-	}{
-		{
-			name:  "complete state",
-			state: types.DeploymentStateComplete,
-			want:  "COMPLETE",
-		},
-		{
-			name:  "deploying state",
-			state: types.DeploymentStateDeploying,
-			want:  "DEPLOYING",
-		},
-		{
-			name:  "baking state",
-			state: types.DeploymentStateBaking,
-			want:  "BAKING",
-		},
-		{
-			name:  "rolled back state",
-			state: types.DeploymentStateRolledBack,
-			want:  "ROLLED_BACK",
-		},
-		{
-			name:  "unknown state",
-			state: types.DeploymentState("UNKNOWN"),
-			want:  "UNKNOWN",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := formatDeploymentState(tt.state)
-			if !strings.Contains(got, tt.want) {
-				t.Errorf("formatDeploymentState() = %v, want to contain %v", got, tt.want)
+func flattenTables(calls []mockreporter.TableCall) string {
+	var sb strings.Builder
+	for _, c := range calls {
+		for _, row := range c.Rows {
+			for _, cell := range row {
+				sb.WriteString(cell)
+				sb.WriteByte('|')
 			}
-		})
+		}
 	}
+	return sb.String()
 }
 
 func TestFormatTime(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		time     time.Time
 		wantDate string
 	}{
-		{
-			name:     "specific time",
-			time:     time.Date(2024, 1, 15, 14, 30, 45, 0, time.UTC),
-			wantDate: "2024-01-15",
-		},
-		{
-			name:     "another time",
-			time:     time.Date(2024, 12, 31, 12, 0, 0, 0, time.UTC),
-			wantDate: "2024-12-31",
-		},
+		{"specific time", time.Date(2024, 1, 15, 14, 30, 45, 0, time.UTC), "2024-01-15"},
+		{"another time", time.Date(2024, 12, 31, 12, 0, 0, 0, time.UTC), "2024-12-31"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := formatTime(tt.time)
-			// Just check that the output contains the date (time zone may vary)
 			if !strings.Contains(got, tt.wantDate) {
-				t.Errorf("formatTime() = %v, want to contain date %v", got, tt.wantDate)
+				t.Errorf("formatTime() = %v, want to contain %v", got, tt.wantDate)
 			}
-			// Verify format includes time component
 			if !strings.Contains(got, ":") {
 				t.Errorf("formatTime() = %v, want to contain time separator ':'", got)
 			}
@@ -342,42 +168,24 @@ func TestFormatTime(t *testing.T) {
 }
 
 func TestFormatDuration(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		duration time.Duration
 		want     string
 	}{
-		{
-			name:     "seconds only",
-			duration: 45 * time.Second,
-			want:     "45s",
-		},
-		{
-			name:     "minutes and seconds",
-			duration: 3*time.Minute + 30*time.Second,
-			want:     "3m 30s",
-		},
-		{
-			name:     "hours, minutes and seconds",
-			duration: 2*time.Hour + 15*time.Minute + 45*time.Second,
-			want:     "2h 15m 45s",
-		},
-		{
-			name:     "zero duration",
-			duration: 0,
-			want:     "0s",
-		},
-		{
-			name:     "one hour exactly",
-			duration: 1 * time.Hour,
-			want:     "1h 0m 0s",
-		},
+		{"seconds only", 45 * time.Second, "45s"},
+		{"minutes and seconds", 3*time.Minute + 30*time.Second, "3m 30s"},
+		{"hours, minutes and seconds", 2*time.Hour + 15*time.Minute + 45*time.Second, "2h 15m 45s"},
+		{"zero duration", 0, "0s"},
+		{"one hour exactly", 1 * time.Hour, "1h 0m 0s"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := formatDuration(tt.duration)
-			if got != tt.want {
+			t.Parallel()
+			if got := formatDuration(tt.duration); got != tt.want {
 				t.Errorf("formatDuration() = %v, want %v", got, tt.want)
 			}
 		})
@@ -385,106 +193,34 @@ func TestFormatDuration(t *testing.T) {
 }
 
 func TestFormatCurrentPhase(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		deployment *aws.DeploymentDetails
 		want       string
 	}{
-		{
-			name: "baking state",
-			deployment: &aws.DeploymentDetails{
-				State: types.DeploymentStateBaking,
-			},
-			want: "Baking (monitoring for issues)",
-		},
-		{
-			name: "starting deployment",
-			deployment: &aws.DeploymentDetails{
-				State:              types.DeploymentStateDeploying,
-				PercentageComplete: 10,
-			},
-			want: "Starting deployment",
-		},
-		{
-			name: "initial rollout phase",
-			deployment: &aws.DeploymentDetails{
-				State:              types.DeploymentStateDeploying,
-				PercentageComplete: 30,
-			},
-			want: "Initial rollout phase",
-		},
-		{
-			name: "mid rollout phase",
-			deployment: &aws.DeploymentDetails{
-				State:              types.DeploymentStateDeploying,
-				PercentageComplete: 60,
-			},
-			want: "Mid rollout phase",
-		},
-		{
-			name: "final rollout phase",
-			deployment: &aws.DeploymentDetails{
-				State:              types.DeploymentStateDeploying,
-				PercentageComplete: 80,
-			},
-			want: "Final rollout phase",
-		},
-		{
-			name: "completing deployment",
-			deployment: &aws.DeploymentDetails{
-				State:              types.DeploymentStateDeploying,
-				PercentageComplete: 100,
-			},
-			want: "Completing deployment",
-		},
+		{"baking", &aws.DeploymentDetails{State: types.DeploymentStateBaking}, "Baking (monitoring for issues)"},
+		{"starting", &aws.DeploymentDetails{State: types.DeploymentStateDeploying, PercentageComplete: 10}, "Starting deployment"},
+		{"initial rollout", &aws.DeploymentDetails{State: types.DeploymentStateDeploying, PercentageComplete: 30}, "Initial rollout phase"},
+		{"mid rollout", &aws.DeploymentDetails{State: types.DeploymentStateDeploying, PercentageComplete: 60}, "Mid rollout phase"},
+		{"final rollout", &aws.DeploymentDetails{State: types.DeploymentStateDeploying, PercentageComplete: 80}, "Final rollout phase"},
+		{"completing", &aws.DeploymentDetails{State: types.DeploymentStateDeploying, PercentageComplete: 100}, "Completing deployment"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := formatCurrentPhase(tt.deployment)
-			if got != tt.want {
+			t.Parallel()
+			if got := formatCurrentPhase(tt.deployment); got != tt.want {
 				t.Errorf("formatCurrentPhase() = %v, want %v", got, tt.want)
 			}
 		})
 	}
 }
 
-func TestBold(t *testing.T) {
-	tests := []struct {
-		name string
-		text string
-		want string
-	}{
-		{
-			name: "simple text",
-			text: "Hello",
-			want: "Hello",
-		},
-		{
-			name: "text with spaces",
-			text: "Hello World",
-			want: "Hello World",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := bold(tt.text)
-			if !strings.Contains(got, tt.want) {
-				t.Errorf("bold() = %v, want to contain %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestSeparator(t *testing.T) {
-	result := separator()
-	if len(result) == 0 {
-		t.Error("separator() returned empty string")
-	}
-}
-
 func TestGetRollbackReason(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		eventLog []types.DeploymentEvent
@@ -493,30 +229,21 @@ func TestGetRollbackReason(t *testing.T) {
 		{
 			name: "rollback with CloudWatch alarm",
 			eventLog: []types.DeploymentEvent{
-				{
-					EventType:   types.DeploymentEventTypeRollbackStarted,
-					Description: new("Rollback initiated by CloudWatch Alarm: arn:aws:cloudwatch:us-east-1:123456789012:alarm:HighErrorRate"),
-				},
+				{EventType: types.DeploymentEventTypeRollbackStarted, Description: new("Rollback initiated by CloudWatch Alarm")},
 			},
-			want: "Rollback initiated by CloudWatch Alarm: arn:aws:cloudwatch:us-east-1:123456789012:alarm:HighErrorRate",
+			want: "Rollback initiated by CloudWatch Alarm",
 		},
 		{
 			name: "rollback completed event",
 			eventLog: []types.DeploymentEvent{
-				{
-					EventType:   types.DeploymentEventTypeRollbackCompleted,
-					Description: new("Rollback completed successfully"),
-				},
+				{EventType: types.DeploymentEventTypeRollbackCompleted, Description: new("Rollback completed successfully")},
 			},
 			want: "Rollback completed successfully",
 		},
 		{
 			name: "no rollback events",
 			eventLog: []types.DeploymentEvent{
-				{
-					EventType:   types.DeploymentEventTypeDeploymentStarted,
-					Description: new("Deployment started"),
-				},
+				{EventType: types.DeploymentEventTypeDeploymentStarted, Description: new("Deployment started")},
 			},
 			want: "",
 		},
@@ -528,28 +255,16 @@ func TestGetRollbackReason(t *testing.T) {
 		{
 			name: "rollback event without description",
 			eventLog: []types.DeploymentEvent{
-				{
-					EventType:   types.DeploymentEventTypeRollbackStarted,
-					Description: nil,
-				},
+				{EventType: types.DeploymentEventTypeRollbackStarted, Description: nil},
 			},
 			want: "",
 		},
 		{
 			name: "multiple events, get most recent rollback",
 			eventLog: []types.DeploymentEvent{
-				{
-					EventType:   types.DeploymentEventTypeDeploymentStarted,
-					Description: new("Deployment started"),
-				},
-				{
-					EventType:   types.DeploymentEventTypeRollbackStarted,
-					Description: new("First rollback"),
-				},
-				{
-					EventType:   types.DeploymentEventTypeRollbackStarted,
-					Description: new("Second rollback"),
-				},
+				{EventType: types.DeploymentEventTypeDeploymentStarted, Description: new("Deployment started")},
+				{EventType: types.DeploymentEventTypeRollbackStarted, Description: new("First rollback")},
+				{EventType: types.DeploymentEventTypeRollbackStarted, Description: new("Second rollback")},
 			},
 			want: "Second rollback",
 		},
@@ -557,8 +272,8 @@ func TestGetRollbackReason(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := getRollbackReason(tt.eventLog)
-			if got != tt.want {
+			t.Parallel()
+			if got := getRollbackReason(tt.eventLog); got != tt.want {
 				t.Errorf("getRollbackReason() = %v, want %v", got, tt.want)
 			}
 		})

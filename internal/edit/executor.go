@@ -10,17 +10,17 @@ import (
 )
 
 // workflowFactory constructs a workflow. It is injectable for tests.
-type workflowFactory func(context.Context, *Options, prompt.Prompter, reporter.ProgressReporter) (*workflow, error)
+type workflowFactory func(context.Context, *Options, prompt.Prompter, reporter.Reporter) (*workflow, error)
 
 // Executor drives the edit command.
 type Executor struct {
-	reporter        reporter.ProgressReporter
+	reporter        reporter.Reporter
 	prompter        prompt.Prompter
 	workflowFactory workflowFactory
 }
 
 // NewExecutor creates a new edit executor with the default workflow factory.
-func NewExecutor(rep reporter.ProgressReporter, prom prompt.Prompter) *Executor {
+func NewExecutor(rep reporter.Reporter, prom prompt.Prompter) *Executor {
 	return &Executor{
 		reporter:        rep,
 		prompter:        prom,
@@ -30,7 +30,7 @@ func NewExecutor(rep reporter.ProgressReporter, prom prompt.Prompter) *Executor 
 
 // NewExecutorWithFactory creates a new edit executor with a custom workflow factory.
 // This is useful for testing with mock dependencies.
-func NewExecutorWithFactory(rep reporter.ProgressReporter, prom prompt.Prompter, factory workflowFactory) *Executor {
+func NewExecutorWithFactory(rep reporter.Reporter, prom prompt.Prompter, factory workflowFactory) *Executor {
 	return &Executor{
 		reporter:        rep,
 		prompter:        prom,

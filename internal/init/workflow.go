@@ -14,14 +14,14 @@ import (
 // InitWorkflow handles the complete initialization workflow including interactive selection
 type InitWorkflow struct {
 	awsClient   *awsInternal.Client
-	reporter    reporter.ProgressReporter
+	reporter    reporter.Reporter
 	prompter    prompt.Prompter
 	selector    *InteractiveSelector
 	initializer *Initializer
 }
 
 // NewInitWorkflow creates a new InitWorkflow
-func NewInitWorkflow(ctx context.Context, opts *Options, prompter prompt.Prompter, reporter reporter.ProgressReporter) (*InitWorkflow, error) {
+func NewInitWorkflow(ctx context.Context, opts *Options, prompter prompt.Prompter, reporter reporter.Reporter) (*InitWorkflow, error) {
 	// Check TTY availability if any interactive prompts will be needed
 	needsInteractive := opts.Region == "" || opts.Application == "" || opts.Profile == "" || opts.Environment == ""
 	if needsInteractive {
@@ -50,7 +50,7 @@ func NewInitWorkflow(ctx context.Context, opts *Options, prompter prompt.Prompte
 //
 // TTY availability is the caller's responsibility; callers that will enter
 // interactive mode should run prompter.CheckTTY() beforehand.
-func SelectOrUseRegion(ctx context.Context, providedRegion string, prompter prompt.Prompter, reporter reporter.ProgressReporter) (string, error) {
+func SelectOrUseRegion(ctx context.Context, providedRegion string, prompter prompt.Prompter, reporter reporter.Reporter) (string, error) {
 	if providedRegion != "" {
 		return providedRegion, nil
 	}
@@ -67,7 +67,7 @@ func SelectOrUseRegion(ctx context.Context, providedRegion string, prompter prom
 
 // NewInitWorkflowWithClient creates a new InitWorkflow with a provided AWS client
 // This is useful for testing with mock clients
-func NewInitWorkflowWithClient(awsClient *awsInternal.Client, prompter prompt.Prompter, reporter reporter.ProgressReporter) *InitWorkflow {
+func NewInitWorkflowWithClient(awsClient *awsInternal.Client, prompter prompt.Prompter, reporter reporter.Reporter) *InitWorkflow {
 	return &InitWorkflow{
 		awsClient:   awsClient,
 		reporter:    reporter,

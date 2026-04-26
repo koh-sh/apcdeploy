@@ -138,12 +138,16 @@ Configuration file management:
 
 #### internal/reporter
 
-Progress reporting interface used across all commands:
+The single output abstraction used by every command. See [Output Contract](.claude/rules/output-contract.md) for the full contract.
 
-- `ProgressReporter`: Interface with `Progress()`, `Success()`, `Warning()` methods
-- `internal/cli/reporter.go`: Console implementation with colored output using lipgloss
-- `internal/cli/silent_reporter.go`: Silent implementation that suppresses all output (for `--silent` flag)
-- `internal/cli/factory.go`: Factory function `GetReporter()` to select appropriate reporter
+- `Reporter`: Interface with `Step`, `Success`, `Info`, `Warn`, `Error`, `Header`, `Box`, `Table`, `Spin`, `Data`, `Diff`
+- `internal/cli/reporter.go`: TTY-aware console implementation using lipgloss styles + bubbles spinner frames
+- `internal/cli/silent_reporter.go`: Silent variant that suppresses everything except `Error` / `Data` / `Diff`
+- `internal/cli/style.go`: Centralized lipgloss styles (the only place ANSI/color is defined)
+- `internal/cli/factory.go`: `GetReporter(silent bool) reporter.Reporter` selects the appropriate implementation
+- `internal/cli/tty.go`: TTY detection used to degrade animations and color in non-interactive environments
+
+Executors MUST NOT call `fmt.Fprint*` directly; all output flows through `Reporter`. Executors MUST NOT branch on `opts.Silent` — Reporter selection in `cmd/root.go` handles silent semantics.
 
 #### internal/prompt
 
@@ -352,25 +356,15 @@ data_file: <path>  # relative to apcdeploy.yml or absolute
 region: <aws-region>  # optional, uses AWS SDK default if omitted
 ```
 
-## Silent Mode
+## Output Contract
 
-The `--silent` (or `-s`) flag is a global flag that suppresses verbose output and shows only essential information.
+Every command produces output through `internal/reporter`. The full contract — channels (stdout vs stderr), output kinds (Step/Success/Info/Warn/Error/Header/Box/Table/Spin/Data/Diff), `--silent` semantics, TTY degradation, and rules for adding new commands — lives in [.claude/rules/output-contract.md](.claude/rules/output-contract.md).
 
-### Behavior
+Quick reference:
 
-- **Suppressed**: Progress messages, success messages, warnings
-- **Always shown**: Error messages (via stderr), final results (diff output, status, etc.)
-- **Use cases**: CI/CD pipelines, scripting, machine-readable output
-
-### Implementation
-
-- Silent mode is implemented via the `reporter.ProgressReporter` interface
-- `internal/cli/factory.go` provides `GetReporter()` to select the appropriate reporter
-- When `--silent` is set, `SilentReporter` is used, which has no-op implementations for all methods
-- Each command's Options struct includes a `Silent` field for conditional display logic
-- Commands like `diff` and `status` use `opts.Silent` to choose between verbose and silent display functions
-
-### Examples
+- stdout = machine-readable payload (one per command, e.g. `get` body, `diff` body, `ls-resources` tree, `status --silent` state).
+- stderr = human-readable progress, structure, errors.
+- `--silent` (`-s`) suppresses everything except `Error`, `Data`, `Diff`. Executors MUST NOT branch on `opts.Silent`.
 
 ```bash
 # Show only the diff without metadata

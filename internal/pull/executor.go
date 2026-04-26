@@ -12,12 +12,12 @@ import (
 
 // Executor handles the pull operation orchestration
 type Executor struct {
-	reporter      reporter.ProgressReporter
+	reporter      reporter.Reporter
 	clientFactory func(context.Context, string) (*aws.Client, error)
 }
 
 // NewExecutor creates a new pull executor
-func NewExecutor(rep reporter.ProgressReporter) *Executor {
+func NewExecutor(rep reporter.Reporter) *Executor {
 	return &Executor{
 		reporter:      rep,
 		clientFactory: aws.NewClient,
@@ -26,7 +26,7 @@ func NewExecutor(rep reporter.ProgressReporter) *Executor {
 
 // NewExecutorWithFactory creates a new pull executor with a custom client factory
 // This is useful for testing with mock clients
-func NewExecutorWithFactory(rep reporter.ProgressReporter, factory func(context.Context, string) (*aws.Client, error)) *Executor {
+func NewExecutorWithFactory(rep reporter.Reporter, factory func(context.Context, string) (*aws.Client, error)) *Executor {
 	return &Executor{
 		reporter:      rep,
 		clientFactory: factory,
@@ -36,7 +36,7 @@ func NewExecutorWithFactory(rep reporter.ProgressReporter, factory func(context.
 // Execute performs the complete pull workflow
 func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	// Step 1: Load configuration
-	e.reporter.Progress("Loading configuration...")
+	e.reporter.Step("Loading configuration...")
 	cfg, err := config.LoadConfig(opts.ConfigFile)
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
@@ -50,7 +50,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	}
 
 	// Step 3: Resolve resources
-	e.reporter.Progress("Resolving resources...")
+	e.reporter.Step("Resolving resources...")
 	resolver := aws.NewResolver(awsClient)
 	// Deployment strategy not needed for pull operation
 	resources, err := resolver.ResolveAll(ctx, cfg.Application, cfg.ConfigurationProfile, cfg.Environment, "")
@@ -64,7 +64,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	))
 
 	// Step 4: Get latest deployed configuration
-	e.reporter.Progress("Fetching latest deployed configuration...")
+	e.reporter.Step("Fetching latest deployed configuration...")
 	deployedConfig, err := aws.GetLatestDeployedConfiguration(ctx, awsClient, resources.ApplicationID, resources.EnvironmentID, resources.Profile.ID)
 	if err != nil {
 		return fmt.Errorf("failed to get latest deployed configuration: %w", err)
@@ -81,7 +81,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	))
 
 	// Step 5: Check for changes between local and remote
-	e.reporter.Progress("Checking for changes...")
+	e.reporter.Step("Checking for changes...")
 
 	// Determine the full path to the data file
 	dataFilePath := cfg.DataFile
@@ -94,7 +94,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	localData, err := config.LoadDataFile(dataFilePath)
 	if err != nil {
 		// If file doesn't exist or can't be read, proceed with update
-		e.reporter.Warning(fmt.Sprintf("Could not read local data file: %v", err))
+		e.reporter.Warn(fmt.Sprintf("Could not read local data file: %v", err))
 	} else {
 		// Compare local and remote content after normalization
 		ext := filepath.Ext(dataFilePath)
@@ -113,7 +113,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	}
 
 	// Step 6: Update data file
-	e.reporter.Progress("Updating data file...")
+	e.reporter.Step("Updating data file...")
 
 	// Write data file (force=true to overwrite existing file)
 	if err := config.WriteDataFile(deployedConfig.Content, deployedConfig.ContentType, dataFilePath, resources.Profile.Type, true); err != nil {

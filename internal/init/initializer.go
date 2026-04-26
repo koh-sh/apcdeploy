@@ -3,7 +3,6 @@ package init
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
@@ -14,11 +13,11 @@ import (
 // Initializer handles the initialization process
 type Initializer struct {
 	awsClient *awsInternal.Client
-	reporter  reporter.ProgressReporter
+	reporter  reporter.Reporter
 }
 
 // New creates a new Initializer
-func New(awsClient *awsInternal.Client, rep reporter.ProgressReporter) *Initializer {
+func New(awsClient *awsInternal.Client, rep reporter.Reporter) *Initializer {
 	return &Initializer{
 		awsClient: awsClient,
 		reporter:  rep,
@@ -27,7 +26,7 @@ func New(awsClient *awsInternal.Client, rep reporter.ProgressReporter) *Initiali
 
 // Run executes the initialization process
 func (i *Initializer) Run(ctx context.Context, opts *Options) (*Result, error) {
-	i.reporter.Progress("Initializing apcdeploy configuration...")
+	i.reporter.Step("Initializing apcdeploy configuration...")
 
 	// Resolve AWS resources
 	result, err := i.resolveResources(ctx, opts)
@@ -51,17 +50,15 @@ func (i *Initializer) Run(ctx context.Context, opts *Options) (*Result, error) {
 		return nil, err
 	}
 
-	// Show next steps (unless in silent mode)
-	if !opts.Silent {
-		i.showNextSteps()
-	}
+	// Show next steps (the Reporter handles silent mode for us).
+	i.showNextSteps()
 
 	return result, nil
 }
 
 // resolveResources resolves AWS resources (Application, Profile, Environment)
 func (i *Initializer) resolveResources(ctx context.Context, opts *Options) (*Result, error) {
-	i.reporter.Progress("Resolving AWS resources...")
+	i.reporter.Step("Resolving AWS resources...")
 
 	resolver := awsInternal.NewResolver(i.awsClient)
 
@@ -91,7 +88,7 @@ func (i *Initializer) resolveResources(ctx context.Context, opts *Options) (*Res
 
 // fetchConfigVersion fetches the latest deployed configuration version
 func (i *Initializer) fetchConfigVersion(ctx context.Context, result *Result) error {
-	i.reporter.Progress("Fetching latest deployed configuration...")
+	i.reporter.Step("Fetching latest deployed configuration...")
 
 	// Get latest deployed configuration
 	deployedConfig, err := awsInternal.GetLatestDeployedConfiguration(ctx, i.awsClient, result.AppID, result.EnvID, result.ProfileID)
@@ -101,7 +98,7 @@ func (i *Initializer) fetchConfigVersion(ctx context.Context, result *Result) er
 
 	// If no deployment exists, we'll create config without data file
 	if deployedConfig == nil {
-		i.reporter.Warning("No deployment found - config file will be created without data")
+		i.reporter.Warn("No deployment found - config file will be created without data")
 		result.DeployedConfig = nil
 		return nil
 	}
@@ -118,13 +115,13 @@ func (i *Initializer) fetchConfigVersion(ctx context.Context, result *Result) er
 
 // fetchDeploymentStrategy fetches the deployment strategy from the latest deployment
 func (i *Initializer) fetchDeploymentStrategy(ctx context.Context, result *Result) {
-	i.reporter.Progress("Fetching latest deployment strategy...")
+	i.reporter.Step("Fetching latest deployment strategy...")
 
 	// Try to get the latest deployment
 	latestDeployment, err := awsInternal.GetLatestDeployment(ctx, i.awsClient, result.AppID, result.EnvID, result.ProfileID)
 	if err != nil || latestDeployment == nil {
 		// If no deployment found or error, use default strategy
-		i.reporter.Warning("No previous deployments found - using default deployment strategy")
+		i.reporter.Warn("No previous deployments found - using default deployment strategy")
 		result.DeploymentStrategy = config.DefaultDeploymentStrategy
 		return
 	}
@@ -132,7 +129,7 @@ func (i *Initializer) fetchDeploymentStrategy(ctx context.Context, result *Resul
 	// Get deployment details to retrieve the strategy
 	deploymentDetails, err := awsInternal.GetDeploymentDetails(ctx, i.awsClient, result.AppID, result.EnvID, latestDeployment.DeploymentNumber)
 	if err != nil {
-		i.reporter.Warning("Could not retrieve deployment strategy - using default")
+		i.reporter.Warn("Could not retrieve deployment strategy - using default")
 		result.DeploymentStrategy = config.DefaultDeploymentStrategy
 		return
 	}
@@ -142,7 +139,7 @@ func (i *Initializer) fetchDeploymentStrategy(ctx context.Context, result *Resul
 	strategyName, err := resolver.ResolveDeploymentStrategyIDToName(ctx, deploymentDetails.DeploymentStrategyID)
 	if err != nil {
 		// If we can't resolve, use the ID as is (fallback)
-		i.reporter.Warning(fmt.Sprintf("Could not resolve deployment strategy name: %v", err))
+		i.reporter.Warn(fmt.Sprintf("Could not resolve deployment strategy name: %v", err))
 		result.DeploymentStrategy = deploymentDetails.DeploymentStrategyID
 	} else {
 		result.DeploymentStrategy = strategyName
@@ -166,7 +163,7 @@ func (i *Initializer) determineDataFileName(opts *Options, result *Result) {
 // generateFiles generates the configuration and data files
 func (i *Initializer) generateFiles(opts *Options, result *Result) error {
 	// Generate apcdeploy.yml
-	i.reporter.Progress(fmt.Sprintf("Generating configuration file: %s", result.ConfigFile))
+	i.reporter.Step(fmt.Sprintf("Generating configuration file: %s", result.ConfigFile))
 
 	// Use the resolved region from AWS client (which may have been auto-resolved by SDK)
 	if err := config.GenerateConfigFile(result.AppName, result.ProfileName, result.EnvName, result.DataFile, i.awsClient.Region, result.DeploymentStrategy, result.ConfigFile, opts.Force); err != nil {
@@ -178,7 +175,7 @@ func (i *Initializer) generateFiles(opts *Options, result *Result) error {
 	// Write data file if deployed config exists
 	if result.DeployedConfig != nil {
 		dataFilePath := filepath.Join(filepath.Dir(result.ConfigFile), result.DataFile)
-		i.reporter.Progress(fmt.Sprintf("Writing configuration data: %s", dataFilePath))
+		i.reporter.Step(fmt.Sprintf("Writing configuration data: %s", dataFilePath))
 
 		if err := config.WriteDataFile(result.DeployedConfig.Content, result.DeployedConfig.ContentType, dataFilePath, result.ProfileType, opts.Force); err != nil {
 			return fmt.Errorf("failed to write data file: %w", err)
@@ -190,12 +187,13 @@ func (i *Initializer) generateFiles(opts *Options, result *Result) error {
 	return nil
 }
 
-// showNextSteps displays next steps after initialization
+// showNextSteps displays next steps after initialization.
 func (i *Initializer) showNextSteps() {
-	i.reporter.Success("\nInitialization complete!")
-	fmt.Fprintln(os.Stderr, "\nNext steps:")
-	fmt.Fprintln(os.Stderr, "  1. Review the generated configuration files")
-	fmt.Fprintln(os.Stderr, "  2. Modify the data file as needed")
-	fmt.Fprintln(os.Stderr, "  3. Run 'apcdeploy diff' to preview changes")
-	fmt.Fprintln(os.Stderr, "  4. Run 'apcdeploy deploy' to deploy your configuration")
+	i.reporter.Success("Initialization complete!")
+	i.reporter.Box("Next steps", []string{
+		"  1. Review the generated configuration files",
+		"  2. Modify the data file as needed",
+		"  3. Run 'apcdeploy diff' to preview changes",
+		"  4. Run 'apcdeploy deploy' to deploy your configuration",
+	})
 }

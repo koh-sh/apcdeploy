@@ -196,7 +196,7 @@ func TestInitializer_FetchConfigVersion(t *testing.T) {
 				}
 				hasWarning := false
 				for _, msg := range reporter.Messages {
-					if len(msg) > 8 && msg[:8] == "warning:" {
+					if len(msg) > 5 && msg[:5] == "warn:" {
 						hasWarning = true
 						break
 					}
@@ -321,7 +321,7 @@ func TestInitializer_FetchDeploymentStrategy(t *testing.T) {
 			checkMessages: func(t *testing.T, reporter *reportertest.MockReporter) {
 				hasWarning := false
 				for _, msg := range reporter.Messages {
-					if len(msg) > 8 && msg[:8] == "warning:" {
+					if len(msg) > 5 && msg[:5] == "warn:" {
 						hasWarning = true
 						break
 					}
@@ -515,7 +515,7 @@ func TestInitializer_Run(t *testing.T) {
 				}
 				hasProgress := false
 				for _, msg := range reporter.Messages {
-					if len(msg) > 9 && msg[:9] == "progress:" {
+					if len(msg) > 5 && msg[:5] == "step:" {
 						hasProgress = true
 						break
 					}
@@ -661,7 +661,7 @@ func TestInitializer_Run(t *testing.T) {
 				}
 				hasWarning := false
 				for _, msg := range reporter.Messages {
-					if len(msg) > 8 && msg[:8] == "warning:" {
+					if len(msg) > 5 && msg[:5] == "warn:" {
 						hasWarning = true
 						break
 					}

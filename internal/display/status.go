@@ -2,129 +2,93 @@ package display
 
 import (
 	"fmt"
-	"os"
+	"strconv"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/appconfig/types"
 	"github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/config"
+	"github.com/koh-sh/apcdeploy/internal/reporter"
 )
 
-// ShowDeploymentStatusSilent displays only the deployment status in silent mode
-func ShowDeploymentStatusSilent(deployment *aws.DeploymentDetails) {
-	// In silent mode, only show the status
-	fmt.Println(deployment.State)
-}
+// DeploymentStatus renders the status of a deployment through the Reporter.
+//
+// The deployment state is always written to stdout via Reporter.Data so
+// scripts can consume it under --silent. The header / table / progress / box
+// sections are written via Reporter primitives, which the silent variant
+// suppresses automatically — callers MUST NOT branch on opts.Silent.
+func DeploymentStatus(r reporter.Reporter, deployment *aws.DeploymentDetails, cfg *config.Config, resources *aws.ResolvedResources) {
+	// Machine-readable payload: deployment state on stdout.
+	r.Data([]byte(string(deployment.State) + "\n"))
 
-// ShowDeploymentStatus displays detailed deployment status information
-func ShowDeploymentStatus(deployment *aws.DeploymentDetails, cfg *config.Config, resources *aws.ResolvedResources) {
-	// Header - output to stderr (human-readable display)
-	fmt.Fprintln(os.Stderr, "\n"+bold("Deployment Status"))
-	fmt.Fprintln(os.Stderr, separator())
+	// Human-facing summary on stderr (suppressed in silent mode).
+	r.Header("Deployment Status")
 
-	// Configuration information
-	fmt.Fprintf(os.Stderr, "  Application:   %s\n", cfg.Application)
-	fmt.Fprintf(os.Stderr, "  Profile:       %s\n", resources.Profile.Name)
-	fmt.Fprintf(os.Stderr, "  Environment:   %s\n", cfg.Environment)
-	fmt.Fprintln(os.Stderr)
-
-	// Deployment information
-	fmt.Fprintf(os.Stderr, "  Deployment #:  %d\n", deployment.DeploymentNumber)
-	fmt.Fprintf(os.Stderr, "  Status:        %s\n", formatDeploymentState(deployment.State))
-	fmt.Fprintf(os.Stderr, "  Version:       %s\n", deployment.ConfigurationVersion)
-
-	// Show description only for non-rolled-back deployments
+	rows := [][]string{
+		{"Application", cfg.Application},
+		{"Profile", resources.Profile.Name},
+		{"Environment", cfg.Environment},
+		{"Deployment #", strconv.Itoa(int(deployment.DeploymentNumber))},
+		{"Status", string(deployment.State)},
+		{"Version", deployment.ConfigurationVersion},
+	}
 	if deployment.State != types.DeploymentStateRolledBack && deployment.Description != "" {
-		fmt.Fprintf(os.Stderr, "  Description:   %s\n", deployment.Description)
+		rows = append(rows, []string{"Description", deployment.Description})
 	}
-
-	// Show deployment strategy
 	if deployment.DeploymentStrategyName != "" {
-		fmt.Fprintf(os.Stderr, "  Strategy:      %s\n", deployment.DeploymentStrategyName)
+		rows = append(rows, []string{"Strategy", deployment.DeploymentStrategyName})
 	}
-
-	// Timing information
 	if deployment.StartedAt != nil {
-		fmt.Fprintf(os.Stderr, "  Started:       %s\n", formatTime(*deployment.StartedAt))
+		rows = append(rows, []string{"Started", formatTime(*deployment.StartedAt)})
 	}
-
 	if deployment.CompletedAt != nil {
-		fmt.Fprintf(os.Stderr, "  Completed:     %s\n", formatTime(*deployment.CompletedAt))
+		rows = append(rows, []string{"Completed", formatTime(*deployment.CompletedAt)})
 		if deployment.StartedAt != nil {
 			duration := deployment.CompletedAt.Sub(*deployment.StartedAt)
-			fmt.Fprintf(os.Stderr, "  Duration:      %s\n", formatDuration(duration))
+			rows = append(rows, []string{"Duration", formatDuration(duration)})
 		}
 	}
+	r.Table([]string{"Field", "Value"}, rows)
 
-	// Progress information (for in-progress deployments)
 	if deployment.State == types.DeploymentStateDeploying || deployment.State == types.DeploymentStateBaking {
-		fmt.Fprintln(os.Stderr)
-		fmt.Fprintln(os.Stderr, bold("  Progress"))
-		fmt.Fprintf(os.Stderr, "  Percentage:    %.1f%%\n", deployment.PercentageComplete)
-
+		r.Header("Progress")
+		progressRows := [][]string{
+			{"Percentage", fmt.Sprintf("%.1f%%", deployment.PercentageComplete)},
+		}
 		if deployment.StartedAt != nil {
 			elapsed := time.Since(*deployment.StartedAt)
-			fmt.Fprintf(os.Stderr, "  Elapsed:       %s\n", formatDuration(elapsed))
-
-			// Estimate remaining time
+			progressRows = append(progressRows, []string{"Elapsed", formatDuration(elapsed)})
 			if deployment.PercentageComplete > 0 {
 				estimatedTotal := time.Duration(float64(elapsed) / float64(deployment.PercentageComplete) * 100)
-				remaining := estimatedTotal - elapsed
-				if remaining > 0 {
-					fmt.Fprintf(os.Stderr, "  Estimated:     %s remaining\n", formatDuration(remaining))
+				if remaining := estimatedTotal - elapsed; remaining > 0 {
+					progressRows = append(progressRows, []string{"Estimated", formatDuration(remaining) + " remaining"})
 				}
 			}
 		}
-
-		// Deployment strategy information
 		if deployment.GrowthFactor > 0 {
-			fmt.Fprintf(os.Stderr, "  Growth Factor: %.1f%%\n", deployment.GrowthFactor)
+			progressRows = append(progressRows, []string{"Growth Factor", fmt.Sprintf("%.1f%%", deployment.GrowthFactor)})
 		}
 		if deployment.FinalBakeTimeInMinutes > 0 {
-			fmt.Fprintf(os.Stderr, "  Bake Time:     %d minutes\n", deployment.FinalBakeTimeInMinutes)
+			progressRows = append(progressRows, []string{"Bake Time", fmt.Sprintf("%d minutes", deployment.FinalBakeTimeInMinutes)})
 		}
-
-		// Current phase
-		fmt.Fprintf(os.Stderr, "\n  Current Phase: %s\n", formatCurrentPhase(deployment))
+		progressRows = append(progressRows, []string{"Current Phase", formatCurrentPhase(deployment)})
+		r.Table([]string{"Field", "Value"}, progressRows)
 	}
 
-	// Rollback information
 	if deployment.State == types.DeploymentStateRolledBack {
-		fmt.Fprintln(os.Stderr)
-		fmt.Fprintf(os.Stderr, "  %s\n", errorMsg("Deployment was rolled back"))
-
-		// Try to find rollback reason from event log
-		rollbackReason := getRollbackReason(deployment.EventLog)
-		if rollbackReason != "" {
-			fmt.Fprintf(os.Stderr, "  Reason:        %s\n", rollbackReason)
+		r.Warn("Deployment was rolled back")
+		if reason := getRollbackReason(deployment.EventLog); reason != "" {
+			r.Info("Reason: " + reason)
 		}
 	}
-
-	fmt.Fprintln(os.Stderr)
 }
 
-// formatDeploymentState formats the deployment state with appropriate styling
-func formatDeploymentState(state types.DeploymentState) string {
-	switch state {
-	case types.DeploymentStateComplete:
-		return successMsg("COMPLETE")
-	case types.DeploymentStateDeploying:
-		return warningMsg("DEPLOYING")
-	case types.DeploymentStateBaking:
-		return warningMsg("BAKING")
-	case types.DeploymentStateRolledBack:
-		return errorMsg("ROLLED_BACK")
-	default:
-		return string(state)
-	}
-}
-
-// formatTime formats a time.Time for display
+// formatTime formats a time.Time for display.
 func formatTime(t time.Time) string {
 	return t.Local().Format("2006-01-02 15:04:05 MST")
 }
 
-// formatDuration formats a duration for display
+// formatDuration formats a duration for display.
 func formatDuration(d time.Duration) string {
 	d = d.Round(time.Second)
 	h := d / time.Hour
@@ -142,34 +106,31 @@ func formatDuration(d time.Duration) string {
 	return fmt.Sprintf("%ds", s)
 }
 
-// formatCurrentPhase determines the current phase of deployment
+// formatCurrentPhase determines the current phase of deployment.
 func formatCurrentPhase(deployment *aws.DeploymentDetails) string {
 	if deployment.State == types.DeploymentStateBaking {
 		return "Baking (monitoring for issues)"
 	}
 
 	percentage := deployment.PercentageComplete
-	if percentage >= 100 {
+	switch {
+	case percentage >= 100:
 		return "Completing deployment"
-	}
-	if percentage >= 75 {
+	case percentage >= 75:
 		return "Final rollout phase"
-	}
-	if percentage >= 50 {
+	case percentage >= 50:
 		return "Mid rollout phase"
-	}
-	if percentage >= 25 {
+	case percentage >= 25:
 		return "Initial rollout phase"
+	default:
+		return "Starting deployment"
 	}
-	return "Starting deployment"
 }
 
-// getRollbackReason extracts the rollback reason from deployment event log
+// getRollbackReason extracts the rollback reason from the deployment event log.
 func getRollbackReason(eventLog []types.DeploymentEvent) string {
-	// Look for rollback events in reverse order (most recent first)
 	for i := len(eventLog) - 1; i >= 0; i-- {
 		event := eventLog[i]
-		// Check for rollback-related events
 		if event.EventType == types.DeploymentEventTypeRollbackStarted ||
 			event.EventType == types.DeploymentEventTypeRollbackCompleted {
 			if event.Description != nil && *event.Description != "" {
