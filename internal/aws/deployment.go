@@ -242,6 +242,7 @@ func (c *Client) WaitForDeploymentPhase(
 type DeploymentInfo struct {
 	DeploymentNumber     int32
 	ConfigurationVersion string
+	DeploymentStrategyID string
 	State                types.DeploymentState
 	Description          string
 }
@@ -294,6 +295,7 @@ func getLatestDeploymentInternal(ctx context.Context, client *Client, applicatio
 				latestDeployment = &DeploymentInfo{
 					DeploymentNumber:     summary.DeploymentNumber,
 					ConfigurationVersion: aws.ToString(deployment.ConfigurationVersion),
+					DeploymentStrategyID: aws.ToString(deployment.DeploymentStrategyId),
 					State:                deployment.State,
 					Description:          aws.ToString(deployment.Description),
 				}

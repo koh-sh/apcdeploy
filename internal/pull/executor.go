@@ -2,18 +2,13 @@ package pull
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"path/filepath"
-	"strings"
 
 	"github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/config"
 	"github.com/koh-sh/apcdeploy/internal/reporter"
 )
-
-// ErrNoDeployment is returned when no deployment is found for the configuration profile
-var ErrNoDeployment = errors.New("no deployment found for this configuration profile")
 
 // Executor handles the pull operation orchestration
 type Executor struct {
@@ -77,7 +72,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 
 	// Handle case when no deployment exists
 	if deployedConfig == nil {
-		return fmt.Errorf("%w: run 'apcdeploy run' to create the first deployment", ErrNoDeployment)
+		return fmt.Errorf("%w: run 'apcdeploy run' to create the first deployment", aws.ErrNoDeployment)
 	}
 
 	e.reporter.Success(fmt.Sprintf("Found deployment #%d (version %d)",
@@ -102,7 +97,8 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 		e.reporter.Warning(fmt.Sprintf("Could not read local data file: %v", err))
 	} else {
 		// Compare local and remote content after normalization
-		hasChanges, err := e.hasChanges(string(localData), string(deployedConfig.Content), dataFilePath, resources.Profile.Type)
+		ext := filepath.Ext(dataFilePath)
+		hasChanges, err := config.HasContentChanged(localData, deployedConfig.Content, ext, resources.Profile.Type)
 		if err != nil {
 			return fmt.Errorf("failed to check for changes: %w", err)
 		}
@@ -128,41 +124,4 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	e.reporter.Success(fmt.Sprintf("Successfully pulled configuration from deployment #%d", deployedConfig.DeploymentNumber))
 
 	return nil
-}
-
-// hasChanges compares local and remote content after normalization.
-// Returns true if there are differences, false if they are identical.
-// For FeatureFlags profile type, it removes _updatedAt and _createdAt fields before comparing.
-func (e *Executor) hasChanges(localContent, remoteContent, fileName, profileType string) (bool, error) {
-	// Determine file extension for normalization
-	ext := strings.ToLower(filepath.Ext(fileName))
-
-	// Normalize remote content
-	normalizedRemote, err := normalizeContent(remoteContent, ext, profileType)
-	if err != nil {
-		return false, fmt.Errorf("failed to normalize remote content: %w", err)
-	}
-
-	// Normalize local content
-	normalizedLocal, err := normalizeContent(localContent, ext, profileType)
-	if err != nil {
-		return false, fmt.Errorf("failed to normalize local content: %w", err)
-	}
-
-	// Compare normalized contents
-	return normalizedRemote != normalizedLocal, nil
-}
-
-// normalizeContent normalizes content based on file type
-// For FeatureFlags profile type, it removes _updatedAt and _createdAt from JSON
-func normalizeContent(content, ext, profileType string) (string, error) {
-	switch ext {
-	case ".json":
-		return config.NormalizeJSON(content, profileType)
-	case ".yaml", ".yml":
-		return config.NormalizeYAML(content)
-	default:
-		// For text files, just ensure consistent line endings
-		return config.NormalizeText(content), nil
-	}
 }

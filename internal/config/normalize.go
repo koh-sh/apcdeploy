@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -74,6 +75,37 @@ func NormalizeText(content string) string {
 	// Ensure single trailing newline
 	content = strings.TrimRight(content, "\n") + "\n"
 	return content
+}
+
+// NormalizeByExtension dispatches to the appropriate normalizer based on a
+// file extension (".json", ".yaml"/".yml", otherwise treated as text).
+// The extension match is case-insensitive (".JSON" works the same as ".json").
+func NormalizeByExtension(content, ext, profileType string) (string, error) {
+	switch strings.ToLower(ext) {
+	case ".json":
+		return NormalizeJSON(content, profileType)
+	case ".yaml", ".yml":
+		return NormalizeYAML(content)
+	default:
+		return NormalizeText(content), nil
+	}
+}
+
+// HasContentChanged reports whether two content blobs differ after
+// normalization. It short-circuits when the raw bytes are already equal.
+func HasContentChanged(before, after []byte, ext, profileType string) (bool, error) {
+	if bytes.Equal(before, after) {
+		return false, nil
+	}
+	normalizedBefore, err := NormalizeByExtension(string(before), ext, profileType)
+	if err != nil {
+		return false, fmt.Errorf("failed to normalize original content: %w", err)
+	}
+	normalizedAfter, err := NormalizeByExtension(string(after), ext, profileType)
+	if err != nil {
+		return false, fmt.Errorf("failed to normalize edited content: %w", err)
+	}
+	return normalizedBefore != normalizedAfter, nil
 }
 
 // RemoveTimestampFieldsRecursive recursively removes _updatedAt and _createdAt from all maps in the object.

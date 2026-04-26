@@ -16,6 +16,7 @@ This file provides guidelines for AI assistants when using the `apcdeploy` comma
 - Retrieve deployed configurations (`get`)
 - Sync local files with deployed configurations (`pull`)
 - Stop ongoing deployments (`rollback`)
+- Edit deployed configuration directly in `$EDITOR` and deploy (`edit`)
 
 ### Important Constraints
 
@@ -54,7 +55,9 @@ This file provides guidelines for AI assistants when using the `apcdeploy` comma
    - Without this flag, the command shows a confirmation prompt and will fail with TTY error
    - Error message: `interactive mode requires a TTY: use --yes to skip confirmation`
 
-4. Other commands (`run`, `diff`, `status`, `pull`) do not require TTY and work in non-interactive environments
+4. **`edit` command**: Opens `$EDITOR` for direct modification. **AI agents should avoid this command** and use the `pull` → edit file → `run` flow instead. A TTY and an interactive editor are required for `$EDITOR`, and there is no non-interactive mode.
+
+5. Other commands (`run`, `diff`, `status`, `pull`) do not require TTY and work in non-interactive environments
 
 ## Recommended Usage Flows
 
@@ -875,7 +878,10 @@ No command-specific flags. Uses global flags only (`-c, --config` and `-s, --sil
   - Error message: `no deployment found for this configuration profile: run 'apcdeploy run' to create the first deployment`
 - **Content-Type detection**: Automatically detects and respects content type from AWS
 - **Supports silent mode**: Use `--silent` flag to suppress verbose output
-- **Exit codes**: 0 on success, 1 on error
+- **Exit codes**:
+  - 0: success (including no-op when local file already matches)
+  - 1: general error (AWS, I/O, etc.)
+  - 2: no prior deployment exists for the profile (first-time setup needed)
 
 #### Examples
 
@@ -1079,6 +1085,96 @@ apcdeploy rollback -c apcdeploy.yml --yes
 # Edit data.json to fix the issue (use Edit tool for AI agents)
 apcdeploy diff -c apcdeploy.yml    # Preview the fix
 apcdeploy run -c apcdeploy.yml     # Deploy the fixed configuration
+```
+
+### edit command
+
+Fetches the currently deployed configuration, opens it in `$EDITOR`, and deploys the result. Does not use `apcdeploy.yml`.
+
+**AI agents: avoid this command.** It requires an interactive text editor via `$EDITOR` and has no non-interactive mode. Use `pull` → edit file programmatically → `run` instead.
+
+#### Usage
+
+```bash
+# Fully interactive (for human users)
+apcdeploy edit
+
+# Non-interactive target selection (still launches $EDITOR)
+apcdeploy edit --region us-west-2 --app my-app --profile my-profile --env production
+
+# Override the deployment strategy for this edit
+apcdeploy edit --deployment-strategy AppConfig.Linear
+
+# Wait for baking to complete
+apcdeploy edit --wait-bake --timeout 1800
+```
+
+#### Flags
+
+- `--region <region>`: AWS region (interactive prompt if omitted)
+- `--app <name>`: Application name (interactive prompt if omitted)
+- `--profile <name>`: Configuration profile name (interactive prompt if omitted)
+- `--env <name>`: Environment name (interactive prompt if omitted)
+- `--deployment-strategy <name>`: Deployment strategy name. Defaults to the strategy of the latest deployment
+- `--wait-deploy`: Wait for deployment phase to complete (until baking starts)
+- `--wait-bake`: Wait for complete deployment including baking phase
+- `--timeout <seconds>`: Timeout in seconds for deployment wait (default: 600)
+
+**Important**: `--wait-deploy` and `--wait-bake` are mutually exclusive.
+
+#### Operation Details
+
+1. **Resolve target**: Select region/application/profile/environment via flags or interactive prompts
+2. **Fetch deployed configuration**: Retrieve content and metadata from the latest deployment
+   - Returns error if no deployment exists (use `run` to create the first deployment)
+3. **Determine deployment strategy**: Use `--deployment-strategy` flag if provided, otherwise reuse the strategy of the latest deployment
+4. **Check for ongoing deployments**: Abort if a deployment is already in progress
+5. **Launch editor**: Write the content to a temp file (extension derived from the content type), then invoke `$EDITOR` (defaults to `vi`)
+6. **Validate**: Apply the same validation as `run` (2 MB size limit, JSON/YAML syntax check)
+7. **Diff check**: If the edited content matches the deployed content after normalization, skip deployment
+8. **Create version**: Create a new hosted configuration version with the edited content
+9. **Start deployment**: Deploy using the resolved strategy
+10. **Wait** (optional): `--wait-deploy` or `--wait-bake`, same semantics as `run`
+
+#### Key Characteristics
+
+- **No `apcdeploy.yml` required**: Operates directly against AWS resources
+- **Requires TTY and `$EDITOR`**: The editor is always launched; there is no non-interactive path
+- **Content type preserved**: JSON/YAML/text content type is detected from the deployed version
+- **Strategy inheritance**: Without `--deployment-strategy`, the latest deployment's strategy is reused
+- **Validation parity with `run`**: Same size and syntax checks
+- **Idempotent on no-op edits**: Skips deployment if normalized content is unchanged
+
+#### Notes
+
+- **AWS credentials required**: Required to fetch and deploy configuration
+- **Initial deployment required**: The profile/environment must have at least one prior deployment
+  - Error message: `no deployment found for this configuration profile: run 'apcdeploy run' to create the first deployment`
+- **`$EDITOR` resolution**: Uses the `$EDITOR` environment variable; falls back to `vi`
+- **TTY required**: Both for interactive target selection and for the editor itself
+- **Safe on invalid edits**: Syntax or size errors abort before any AWS write
+- **Exit codes**:
+  - 0: success (including no-op when content is unchanged)
+  - 1: general error, validation failure, or editor non-zero exit
+  - 2: no prior deployment exists for the profile (first-time setup needed)
+
+#### Examples
+
+```bash
+# Quick fix workflow (human user)
+apcdeploy edit --region us-west-2 --app my-app --profile my-profile --env production
+
+# Use a faster strategy for a one-off hotfix
+apcdeploy edit --region us-west-2 --app my-app --profile my-profile --env production \
+  --deployment-strategy AppConfig.AllAtOnce
+
+# Wait for full rollout
+apcdeploy edit --region us-west-2 --app my-app --profile my-profile --env production --wait-bake
+
+# AI agent alternative (recommended): use pull + run instead of edit
+apcdeploy init --region us-west-2 --app my-app --profile my-profile --env production
+# Edit data.json programmatically
+apcdeploy run -c apcdeploy.yml
 ```
 
 ### context command
@@ -1368,7 +1464,7 @@ To use `apcdeploy`, the following AWS AppConfig IAM permissions are required:
 }
 ```
 
-#### Deployment Permissions (run, diff, status, pull, and rollback commands)
+#### Deployment Permissions (run, edit, diff, status, pull, and rollback commands)
 
 ```json
 {

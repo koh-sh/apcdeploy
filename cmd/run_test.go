@@ -134,7 +134,7 @@ func TestRunTimeoutValidation(t *testing.T) {
 			name:    "negative timeout is invalid",
 			timeout: -1,
 			wantErr: true,
-			errMsg:  "timeout must be a positive value",
+			errMsg:  "timeout must be a non-negative value",
 		},
 	}
 

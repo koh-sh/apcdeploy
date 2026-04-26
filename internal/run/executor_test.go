@@ -42,7 +42,7 @@ func TestExecutorValidateTimeout(t *testing.T) {
 			name:        "negative timeout is invalid",
 			timeout:     -1,
 			wantErr:     true,
-			expectedMsg: "timeout must be a positive value",
+			expectedMsg: "timeout must be a non-negative value",
 		},
 		{
 			name:    "zero timeout is valid",
@@ -79,7 +79,7 @@ func TestExecutorValidateTimeout(t *testing.T) {
 			} else {
 				// We expect an error here because the config file doesn't exist
 				// but it should not be a timeout validation error
-				if err != nil && strings.Contains(err.Error(), "timeout must be a positive value") {
+				if err != nil && strings.Contains(err.Error(), "timeout must be a non-negative value") {
 					t.Errorf("unexpected timeout validation error: %v", err)
 				}
 			}

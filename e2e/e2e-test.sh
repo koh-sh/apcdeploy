@@ -13,6 +13,11 @@ WORKDIR="./e2e/"
 use_strategy() { sed -i '' "s/deployment_strategy:.*/deployment_strategy: ${STRATEGY}/" apcdeploy.yml; }
 use_slow_strategy() { sed -i '' "s/deployment_strategy:.*/deployment_strategy: E2E-Slow-Strategy/" apcdeploy.yml; }
 
+# Fake editor used by S7/E3/E5. Reads content from $APCDEPLOY_EDIT_CONTENT
+# rather than embedding it, so callers can vary the bytes safely without
+# re-writing the fixture or worrying about shell-quote escaping.
+FAKE_EDITOR=./edit-fixture.sh
+
 # test title colored with green
 function title() {
     echo -e "\e[32m \n##### ${1} #####\n \e[m"
@@ -112,6 +117,18 @@ $APCDEPLOY rollback --silent --yes
 $APCDEPLOY status --silent | grep -q "ROLLED_BACK"
 if $APCDEPLOY rollback --silent --yes; then exit 1; fi
 
+echo "Edit: $EDITOR-driven workflow (happy, no-op, invalid)"
+title "========== S7: Edit =========="
+$APCDEPLOY init --silent --app "$APP" --profile json-freeform --env dev --region "$REGION" --force
+use_strategy
+echo '{"e":"seed"}' > data.json
+$APCDEPLOY run --wait-bake --silent
+
+EDITOR=$FAKE_EDITOR APCDEPLOY_EDIT_CONTENT='{"e":"new"}' $APCDEPLOY edit --region "$REGION" --app "$APP" --profile json-freeform --env dev --wait-bake --silent
+$APCDEPLOY get --silent --yes | jq -e '.e == "new"' > /dev/null
+EDITOR=$FAKE_EDITOR APCDEPLOY_EDIT_CONTENT='{"e":"new"}' $APCDEPLOY edit --region "$REGION" --app "$APP" --profile json-freeform --env dev 2>&1 | grep -q "No changes detected"
+if EDITOR=$FAKE_EDITOR APCDEPLOY_EDIT_CONTENT='not-json' $APCDEPLOY edit --region "$REGION" --app "$APP" --profile json-freeform --env dev --silent; then exit 1; fi
+
 echo "Error handling: non-existent resources (app/profile/env)"
 title "========== E1: Resource Errors =========="
 if $APCDEPLOY init --silent --app xxx --profile test --env dev --region "$REGION"; then exit 1; fi
@@ -124,7 +141,7 @@ $APCDEPLOY init --silent --app "$APP" --profile json-freeform --env dev --region
 echo '{"bad": json}' > data.json
 if $APCDEPLOY run --silent; then exit 1; fi
 
-echo "Constraint errors: concurrent deployment, timeout"
+echo "Constraint errors: concurrent deployment, timeout, edit while ongoing"
 title "========== E3: Constraints =========="
 $APCDEPLOY init --silent --app "$APP" --profile error-test --env dev --region "$REGION" --force
 use_slow_strategy
@@ -132,6 +149,7 @@ echo '{"c":"1"}' > data.json
 $APCDEPLOY run --silent >/dev/null 2>&1 &
 sleep 2
 if $APCDEPLOY run --silent; then exit 1; fi
+if EDITOR=$FAKE_EDITOR APCDEPLOY_EDIT_CONTENT='{"c":"x"}' $APCDEPLOY edit --region "$REGION" --app "$APP" --profile error-test --env dev --silent; then exit 1; fi
 wait || true
 
 echo '{"c":"2"}' > data.json
@@ -149,12 +167,16 @@ $APCDEPLOY init --silent --app "$APP" --profile json-freeform --env dev --region
 if $APCDEPLOY init --silent --app "$APP" --profile json-freeform --env dev --region "$REGION"; then exit 1; fi
 $APCDEPLOY init --silent --app "$APP" --profile json-freeform --env dev --region "$REGION" --force
 
-echo "Edge cases: no deployment history, invalid timeout, missing required flags"
+echo "Edge cases: no deployment history, invalid timeout, missing required flags, exit-code 2 sentinel"
 title "========== E5: Edge Cases =========="
 $APCDEPLOY init --silent --app "$APP" --profile error-test --env staging --region "$REGION" --force
 use_strategy
 $APCDEPLOY diff --silent 2>&1 | grep -q "No deployment" || echo "⚠️  Deployment may exist"
 $APCDEPLOY status --silent 2>&1 | grep -q "No deploy" || echo "⚠️  Deployment may exist"
+
+# pull and edit must exit 2 (not 1) so scripts can distinguish "no prior deployment" from real errors.
+rc=0; $APCDEPLOY pull --silent || rc=$?; [ "$rc" -eq 2 ]
+rc=0; EDITOR=$FAKE_EDITOR APCDEPLOY_EDIT_CONTENT='{"e":"x"}' $APCDEPLOY edit --region "$REGION" --app "$APP" --profile error-test --env staging --silent || rc=$?; [ "$rc" -eq 2 ]
 
 echo '{"e":"1"}' > data.json
 if $APCDEPLOY run --wait-bake --timeout -1 --silent; then exit 1; fi

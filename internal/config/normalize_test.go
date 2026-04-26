@@ -1,6 +1,7 @@
 package config
 
 import (
+	"reflect"
 	"testing"
 )
 
@@ -123,6 +124,16 @@ func TestNormalizeText(t *testing.T) {
 			content: "line1\nline2\n",
 			want:    "line1\nline2\n",
 		},
+		{
+			name:    "mixed line endings",
+			content: "line1\nline2\r\nline3",
+			want:    "line1\nline2\nline3\n",
+		},
+		{
+			name:    "empty string",
+			content: "",
+			want:    "\n",
+		},
 	}
 
 	for _, tt := range tests {
@@ -135,7 +146,117 @@ func TestNormalizeText(t *testing.T) {
 	}
 }
 
+func TestNormalizeByExtension(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		content     string
+		ext         string
+		profileType string
+		wantErr     bool
+	}{
+		{name: "json", content: `{"key":"value"}`, ext: ".json", profileType: ProfileTypeFreeform},
+		{name: "yaml", content: "key: value\n", ext: ".yaml", profileType: ProfileTypeFreeform},
+		{name: "yml", content: "key: value\n", ext: ".yml", profileType: ProfileTypeFreeform},
+		{name: "txt falls back to text normalizer", content: "plain text\ncontent", ext: ".txt", profileType: ProfileTypeFreeform},
+		{name: "unknown extension falls back to text", content: "hello", ext: ".unknown", profileType: ProfileTypeFreeform},
+		{name: "invalid json", content: `{invalid}`, ext: ".json", profileType: ProfileTypeFreeform, wantErr: true},
+		{name: "invalid yaml", content: ":\ninvalid\n:", ext: ".yaml", profileType: ProfileTypeFreeform, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := NormalizeByExtension(tt.content, tt.ext, tt.profileType)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("NormalizeByExtension() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr && got == "" {
+				t.Error("NormalizeByExtension() returned empty string for valid input")
+			}
+		})
+	}
+}
+
+func TestHasContentChanged(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		before      []byte
+		after       []byte
+		ext         string
+		profileType string
+		wantChanged bool
+		wantErr     bool
+	}{
+		{
+			name:        "identical bytes short-circuit",
+			before:      []byte(`{"a":1}`),
+			after:       []byte(`{"a":1}`),
+			ext:         ".json",
+			profileType: ProfileTypeFreeform,
+		},
+		{
+			name:        "whitespace-only difference is not a change",
+			before:      []byte(`{"a":1,"b":2}`),
+			after:       []byte("{\n  \"a\": 1,\n  \"b\": 2\n}\n"),
+			ext:         ".json",
+			profileType: ProfileTypeFreeform,
+		},
+		{
+			name:        "value change is detected",
+			before:      []byte(`{"a":1}`),
+			after:       []byte(`{"a":2}`),
+			ext:         ".json",
+			profileType: ProfileTypeFreeform,
+			wantChanged: true,
+		},
+		{
+			name:        "FeatureFlags metadata is ignored",
+			before:      []byte(`{"flags":{"f":{"_updatedAt":"x","name":"f"}}}`),
+			after:       []byte(`{"flags":{"f":{"name":"f"}}}`),
+			ext:         ".json",
+			profileType: ProfileTypeFeatureFlags,
+		},
+		{
+			name:        "invalid before propagates error",
+			before:      []byte(`{invalid`),
+			after:       []byte(`{}`),
+			ext:         ".json",
+			profileType: ProfileTypeFreeform,
+			wantErr:     true,
+		},
+		{
+			name:        "invalid after propagates error",
+			before:      []byte(`{}`),
+			after:       []byte(`{invalid`),
+			ext:         ".json",
+			profileType: ProfileTypeFreeform,
+			wantErr:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := HasContentChanged(tt.before, tt.after, tt.ext, tt.profileType)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("HasContentChanged() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.wantChanged {
+				t.Errorf("HasContentChanged() = %v, want %v", got, tt.wantChanged)
+			}
+		})
+	}
+}
+
 func TestRemoveTimestampFieldsRecursive(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		obj  any
@@ -188,19 +309,29 @@ func TestRemoveTimestampFieldsRecursive(t *testing.T) {
 			},
 		},
 		{
-			name: "primitive value",
+			name: "primitive string",
 			obj:  "string",
 			want: "string",
+		},
+		{
+			name: "primitive number",
+			obj:  42,
+			want: 42,
+		},
+		{
+			name: "primitive bool",
+			obj:  true,
+			want: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := RemoveTimestampFieldsRecursive(tt.obj)
-			// Deep comparison would require reflection or a helper
-			// For now, we'll trust the implementation matches the want
-			_ = got
-			// TODO: Add proper deep equality check
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("RemoveTimestampFieldsRecursive() = %v, want %v", got, tt.want)
+			}
 		})
 	}
 }

@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -11,13 +12,17 @@ import (
 	"github.com/koh-sh/apcdeploy/internal/config"
 )
 
+// ErrNoDeployment is returned when no deployment exists for the target configuration profile.
+var ErrNoDeployment = errors.New("no deployment found for this configuration profile")
+
 // DeployedConfigInfo contains information about a deployed configuration
 type DeployedConfigInfo struct {
-	DeploymentNumber int32
-	VersionNumber    int32
-	Content          []byte
-	ContentType      string
-	State            types.DeploymentState
+	DeploymentNumber     int32
+	VersionNumber        int32
+	DeploymentStrategyID string
+	Content              []byte
+	ContentType          string
+	State                types.DeploymentState
 }
 
 // GetLatestDeployedConfiguration retrieves the latest deployed configuration for a given profile.
@@ -57,10 +62,11 @@ func GetLatestDeployedConfiguration(ctx context.Context, client *Client, appID, 
 	}
 
 	return &DeployedConfigInfo{
-		DeploymentNumber: deployment.DeploymentNumber,
-		VersionNumber:    int32(versionNum),
-		Content:          versionOutput.Content,
-		ContentType:      contentType,
-		State:            deployment.State,
+		DeploymentNumber:     deployment.DeploymentNumber,
+		VersionNumber:        int32(versionNum),
+		DeploymentStrategyID: deployment.DeploymentStrategyID,
+		Content:              versionOutput.Content,
+		ContentType:          contentType,
+		State:                deployment.State,
 	}, nil
 }

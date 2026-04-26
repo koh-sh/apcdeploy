@@ -2,14 +2,12 @@ package run
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/goccy/go-yaml"
 	"github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/config"
 )
@@ -69,30 +67,7 @@ func loadConfiguration(configPath string) (*config.Config, []byte, error) {
 
 // ValidateLocalData validates the configuration data locally
 func (d *Deployer) ValidateLocalData(data []byte, contentType string) error {
-	// Check size (2MB limit)
-	if len(data) > config.MaxConfigSize {
-		return fmt.Errorf("configuration data size %d bytes exceeds maximum allowed size of %d bytes (2MB)", len(data), config.MaxConfigSize)
-	}
-
-	// Validate syntax based on content type
-	switch contentType {
-	case config.ContentTypeJSON:
-		var js any
-		if err := json.Unmarshal(data, &js); err != nil {
-			return fmt.Errorf("invalid JSON syntax: %w", err)
-		}
-	case config.ContentTypeYAML:
-		var ym any
-		if err := yaml.Unmarshal(data, &ym); err != nil {
-			return fmt.Errorf("invalid YAML syntax: %w", err)
-		}
-	case config.ContentTypeText:
-		// Text content doesn't need syntax validation
-	default:
-		return fmt.Errorf("unsupported content type: %s", contentType)
-	}
-
-	return nil
+	return config.ValidateData(data, contentType)
 }
 
 // DetermineContentType determines the content type based on profile type and file extension
@@ -153,22 +128,14 @@ func (d *Deployer) StartDeployment(ctx context.Context, resolved *aws.ResolvedRe
 
 // WaitForDeployment waits for a deployment to complete
 func (d *Deployer) WaitForDeployment(ctx context.Context, resolved *aws.ResolvedResources, deploymentNumber int32, timeoutSeconds int) error {
-	timeout := fmt.Sprintf("%ds", timeoutSeconds)
-	duration, err := time.ParseDuration(timeout)
-	if err != nil {
-		return fmt.Errorf("invalid timeout: %w", err)
-	}
-	return d.awsClient.WaitForDeployment(ctx, resolved.ApplicationID, resolved.EnvironmentID, deploymentNumber, duration)
+	timeout := time.Duration(timeoutSeconds) * time.Second
+	return d.awsClient.WaitForDeployment(ctx, resolved.ApplicationID, resolved.EnvironmentID, deploymentNumber, timeout)
 }
 
 // WaitForDeploymentPhase waits for a deployment to reach a specific phase
 func (d *Deployer) WaitForDeploymentPhase(ctx context.Context, resolved *aws.ResolvedResources, deploymentNumber int32, waitForBaking bool, timeoutSeconds int) error {
-	timeout := fmt.Sprintf("%ds", timeoutSeconds)
-	duration, err := time.ParseDuration(timeout)
-	if err != nil {
-		return fmt.Errorf("invalid timeout: %w", err)
-	}
-	return d.awsClient.WaitForDeploymentPhase(ctx, resolved.ApplicationID, resolved.EnvironmentID, deploymentNumber, waitForBaking, duration)
+	timeout := time.Duration(timeoutSeconds) * time.Second
+	return d.awsClient.WaitForDeploymentPhase(ctx, resolved.ApplicationID, resolved.EnvironmentID, deploymentNumber, waitForBaking, timeout)
 }
 
 // IsValidationError checks if the error is a validation error
@@ -200,32 +167,5 @@ func (d *Deployer) HasConfigurationChanges(ctx context.Context, resolved *aws.Re
 		return false, fmt.Errorf("failed to get deployed configuration: %w", err)
 	}
 
-	// Normalize both contents for comparison (handle JSON/YAML formatting differences)
-	ext := filepath.Ext(fileName)
-	normalizedRemote, err := normalizeContentForComparison(string(remoteContent), ext, resolved.Profile.Type)
-	if err != nil {
-		return false, fmt.Errorf("failed to normalize remote content: %w", err)
-	}
-
-	normalizedLocal, err := normalizeContentForComparison(string(localContent), ext, resolved.Profile.Type)
-	if err != nil {
-		return false, fmt.Errorf("failed to normalize local content: %w", err)
-	}
-
-	// Compare normalized contents
-	return normalizedRemote != normalizedLocal, nil
-}
-
-// normalizeContentForComparison normalizes content for comparison
-// This reuses the logic from the diff package to handle JSON/YAML formatting
-func normalizeContentForComparison(content, ext, profileType string) (string, error) {
-	switch ext {
-	case ".json":
-		return config.NormalizeJSON(content, profileType)
-	case ".yaml", ".yml":
-		return config.NormalizeYAML(content)
-	default:
-		// For text files, just ensure consistent line endings
-		return config.NormalizeText(content), nil
-	}
+	return config.HasContentChanged(remoteContent, localContent, filepath.Ext(fileName), resolved.Profile.Type)
 }
