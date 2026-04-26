@@ -31,7 +31,7 @@ func NewInitWorkflow(ctx context.Context, opts *Options, prompter prompt.Prompte
 	}
 
 	// Step 1: Region selection (needed before creating AWS client)
-	selectedRegion, err := selectOrUseRegion(ctx, opts.Region, prompter, reporter)
+	selectedRegion, err := SelectOrUseRegion(ctx, opts.Region, prompter, reporter)
 	if err != nil {
 		return nil, err
 	}
@@ -45,22 +45,22 @@ func NewInitWorkflow(ctx context.Context, opts *Options, prompter prompt.Prompte
 	return NewInitWorkflowWithClient(awsClient, prompter, reporter), nil
 }
 
-// selectOrUseRegion returns the provided region or prompts user to select one
-// TTY availability is checked by the caller (NewInitWorkflow)
-func selectOrUseRegion(ctx context.Context, providedRegion string, prompter prompt.Prompter, reporter reporter.ProgressReporter) (string, error) {
-	// Return provided region if available
+// SelectOrUseRegion returns the provided region or prompts the user to select
+// one via the default AWS Account client.
+//
+// TTY availability is the caller's responsibility; callers that will enter
+// interactive mode should run prompter.CheckTTY() beforehand.
+func SelectOrUseRegion(ctx context.Context, providedRegion string, prompter prompt.Prompter, reporter reporter.ProgressReporter) (string, error) {
 	if providedRegion != "" {
 		return providedRegion, nil
 	}
 
-	// Create Account client for region listing
 	accountCfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to load AWS config: %w", err)
 	}
 	accountClient := account.NewFromConfig(accountCfg)
 
-	// Create interactive selector and prompt for region
 	selector := NewInteractiveSelector(prompter, reporter)
 	return selector.SelectRegion(ctx, accountClient, providedRegion)
 }
@@ -87,14 +87,10 @@ func (w *InitWorkflow) Run(ctx context.Context, opts *Options) error {
 		}
 	}
 
-	// Step 3: Application selection
-	selectedApp := opts.Application
-	if selectedApp == "" {
-		var err error
-		selectedApp, err = w.selector.SelectApplication(ctx, w.awsClient, opts.Application)
-		if err != nil {
-			return err
-		}
+	// Step 3: Application selection (selector short-circuits when name provided)
+	selectedApp, err := w.selector.SelectApplication(ctx, w.awsClient, opts.Application)
+	if err != nil {
+		return err
 	}
 
 	// Step 4: Resolve application name to ID (needed for profile/env listing)
@@ -105,21 +101,15 @@ func (w *InitWorkflow) Run(ctx context.Context, opts *Options) error {
 	}
 
 	// Step 5: Profile selection
-	selectedProfile := opts.Profile
-	if selectedProfile == "" {
-		selectedProfile, err = w.selector.SelectConfigurationProfile(ctx, w.awsClient, appID, opts.Profile)
-		if err != nil {
-			return err
-		}
+	selectedProfile, err := w.selector.SelectConfigurationProfile(ctx, w.awsClient, appID, opts.Profile)
+	if err != nil {
+		return err
 	}
 
 	// Step 6: Environment selection
-	selectedEnv := opts.Environment
-	if selectedEnv == "" {
-		selectedEnv, err = w.selector.SelectEnvironment(ctx, w.awsClient, appID, opts.Environment)
-		if err != nil {
-			return err
-		}
+	selectedEnv, err := w.selector.SelectEnvironment(ctx, w.awsClient, appID, opts.Environment)
+	if err != nil {
+		return err
 	}
 
 	// Step 7: Create options with selected/provided values

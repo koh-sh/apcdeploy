@@ -36,7 +36,7 @@ func NewExecutorWithFactory(rep reporter.ProgressReporter, factory func(context.
 func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	// Validate timeout
 	if opts.Timeout < 0 {
-		return fmt.Errorf("timeout must be a positive value")
+		return fmt.Errorf("timeout must be a non-negative value")
 	}
 
 	// Validate wait flags: both cannot be specified together

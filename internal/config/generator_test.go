@@ -147,6 +147,34 @@ func TestGenerateConfigFileOverwrite(t *testing.T) {
 	}
 }
 
+func TestExtensionForContentType(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		contentType string
+		want        string
+	}{
+		{name: "json", contentType: "application/json", want: ".json"},
+		{name: "json with charset", contentType: "application/json; charset=utf-8", want: ".json"},
+		{name: "yaml", contentType: "application/x-yaml", want: ".yaml"},
+		{name: "yaml alternative", contentType: "application/yaml", want: ".yaml"},
+		{name: "text", contentType: "text/plain", want: ".txt"},
+		{name: "unknown defaults to json", contentType: "application/octet-stream", want: ".json"},
+		{name: "empty defaults to json", contentType: "", want: ".json"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := ExtensionForContentType(tt.contentType)
+			if got != tt.want {
+				t.Errorf("ExtensionForContentType(%q) = %q, want %q", tt.contentType, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestDetermineDataFileName(t *testing.T) {
 	tests := []struct {
 		name        string

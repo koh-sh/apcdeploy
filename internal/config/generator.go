@@ -49,7 +49,12 @@ func GenerateConfigFile(app, profile, env, dataFile, region, deploymentStrategy,
 
 // DetermineDataFileName determines the appropriate data file name based on content type
 func DetermineDataFileName(contentType string) string {
-	// Normalize content type (remove charset and other parameters)
+	return "data" + ExtensionForContentType(contentType)
+}
+
+// ExtensionForContentType returns the file extension (including the leading dot)
+// for the given AppConfig content type. Unknown types fall back to ".json".
+func ExtensionForContentType(contentType string) string {
 	ct := strings.ToLower(strings.TrimSpace(contentType))
 	if idx := strings.Index(ct, ";"); idx != -1 {
 		ct = strings.TrimSpace(ct[:idx])
@@ -57,14 +62,13 @@ func DetermineDataFileName(contentType string) string {
 
 	switch ct {
 	case ContentTypeJSON:
-		return "data.json"
+		return ".json"
 	case ContentTypeYAML, "application/yaml":
-		return "data.yaml"
+		return ".yaml"
 	case ContentTypeText:
-		return "data.txt"
+		return ".txt"
 	default:
-		// Default to JSON for unknown types
-		return "data.json"
+		return ".json"
 	}
 }
 
@@ -116,7 +120,7 @@ func formatJSON(data []byte, profileType string) ([]byte, error) {
 
 	// For FeatureFlags, remove _updatedAt and _createdAt fields recursively
 	if profileType == ProfileTypeFeatureFlags {
-		obj = removeTimestampFields(obj)
+		obj = RemoveTimestampFieldsRecursive(obj)
 	}
 
 	var buf bytes.Buffer
@@ -127,28 +131,4 @@ func formatJSON(data []byte, profileType string) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
-}
-
-// removeTimestampFields recursively removes _updatedAt and _createdAt from all maps in the object
-func removeTimestampFields(obj any) any {
-	switch v := obj.(type) {
-	case map[string]any:
-		// Remove timestamp fields from this map
-		delete(v, "_updatedAt")
-		delete(v, "_createdAt")
-		// Recursively process all values in the map
-		for key, value := range v {
-			v[key] = removeTimestampFields(value)
-		}
-		return v
-	case []any:
-		// Recursively process all elements in the array
-		for i, value := range v {
-			v[i] = removeTimestampFields(value)
-		}
-		return v
-	default:
-		// Return primitive values as-is
-		return v
-	}
 }
