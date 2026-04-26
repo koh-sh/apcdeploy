@@ -10,34 +10,10 @@ import (
 // to the underlying AWS SDK AppConfig client. These methods enable Client to satisfy the
 // AppConfigAPI interface while maintaining a concrete *appconfig.Client field.
 //
-// For pagination-aware List methods, see client_list_paginated.go instead.
-
-// Raw SDK List methods - these return paginated results and should generally not be used directly.
-// Prefer the ListAll* methods in client_list_paginated.go which handle pagination automatically.
-
-func (c *Client) ListApplications(ctx context.Context, params *appconfig.ListApplicationsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListApplicationsOutput, error) {
-	return c.appConfig.ListApplications(ctx, params, optFns...)
-}
-
-func (c *Client) ListConfigurationProfiles(ctx context.Context, params *appconfig.ListConfigurationProfilesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListConfigurationProfilesOutput, error) {
-	return c.appConfig.ListConfigurationProfiles(ctx, params, optFns...)
-}
-
-func (c *Client) ListEnvironments(ctx context.Context, params *appconfig.ListEnvironmentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListEnvironmentsOutput, error) {
-	return c.appConfig.ListEnvironments(ctx, params, optFns...)
-}
-
-func (c *Client) ListDeploymentStrategies(ctx context.Context, params *appconfig.ListDeploymentStrategiesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentStrategiesOutput, error) {
-	return c.appConfig.ListDeploymentStrategies(ctx, params, optFns...)
-}
-
-func (c *Client) ListHostedConfigurationVersions(ctx context.Context, params *appconfig.ListHostedConfigurationVersionsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListHostedConfigurationVersionsOutput, error) {
-	return c.appConfig.ListHostedConfigurationVersions(ctx, params, optFns...)
-}
-
-func (c *Client) ListDeployments(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
-	return c.appConfig.ListDeployments(ctx, params, optFns...)
-}
+// For pagination-aware List methods, see client_list_paginated.go instead. Raw SDK List
+// methods are not delegated here because external code should always use the ListAll*
+// helpers; the SDK List methods are reachable internally through the AppConfigSDKAPI
+// interface used by client_list_paginated.go.
 
 // Get methods
 

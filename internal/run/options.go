@@ -7,5 +7,4 @@ type Options struct {
 	WaitBake   bool
 	Timeout    int
 	Force      bool
-	Silent     bool
 }

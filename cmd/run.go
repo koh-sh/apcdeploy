@@ -59,7 +59,6 @@ func runRun(cmd *cobra.Command, args []string) error {
 		WaitBake:   runWaitBake,
 		Timeout:    runTimeout,
 		Force:      runForce,
-		Silent:     isSilent(),
 	}
 
 	// Create reporter

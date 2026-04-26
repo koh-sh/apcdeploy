@@ -8,6 +8,4 @@ type Options struct {
 	JSON bool
 	// ShowStrategies includes deployment strategies in output
 	ShowStrategies bool
-	// Silent indicates whether to suppress verbose output
-	Silent bool
 }

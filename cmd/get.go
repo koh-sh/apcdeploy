@@ -40,7 +40,6 @@ func runGet(cmd *cobra.Command, args []string) error {
 	// Create options
 	opts := &get.Options{
 		ConfigFile:       configFile,
-		Silent:           isSilent(),
 		SkipConfirmation: getSkipConfirmation,
 	}
 

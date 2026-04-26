@@ -37,7 +37,6 @@ func runPull(cmd *cobra.Command, args []string) error {
 	// Create options
 	opts := &pull.Options{
 		ConfigFile: configFile,
-		Silent:     isSilent(),
 	}
 
 	// Create reporter
