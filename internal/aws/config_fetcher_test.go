@@ -40,6 +40,7 @@ func TestGetLatestDeployedConfiguration(t *testing.T) {
 						DeploymentNumber:       1,
 						ConfigurationProfileId: aws.String("prof-789"),
 						ConfigurationVersion:   aws.String("2"),
+						DeploymentStrategyId:   aws.String("strategy-all-at-once"),
 						State:                  types.DeploymentStateComplete,
 					}, nil
 				}
@@ -67,6 +68,9 @@ func TestGetLatestDeployedConfiguration(t *testing.T) {
 				}
 				if info.State != types.DeploymentStateComplete {
 					t.Errorf("expected State COMPLETE, got %v", info.State)
+				}
+				if info.DeploymentStrategyID != "strategy-all-at-once" {
+					t.Errorf("expected DeploymentStrategyID 'strategy-all-at-once', got %q", info.DeploymentStrategyID)
 				}
 			},
 		},

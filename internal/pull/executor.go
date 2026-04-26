@@ -2,7 +2,6 @@ package pull
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -11,9 +10,6 @@ import (
 	"github.com/koh-sh/apcdeploy/internal/config"
 	"github.com/koh-sh/apcdeploy/internal/reporter"
 )
-
-// ErrNoDeployment is returned when no deployment is found for the configuration profile
-var ErrNoDeployment = errors.New("no deployment found for this configuration profile")
 
 // Executor handles the pull operation orchestration
 type Executor struct {
@@ -77,7 +73,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 
 	// Handle case when no deployment exists
 	if deployedConfig == nil {
-		return fmt.Errorf("%w: run 'apcdeploy run' to create the first deployment", ErrNoDeployment)
+		return fmt.Errorf("%w: run 'apcdeploy run' to create the first deployment", aws.ErrNoDeployment)
 	}
 
 	e.reporter.Success(fmt.Sprintf("Found deployment #%d (version %d)",
