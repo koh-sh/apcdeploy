@@ -9,13 +9,6 @@ import (
 	"github.com/goccy/go-yaml"
 )
 
-const (
-	// MaxDataFileSize is the maximum size for configuration data (2MB)
-	//
-	// Deprecated: Use MaxConfigSize instead
-	MaxDataFileSize = MaxConfigSize
-)
-
 // LoadDataFile loads a configuration data file
 func LoadDataFile(path string) ([]byte, error) {
 	// Check file size first
@@ -74,8 +67,8 @@ func checkDataFileSize(path string) error {
 		return fmt.Errorf("failed to stat file: %w", err)
 	}
 
-	if info.Size() > MaxDataFileSize {
-		return fmt.Errorf("file size (%d bytes) exceeds maximum allowed size (%d bytes)", info.Size(), MaxDataFileSize)
+	if info.Size() > MaxConfigSize {
+		return fmt.Errorf("file size (%d bytes) exceeds maximum allowed size (%d bytes)", info.Size(), MaxConfigSize)
 	}
 
 	return nil
