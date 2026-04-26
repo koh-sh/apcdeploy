@@ -41,14 +41,14 @@ type Result struct {
 //   - error: Any error during normalization or diff calculation
 func calculate(remoteContent, localContent, fileName, profileType string) (*Result, error) {
 	// Normalize content based on file extension
-	ext := strings.ToLower(filepath.Ext(fileName))
+	ext := filepath.Ext(fileName)
 
-	normalizedRemote, err := normalizeContent(remoteContent, ext, profileType)
+	normalizedRemote, err := config.NormalizeByExtension(remoteContent, ext, profileType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to normalize remote content: %w", err)
 	}
 
-	normalizedLocal, err := normalizeContent(localContent, ext, profileType)
+	normalizedLocal, err := config.NormalizeByExtension(localContent, ext, profileType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to normalize local content: %w", err)
 	}
@@ -80,20 +80,6 @@ func calculate(remoteContent, localContent, fileName, profileType string) (*Resu
 		HasChanges:    hasChanges,
 		FileName:      fileName,
 	}, nil
-}
-
-// normalizeContent normalizes content based on file type
-// For FeatureFlags profile type, it removes _updatedAt and _createdAt from JSON
-func normalizeContent(content, ext, profileType string) (string, error) {
-	switch ext {
-	case ".json":
-		return config.NormalizeJSON(content, profileType)
-	case ".yaml", ".yml":
-		return config.NormalizeYAML(content)
-	default:
-		// For text files, just ensure consistent line endings
-		return config.NormalizeText(content), nil
-	}
 }
 
 // formatDiffs converts line-based diffs to a simple diff format.

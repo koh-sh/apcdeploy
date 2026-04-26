@@ -316,7 +316,7 @@ func TestNormalizeContent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := normalizeContent(tt.content, tt.ext, "")
+			result, err := config.NormalizeByExtension(tt.content, tt.ext, "")
 
 			if tt.wantErr {
 				if err == nil {

@@ -79,8 +79,9 @@ func NormalizeText(content string) string {
 
 // NormalizeByExtension dispatches to the appropriate normalizer based on a
 // file extension (".json", ".yaml"/".yml", otherwise treated as text).
+// The extension match is case-insensitive (".JSON" works the same as ".json").
 func NormalizeByExtension(content, ext, profileType string) (string, error) {
-	switch ext {
+	switch strings.ToLower(ext) {
 	case ".json":
 		return NormalizeJSON(content, profileType)
 	case ".yaml", ".yml":
