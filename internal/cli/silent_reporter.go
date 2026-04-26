@@ -47,6 +47,12 @@ func (r *SilentReporter) Spin(string) reporter.Spinner {
 	return &silentSpinner{r: r}
 }
 
+// Progress returns a no-op progress bar. Done is silent; Fail forwards to
+// Error so that fatal failures still surface in scripts.
+func (r *SilentReporter) Progress(string) reporter.ProgressBar {
+	return &silentProgressBar{r: r}
+}
+
 // Data writes a machine-readable payload to stdout. Always emitted.
 func (r *SilentReporter) Data(p []byte) {
 	_, _ = r.outW.Write(p)
@@ -73,4 +79,27 @@ func (s *silentSpinner) Fail(msg string) {
 	}
 	s.finished = true
 	s.r.Error(msg)
+}
+
+type silentProgressBar struct {
+	r        *SilentReporter
+	finished bool
+}
+
+func (p *silentProgressBar) Update(float64, string) {}
+
+func (p *silentProgressBar) Done(string) {
+	p.finished = true
+}
+
+func (p *silentProgressBar) Fail(msg string) {
+	if p.finished {
+		return
+	}
+	p.finished = true
+	p.r.Error(msg)
+}
+
+func (p *silentProgressBar) Stop() {
+	p.finished = true
 }

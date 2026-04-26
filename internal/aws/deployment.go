@@ -119,6 +119,11 @@ func extractRollbackReason(eventLog []types.DeploymentEvent) string {
 	return ""
 }
 
+// DeploymentTickFunc is invoked on each polling tick of a deployment wait
+// loop, with the current state and percentage-complete reported by AWS.
+// Callers use it to drive live progress UI; nil is allowed.
+type DeploymentTickFunc func(state types.DeploymentState, percent float64)
+
 // waitForDeploymentWithCondition is a generic wait function that polls deployment status
 // until the provided checkComplete function returns true or an error occurs
 func (c *Client) waitForDeploymentWithCondition(
@@ -127,6 +132,7 @@ func (c *Client) waitForDeploymentWithCondition(
 	deploymentNumber int32,
 	timeout time.Duration,
 	checkComplete func(types.DeploymentState) bool,
+	onTick DeploymentTickFunc,
 ) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -149,6 +155,14 @@ func (c *Client) waitForDeploymentWithCondition(
 		output, err := c.appConfig.GetDeployment(ctx, input)
 		if err != nil {
 			return false, wrapAWSError(err, "failed to get deployment status")
+		}
+
+		if onTick != nil {
+			var pct float64
+			if output.PercentageComplete != nil {
+				pct = float64(*output.PercentageComplete)
+			}
+			onTick(output.State, pct)
 		}
 
 		// Check deployment state
@@ -197,15 +211,17 @@ func (c *Client) waitForDeploymentWithCondition(
 	}
 }
 
-// WaitForDeploymentPhase waits for a deployment to reach a specific phase
-// If waitForBaking is false, it waits until the deployment enters BAKING state (deploy phase complete)
-// If waitForBaking is true, it waits until the deployment reaches COMPLETE state (baking phase complete)
+// WaitForDeploymentPhase waits for a deployment to reach a specific phase.
+// If waitForBaking is false, it waits until the deployment enters BAKING state (deploy phase complete).
+// If waitForBaking is true, it waits until the deployment reaches COMPLETE state (baking phase complete).
+// onTick is invoked on each polling tick with the current state and percentage; nil is allowed.
 func (c *Client) WaitForDeploymentPhase(
 	ctx context.Context,
 	applicationID, environmentID string,
 	deploymentNumber int32,
 	waitForBaking bool,
 	timeout time.Duration,
+	onTick DeploymentTickFunc,
 ) error {
 	return c.waitForDeploymentWithCondition(
 		ctx,
@@ -224,6 +240,7 @@ func (c *Client) WaitForDeploymentPhase(
 			}
 			return false
 		},
+		onTick,
 	)
 }
 

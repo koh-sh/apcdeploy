@@ -7,6 +7,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/appconfig/types"
 	"github.com/koh-sh/apcdeploy/internal/aws"
+	"github.com/koh-sh/apcdeploy/internal/cli"
 	"github.com/koh-sh/apcdeploy/internal/config"
 	"github.com/koh-sh/apcdeploy/internal/reporter"
 )
@@ -29,7 +30,7 @@ func DeploymentStatus(r reporter.Reporter, deployment *aws.DeploymentDetails, cf
 		{"Profile", resources.Profile.Name},
 		{"Environment", cfg.Environment},
 		{"Deployment #", strconv.Itoa(int(deployment.DeploymentNumber))},
-		{"Status", string(deployment.State)},
+		{"Status", cli.StateBadge(string(deployment.State))},
 		{"Version", deployment.ConfigurationVersion},
 	}
 	if deployment.State != types.DeploymentStateRolledBack && deployment.Description != "" {

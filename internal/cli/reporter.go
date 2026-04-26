@@ -126,6 +126,12 @@ func (r *Reporter) Spin(msg string) reporter.Spinner {
 	return newSpinner(r, msg)
 }
 
+// Progress starts a percentage-based progress bar. The caller streams updates
+// through ProgressBar.Update and MUST eventually invoke either Done or Fail.
+func (r *Reporter) Progress(msg string) reporter.ProgressBar {
+	return newProgressBar(r, msg)
+}
+
 // Data writes a machine-readable payload to stdout.
 func (r *Reporter) Data(p []byte) {
 	_, _ = r.outW.Write(p)

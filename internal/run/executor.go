@@ -134,19 +134,21 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	switch {
 	case opts.WaitDeploy:
 		// Wait for deploy phase only (until BAKING starts)
-		e.reporter.Step("Waiting for deployment phase to complete...")
-		if err := deployer.WaitForDeploymentPhase(ctx, resolved, deploymentNumber, false, opts.Timeout); err != nil {
+		pb := e.reporter.Progress("Deploying...")
+		if err := deployer.WaitForDeploymentPhase(ctx, resolved, deploymentNumber, false, opts.Timeout, MakeDeploymentTick(pb)); err != nil {
+			pb.Stop()
 			return fmt.Errorf("deployment failed: %w", err)
 		}
-		e.reporter.Success("Deployment phase completed (now baking)")
+		pb.Done("Deployment phase completed (now baking)")
 
 	case opts.WaitBake:
 		// Wait for complete deployment (deploy + bake)
-		e.reporter.Step("Waiting for deployment to complete...")
-		if err := deployer.WaitForDeploymentPhase(ctx, resolved, deploymentNumber, true, opts.Timeout); err != nil {
+		pb := e.reporter.Progress("Deploying...")
+		if err := deployer.WaitForDeploymentPhase(ctx, resolved, deploymentNumber, true, opts.Timeout, MakeDeploymentTick(pb)); err != nil {
+			pb.Stop()
 			return fmt.Errorf("deployment failed: %w", err)
 		}
-		e.reporter.Success("Deployment completed successfully")
+		pb.Done("Deployment completed successfully")
 
 	default:
 		// No wait requested

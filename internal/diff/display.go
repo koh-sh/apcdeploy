@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/koh-sh/apcdeploy/internal/aws"
+	"github.com/koh-sh/apcdeploy/internal/cli"
 	"github.com/koh-sh/apcdeploy/internal/config"
 	"github.com/koh-sh/apcdeploy/internal/reporter"
 )
@@ -35,7 +36,7 @@ func display(r reporter.Reporter, result *Result, cfg *config.Config, resources 
 			"Remote Version", fmt.Sprintf("%s (Deployment #%d)", deployment.ConfigurationVersion, deployment.DeploymentNumber),
 		})
 		if deployment.State != "" {
-			metaRows = append(metaRows, []string{"Status", string(deployment.State)})
+			metaRows = append(metaRows, []string{"Status", cli.StateBadge(string(deployment.State))})
 		}
 	} else {
 		metaRows = append(metaRows, []string{"Remote Version", "(none)"})

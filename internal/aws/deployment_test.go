@@ -373,6 +373,7 @@ func TestWaitForDeploymentPhase_FullCompletion(t *testing.T) {
 				tt.deploymentNum,
 				true, // waitForBaking=true matches the legacy WaitForDeployment behavior
 				tt.timeout,
+				nil,
 			)
 
 			if (err != nil) != tt.wantErr {
@@ -869,6 +870,7 @@ func TestWaitForDeploymentPhase(t *testing.T) {
 				tt.deploymentNum,
 				tt.waitForBaking,
 				tt.timeout,
+				nil,
 			)
 
 			if (err != nil) != tt.wantErr {
@@ -923,6 +925,7 @@ func TestWaitForDeploymentPhase_StopsAtBaking(t *testing.T) {
 		1,
 		false, // waitForBaking=false
 		5*time.Second,
+		nil,
 	)
 	if err != nil {
 		t.Errorf("WaitForDeploymentPhase() unexpected error: %v", err)

@@ -7,6 +7,7 @@ import (
 	"os"
 
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
+	"github.com/koh-sh/apcdeploy/internal/cli"
 	"github.com/koh-sh/apcdeploy/internal/reporter"
 )
 
@@ -71,7 +72,11 @@ func (e *Executor) ExecuteWithWriter(ctx context.Context, opts *Options, w io.Wr
 			return fmt.Errorf("failed to format JSON output: %w", err)
 		}
 	} else {
-		if err := FormatHumanReadable(tree, w, opts.ShowStrategies); err != nil {
+		tty := false
+		if f, ok := w.(*os.File); ok {
+			tty = cli.IsTerminal(f)
+		}
+		if err := FormatHumanReadable(tree, w, opts.ShowStrategies, tty); err != nil {
 			return fmt.Errorf("failed to format output: %w", err)
 		}
 	}

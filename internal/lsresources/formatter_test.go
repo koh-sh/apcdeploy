@@ -298,7 +298,7 @@ func TestFormatHumanReadable(t *testing.T) {
 			t.Parallel()
 
 			var buf bytes.Buffer
-			err := FormatHumanReadable(tt.tree, &buf, true)
+			err := FormatHumanReadable(tt.tree, &buf, true, false)
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}
@@ -310,6 +310,33 @@ func TestFormatHumanReadable(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestFormatHumanReadable_TTYStillContainsRawText(t *testing.T) {
+	t.Parallel()
+
+	tree := &ResourcesTree{
+		Region: "us-east-1",
+		Applications: []Application{
+			{
+				Name:         "app1",
+				ID:           "app-id-1",
+				Profiles:     []ConfigurationProfile{{Name: "profile1", ID: "prof-id-1"}},
+				Environments: []Environment{{Name: "dev", ID: "env-id-1"}},
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	if err := FormatHumanReadable(tree, &buf, false, true); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{"us-east-1", "app1", "app-id-1", "profile1", "dev"} {
+		if !strings.Contains(output, want) {
+			t.Errorf("TTY output missing %q; got:\n%s", want, output)
+		}
 	}
 }
 
@@ -373,7 +400,7 @@ func TestFormatHumanReadable_WithoutStrategies(t *testing.T) {
 			t.Parallel()
 
 			var buf bytes.Buffer
-			err := FormatHumanReadable(tt.tree, &buf, false) // showStrategies = false
+			err := FormatHumanReadable(tt.tree, &buf, false, false) // showStrategies = false, tty = false
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}

@@ -12,6 +12,7 @@ import (
 	initPkg "github.com/koh-sh/apcdeploy/internal/init"
 	"github.com/koh-sh/apcdeploy/internal/prompt"
 	"github.com/koh-sh/apcdeploy/internal/reporter"
+	"github.com/koh-sh/apcdeploy/internal/run"
 )
 
 // workflow orchestrates the edit command against AWS AppConfig.
@@ -224,17 +225,19 @@ func (w *workflow) waitIfRequested(ctx context.Context, appID, envID string, dep
 	timeout := time.Duration(opts.Timeout) * time.Second
 	switch {
 	case opts.WaitDeploy:
-		w.reporter.Step("Waiting for deployment phase to complete...")
-		if err := w.awsClient.WaitForDeploymentPhase(ctx, appID, envID, deploymentNumber, false, timeout); err != nil {
+		pb := w.reporter.Progress("Deploying...")
+		if err := w.awsClient.WaitForDeploymentPhase(ctx, appID, envID, deploymentNumber, false, timeout, run.MakeDeploymentTick(pb)); err != nil {
+			pb.Stop()
 			return fmt.Errorf("deployment failed: %w", err)
 		}
-		w.reporter.Success("Deployment phase completed (now baking)")
+		pb.Done("Deployment phase completed (now baking)")
 	case opts.WaitBake:
-		w.reporter.Step("Waiting for deployment to complete...")
-		if err := w.awsClient.WaitForDeploymentPhase(ctx, appID, envID, deploymentNumber, true, timeout); err != nil {
+		pb := w.reporter.Progress("Deploying...")
+		if err := w.awsClient.WaitForDeploymentPhase(ctx, appID, envID, deploymentNumber, true, timeout, run.MakeDeploymentTick(pb)); err != nil {
+			pb.Stop()
 			return fmt.Errorf("deployment failed: %w", err)
 		}
-		w.reporter.Success("Deployment completed successfully")
+		pb.Done("Deployment completed successfully")
 	default:
 		w.reporter.Warn(fmt.Sprintf("Deployment #%d is in progress. Use 'apcdeploy status' to check the status.", deploymentNumber))
 	}

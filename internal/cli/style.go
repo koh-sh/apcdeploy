@@ -72,3 +72,32 @@ var styles = struct {
 	diffMeta:  lipgloss.NewStyle().Foreground(lipgloss.Color("245")),
 	diffPlain: lipgloss.NewStyle(),
 }
+
+// HeadingText renders a label with bold + bright color, used for primary
+// names (region values, application names) in the lsresources tree view.
+func HeadingText(s string) string {
+	return styles.boxTitle.Render(s)
+}
+
+// SubtleText renders a string in a dim color, used for secondary metadata
+// (resource IDs, parenthetical hints) in the lsresources tree view.
+func SubtleText(s string) string {
+	return styles.subtle.Render(s)
+}
+
+// StateBadge renders an AppConfig deployment state with a state-appropriate
+// color. lipgloss honors NO_COLOR and strips ANSI when rendering to a
+// non-terminal, so callers can hand the result straight to Reporter.Table
+// without affecting layout in piped/CI output.
+func StateBadge(state string) string {
+	switch state {
+	case "COMPLETE":
+		return styles.success.Render(state)
+	case "DEPLOYING", "BAKING":
+		return styles.warn.Render(state)
+	case "ROLLED_BACK", "ROLLING_BACK":
+		return styles.errorS.Render(state)
+	default:
+		return state
+	}
+}

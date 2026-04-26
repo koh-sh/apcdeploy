@@ -8,8 +8,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/service/appconfig/types"
 	"github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/config"
+	"github.com/koh-sh/apcdeploy/internal/reporter"
 )
 
 // Deployer handles deployment operations
@@ -126,10 +128,26 @@ func (d *Deployer) StartDeployment(ctx context.Context, resolved *aws.ResolvedRe
 	return d.awsClient.StartDeployment(ctx, resolved.ApplicationID, resolved.EnvironmentID, resolved.Profile.ID, resolved.DeploymentStrategyID, versionNumber, "")
 }
 
-// WaitForDeploymentPhase waits for a deployment to reach a specific phase
-func (d *Deployer) WaitForDeploymentPhase(ctx context.Context, resolved *aws.ResolvedResources, deploymentNumber int32, waitForBaking bool, timeoutSeconds int) error {
+// WaitForDeploymentPhase waits for a deployment to reach a specific phase.
+// onTick is invoked on each polling tick; nil is allowed.
+func (d *Deployer) WaitForDeploymentPhase(ctx context.Context, resolved *aws.ResolvedResources, deploymentNumber int32, waitForBaking bool, timeoutSeconds int, onTick aws.DeploymentTickFunc) error {
 	timeout := time.Duration(timeoutSeconds) * time.Second
-	return d.awsClient.WaitForDeploymentPhase(ctx, resolved.ApplicationID, resolved.EnvironmentID, deploymentNumber, waitForBaking, timeout)
+	return d.awsClient.WaitForDeploymentPhase(ctx, resolved.ApplicationID, resolved.EnvironmentID, deploymentNumber, waitForBaking, timeout, onTick)
+}
+
+// MakeDeploymentTick returns an aws.DeploymentTickFunc that drives a progress
+// bar from deployment polling. While DEPLOYING the bar reflects
+// PercentageComplete; once BAKING starts the percentage pins at 100% and the
+// label is swapped to "Baking..." so the bar reads naturally during the bake
+// phase.
+func MakeDeploymentTick(pb reporter.ProgressBar) aws.DeploymentTickFunc {
+	return func(state types.DeploymentState, percent float64) {
+		if state == types.DeploymentStateBaking {
+			pb.Update(100, "Baking...")
+			return
+		}
+		pb.Update(percent, "Deploying...")
+	}
 }
 
 // HasConfigurationChanges checks if the local configuration differs from the deployed version

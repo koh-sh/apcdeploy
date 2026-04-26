@@ -24,6 +24,24 @@ type MockReporter struct {
 	// SpinnerCalls records each spinner lifecycle: the start message and the
 	// terminating Done/Fail message.
 	SpinnerCalls []SpinnerCall
+
+	// ProgressCalls records each progress-bar lifecycle: the start message,
+	// every Update call, and the terminating Done/Fail message.
+	ProgressCalls []ProgressCall
+}
+
+// ProgressCall captures the lifecycle of a single progress bar.
+type ProgressCall struct {
+	StartMessage string
+	Updates      []ProgressUpdate
+	Outcome      string // "done" or "fail"
+	EndMessage   string
+}
+
+// ProgressUpdate captures a single Update invocation on a progress bar.
+type ProgressUpdate struct {
+	Percent float64
+	Message string
 }
 
 // TableCall captures the arguments to Reporter.Table.
@@ -82,6 +100,13 @@ func (m *MockReporter) Spin(msg string) reporter.Spinner {
 	return &mockSpinner{m: m, idx: idx}
 }
 
+func (m *MockReporter) Progress(msg string) reporter.ProgressBar {
+	idx := len(m.ProgressCalls)
+	m.ProgressCalls = append(m.ProgressCalls, ProgressCall{StartMessage: msg})
+	m.Messages = append(m.Messages, "progress: "+msg)
+	return &mockProgressBar{m: m, idx: idx}
+}
+
 func (m *MockReporter) Data(p []byte) {
 	m.Stdout = append(m.Stdout, p...)
 	m.Messages = append(m.Messages, "data: "+string(p))
@@ -109,6 +134,7 @@ func (m *MockReporter) Clear() {
 	m.Tables = nil
 	m.Boxes = nil
 	m.SpinnerCalls = nil
+	m.ProgressCalls = nil
 }
 
 type mockSpinner struct {
@@ -135,4 +161,49 @@ func (s *mockSpinner) Fail(msg string) {
 	s.m.SpinnerCalls[s.idx].Outcome = "fail"
 	s.m.SpinnerCalls[s.idx].EndMessage = msg
 	s.m.Messages = append(s.m.Messages, "spin-fail: "+msg)
+}
+
+type mockProgressBar struct {
+	m        *MockReporter
+	idx      int
+	finished bool
+}
+
+func (p *mockProgressBar) Update(percent float64, msg string) {
+	if p.finished {
+		return
+	}
+	p.m.ProgressCalls[p.idx].Updates = append(p.m.ProgressCalls[p.idx].Updates, ProgressUpdate{
+		Percent: percent,
+		Message: msg,
+	})
+}
+
+func (p *mockProgressBar) Done(msg string) {
+	if p.finished {
+		return
+	}
+	p.finished = true
+	p.m.ProgressCalls[p.idx].Outcome = "done"
+	p.m.ProgressCalls[p.idx].EndMessage = msg
+	p.m.Messages = append(p.m.Messages, "progress-done: "+msg)
+}
+
+func (p *mockProgressBar) Fail(msg string) {
+	if p.finished {
+		return
+	}
+	p.finished = true
+	p.m.ProgressCalls[p.idx].Outcome = "fail"
+	p.m.ProgressCalls[p.idx].EndMessage = msg
+	p.m.Messages = append(p.m.Messages, "progress-fail: "+msg)
+}
+
+func (p *mockProgressBar) Stop() {
+	if p.finished {
+		return
+	}
+	p.finished = true
+	p.m.ProgressCalls[p.idx].Outcome = "stop"
+	p.m.Messages = append(p.m.Messages, "progress-stop")
 }
