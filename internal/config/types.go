@@ -35,10 +35,3 @@ func (c *Config) setDefaults() {
 		c.DeploymentStrategy = DefaultDeploymentStrategy
 	}
 }
-
-// DeploymentConfig represents detailed deployment configuration
-// This will be expanded in later Epics as needed
-type DeploymentConfig struct {
-	Description string            `yaml:"description,omitempty"`
-	Tags        map[string]string `yaml:"tags,omitempty"`
-}
