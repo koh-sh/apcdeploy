@@ -17,11 +17,6 @@ func warningMsg(message string) string {
 	return fmt.Sprintf("⚠ %s", message)
 }
 
-// progressMsg formats a progress message
-func progressMsg(message string) string {
-	return fmt.Sprintf("⏳ %s", message)
-}
-
 // bold formats text in bold (using ANSI codes)
 func bold(text string) string {
 	return fmt.Sprintf("\033[1m%s\033[0m", text)

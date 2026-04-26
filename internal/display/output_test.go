@@ -88,31 +88,3 @@ func TestWarning(t *testing.T) {
 		})
 	}
 }
-
-func TestProgress(t *testing.T) {
-	tests := []struct {
-		name     string
-		message  string
-		contains string
-	}{
-		{
-			name:     "progress message",
-			message:  "Deploying...",
-			contains: "Deploying...",
-		},
-		{
-			name:     "progress message with hourglass",
-			message:  "Loading configuration",
-			contains: "⏳",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := progressMsg(tt.message)
-			if !strings.Contains(result, tt.contains) {
-				t.Errorf("progressMsg() = %s, want to contain %s", result, tt.contains)
-			}
-		})
-	}
-}
