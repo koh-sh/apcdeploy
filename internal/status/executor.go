@@ -3,7 +3,6 @@ package status
 import (
 	"context"
 	"fmt"
-	"os"
 	"strconv"
 
 	"github.com/koh-sh/apcdeploy/internal/aws"
@@ -14,12 +13,12 @@ import (
 
 // Executor handles the status operation orchestration
 type Executor struct {
-	reporter      reporter.ProgressReporter
+	reporter      reporter.Reporter
 	clientFactory func(context.Context, string) (*aws.Client, error)
 }
 
 // NewExecutor creates a new status executor
-func NewExecutor(rep reporter.ProgressReporter) *Executor {
+func NewExecutor(rep reporter.Reporter) *Executor {
 	return &Executor{
 		reporter:      rep,
 		clientFactory: aws.NewClient,
@@ -28,7 +27,7 @@ func NewExecutor(rep reporter.ProgressReporter) *Executor {
 
 // NewExecutorWithFactory creates a new status executor with a custom client factory
 // This is useful for testing with mock clients
-func NewExecutorWithFactory(rep reporter.ProgressReporter, factory func(context.Context, string) (*aws.Client, error)) *Executor {
+func NewExecutorWithFactory(rep reporter.Reporter, factory func(context.Context, string) (*aws.Client, error)) *Executor {
 	return &Executor{
 		reporter:      rep,
 		clientFactory: factory,
@@ -50,7 +49,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	}
 
 	// Step 3: Resolve resources
-	e.reporter.Progress("Resolving resources...")
+	e.reporter.Step("Resolving resources...")
 	resolver := aws.NewResolver(awsClient)
 	resources, err := resolver.ResolveAll(ctx, cfg.Application, cfg.ConfigurationProfile, cfg.Environment, cfg.DeploymentStrategy)
 	if err != nil {
@@ -61,14 +60,14 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	var deploymentInfo *aws.DeploymentDetails
 	if opts.DeploymentID != "" {
 		// Get specific deployment
-		e.reporter.Progress(fmt.Sprintf("Fetching deployment #%s...", opts.DeploymentID))
+		e.reporter.Step(fmt.Sprintf("Fetching deployment #%s...", opts.DeploymentID))
 		deploymentInfo, err = e.getDeploymentByID(ctx, awsClient, resources, opts.DeploymentID)
 		if err != nil {
 			return fmt.Errorf("failed to get deployment: %w", err)
 		}
 	} else {
 		// Get latest deployment
-		e.reporter.Progress("Fetching latest deployment...")
+		e.reporter.Step("Fetching latest deployment...")
 		deploymentInfo, err = e.getLatestDeployment(ctx, awsClient, resources)
 		if err != nil {
 			return fmt.Errorf("failed to get latest deployment: %w", err)
@@ -77,22 +76,17 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 
 	// Step 5: Display status
 	if deploymentInfo == nil {
-		e.reporter.Warning("No deployments found")
-		if !opts.Silent {
-			fmt.Fprintln(os.Stderr, "\nNo deployments have been created yet for this configuration.")
-			fmt.Fprintln(os.Stderr, "\nNext steps:")
-			fmt.Fprintln(os.Stderr, "  1. Review your configuration file")
-			fmt.Fprintln(os.Stderr, "  2. Run 'apcdeploy deploy' to create your first deployment")
-		}
+		e.reporter.Warn("No deployments found")
+		e.reporter.Box("Next steps", []string{
+			"No deployments have been created yet for this configuration.",
+			"",
+			"  1. Review your configuration file",
+			"  2. Run 'apcdeploy deploy' to create your first deployment",
+		})
 		return nil
 	}
 
-	if opts.Silent {
-		display.ShowDeploymentStatusSilent(deploymentInfo)
-	} else {
-		display.ShowDeploymentStatus(deploymentInfo, cfg, resources)
-	}
-
+	display.DeploymentStatus(e.reporter, deploymentInfo, cfg, resources)
 	return nil
 }
 

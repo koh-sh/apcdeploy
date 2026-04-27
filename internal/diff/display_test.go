@@ -3,402 +3,203 @@ package diff
 import (
 	"bytes"
 	"io"
-	"os"
 	"strings"
 	"testing"
 
 	"github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/config"
+	mockreporter "github.com/koh-sh/apcdeploy/internal/reporter/testing"
 )
 
-func Test_displayColorizedDiff(t *testing.T) {
-	tests := []struct {
-		name string
-		diff string
-	}{
-		{
-			name: "empty diff",
-			diff: "",
-		},
-		{
-			name: "additions only",
-			diff: "+added line 1\n+added line 2",
-		},
-		{
-			name: "deletions only",
-			diff: "-removed line 1\n-removed line 2",
-		},
-		{
-			name: "diff headers",
-			diff: "@@ -1,3 +1,3 @@\ncontext line",
-		},
-		{
-			name: "mixed changes",
-			diff: "@@ -1,3 +1,3 @@\n context line\n-removed line\n+added line",
-		},
-		{
-			name: "empty lines in diff",
-			diff: "+added\n\n-removed",
-		},
-		{
-			name: "context lines",
-			diff: " context line 1\n context line 2",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Just verify it doesn't panic
-			displayColorizedDiff(tt.diff)
-		})
-	}
-}
-
-func TestDisplaySilent(t *testing.T) {
-	tests := []struct {
-		name       string
-		result     *Result
-		deployment *aws.DeploymentInfo
-		wantOutput bool
-		wantText   string
-	}{
-		{
-			name: "no changes - should produce no output",
-			result: &Result{
-				HasChanges:  false,
-				UnifiedDiff: "",
-				FileName:    "data.json",
-			},
-			deployment: nil,
-			wantOutput: false,
-		},
-		{
-			name: "has changes - should show diff only",
-			result: &Result{
-				HasChanges:  true,
-				UnifiedDiff: "+added line\n-removed line",
-				FileName:    "data.json",
-			},
-			deployment: nil,
-			wantOutput: true,
-			wantText:   "added line",
-		},
-		{
-			name: "has changes with multiple lines",
-			result: &Result{
-				HasChanges:  true,
-				UnifiedDiff: "@@ -1,3 +1,3 @@\n context\n+new line\n-old line",
-				FileName:    "config.yaml",
-			},
-			deployment: nil,
-			wantOutput: true,
-			wantText:   "new line",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			output := captureOutput(t, func() {
-				displaySilent(tt.result, tt.deployment)
-			})
-
-			if tt.wantOutput {
-				if output == "" {
-					t.Error("displaySilent() expected output but got empty string")
-				}
-				if tt.wantText != "" && !strings.Contains(output, tt.wantText) {
-					t.Errorf("displaySilent() output missing %q\nGot:\n%s", tt.wantText, output)
-				}
-			} else if output != "" {
-				t.Errorf("displaySilent() expected no output but got:\n%s", output)
-			}
-		})
-	}
+// withWarningSink temporarily redirects the package-level warning sink to the
+// given writer for the duration of the test, restoring the original on
+// cleanup. Tests using this helper MUST NOT run in parallel — the sink is
+// package-scoped and concurrent overrides would race.
+func withWarningSink(t *testing.T, w io.Writer) {
+	t.Helper()
+	orig := inProgressWarningSink
+	inProgressWarningSink = w
+	t.Cleanup(func() { inProgressWarningSink = orig })
 }
 
 func TestDisplay(t *testing.T) {
 	tests := []struct {
-		name               string
-		result             *Result
-		cfg                *config.Config
-		resources          *aws.ResolvedResources
-		deployment         *aws.DeploymentInfo
-		wantWarning        bool
-		wantWarningContain string
+		name         string
+		result       *Result
+		cfg          *config.Config
+		resources    *aws.ResolvedResources
+		deployment   *aws.DeploymentInfo
+		wantStdout   string
+		wantSuccess  bool // expect Success("No changes detected")
+		wantWarn     bool
+		wantWarnText string // substring expected in the in-progress notice on stderr
 	}{
 		{
-			name: "deployment in DEPLOYING state - should show warning after summary",
-			result: &Result{
-				HasChanges:  true,
-				UnifiedDiff: "+new line\n-old line",
-				FileName:    "data.json",
-			},
-			cfg: &config.Config{
-				Application:          "test-app",
-				ConfigurationProfile: "test-prof",
-				Environment:          "test-env",
-				DataFile:             "data.json",
-			},
-			resources: &aws.ResolvedResources{
-				Profile: &aws.ProfileInfo{
-					Name: "test-prof",
-					Type: "AWS.Freeform",
-				},
-			},
-			deployment: &aws.DeploymentInfo{
-				DeploymentNumber:     42,
-				ConfigurationVersion: "1",
-				State:                "DEPLOYING",
-			},
-			wantWarning:        true,
-			wantWarningContain: "Deployment #42 is currently DEPLOYING",
-		},
-		{
-			name: "deployment in BAKING state - should show warning after summary",
-			result: &Result{
-				HasChanges:  true,
-				UnifiedDiff: "+new line\n-old line",
-				FileName:    "data.json",
-			},
-			cfg: &config.Config{
-				Application:          "test-app",
-				ConfigurationProfile: "test-prof",
-				Environment:          "test-env",
-				DataFile:             "data.json",
-			},
-			resources: &aws.ResolvedResources{
-				Profile: &aws.ProfileInfo{
-					Name: "test-prof",
-					Type: "AWS.Freeform",
-				},
-			},
-			deployment: &aws.DeploymentInfo{
-				DeploymentNumber:     42,
-				ConfigurationVersion: "1",
-				State:                "BAKING",
-			},
-			wantWarning:        true,
-			wantWarningContain: "Deployment #42 is currently BAKING",
-		},
-		{
-			name: "deployment in COMPLETE state - should not show warning",
-			result: &Result{
-				HasChanges:  true,
-				UnifiedDiff: "+new line\n-old line",
-				FileName:    "data.json",
-			},
-			cfg: &config.Config{
-				Application:          "test-app",
-				ConfigurationProfile: "test-prof",
-				Environment:          "test-env",
-				DataFile:             "data.json",
-			},
-			resources: &aws.ResolvedResources{
-				Profile: &aws.ProfileInfo{
-					Name: "test-prof",
-					Type: "AWS.Freeform",
-				},
-			},
-			deployment: &aws.DeploymentInfo{
-				DeploymentNumber:     42,
-				ConfigurationVersion: "1",
-				State:                "COMPLETE",
-			},
-			wantWarning: false,
-		},
-		{
-			name: "no changes and deployment in DEPLOYING state - should show warning",
+			name: "no changes - emits success and no diff payload",
 			result: &Result{
 				HasChanges:  false,
 				UnifiedDiff: "",
 				FileName:    "data.json",
 			},
-			cfg: &config.Config{
-				Application:          "test-app",
-				ConfigurationProfile: "test-prof",
-				Environment:          "test-env",
-				DataFile:             "data.json",
+			cfg:         &config.Config{Application: "app", Environment: "env"},
+			resources:   &aws.ResolvedResources{Profile: &aws.ProfileInfo{Name: "prof"}},
+			deployment:  &aws.DeploymentInfo{DeploymentNumber: 1, ConfigurationVersion: "1", State: "COMPLETE"},
+			wantStdout:  "",
+			wantSuccess: true,
+		},
+		{
+			name: "has changes - emits diff payload to stdout and Info summary",
+			result: &Result{
+				HasChanges:  true,
+				UnifiedDiff: "+added\n-removed\n",
+				FileName:    "data.json",
 			},
-			resources: &aws.ResolvedResources{
-				Profile: &aws.ProfileInfo{
-					Name: "test-prof",
-					Type: "AWS.Freeform",
-				},
+			cfg:        &config.Config{Application: "app", Environment: "env"},
+			resources:  &aws.ResolvedResources{Profile: &aws.ProfileInfo{Name: "prof"}},
+			deployment: &aws.DeploymentInfo{DeploymentNumber: 1, ConfigurationVersion: "1", State: "COMPLETE"},
+			wantStdout: "+added\n-removed\n",
+		},
+		{
+			name: "deployment in DEPLOYING surfaces an in-progress notice on stderr",
+			result: &Result{
+				HasChanges:  true,
+				UnifiedDiff: "+new line\n-old line\n",
+				FileName:    "data.json",
 			},
-			deployment: &aws.DeploymentInfo{
-				DeploymentNumber:     42,
-				ConfigurationVersion: "1",
-				State:                "DEPLOYING",
+			cfg:          &config.Config{Application: "app", Environment: "env"},
+			resources:    &aws.ResolvedResources{Profile: &aws.ProfileInfo{Name: "prof"}},
+			deployment:   &aws.DeploymentInfo{DeploymentNumber: 42, ConfigurationVersion: "1", State: "DEPLOYING"},
+			wantStdout:   "+new line\n-old line\n",
+			wantWarn:     true,
+			wantWarnText: "Deployment #42 is currently DEPLOYING",
+		},
+		{
+			name: "deployment in BAKING surfaces an in-progress notice on stderr",
+			result: &Result{
+				HasChanges:  true,
+				UnifiedDiff: "+a\n-b\n",
+				FileName:    "data.json",
 			},
-			wantWarning:        true,
-			wantWarningContain: "Deployment #42 is currently DEPLOYING",
+			cfg:          &config.Config{Application: "app", Environment: "env"},
+			resources:    &aws.ResolvedResources{Profile: &aws.ProfileInfo{Name: "prof"}},
+			deployment:   &aws.DeploymentInfo{DeploymentNumber: 7, ConfigurationVersion: "1", State: "BAKING"},
+			wantStdout:   "+a\n-b\n",
+			wantWarn:     true,
+			wantWarnText: "Deployment #7 is currently BAKING",
+		},
+		{
+			name: "no changes with DEPLOYING still warns",
+			result: &Result{
+				HasChanges:  false,
+				UnifiedDiff: "",
+				FileName:    "data.json",
+			},
+			cfg:          &config.Config{Application: "app", Environment: "env"},
+			resources:    &aws.ResolvedResources{Profile: &aws.ProfileInfo{Name: "prof"}},
+			deployment:   &aws.DeploymentInfo{DeploymentNumber: 99, ConfigurationVersion: "1", State: "DEPLOYING"},
+			wantStdout:   "",
+			wantSuccess:  true,
+			wantWarn:     true,
+			wantWarnText: "Deployment #99 is currently DEPLOYING",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, stderr := captureOutputAndError(t, func() {
-				display(tt.result, tt.cfg, tt.resources, tt.deployment)
-			})
+			// Subtests intentionally do NOT call t.Parallel() — they swap the
+			// package-level inProgressWarningSink and would race otherwise.
+			var stderrBuf bytes.Buffer
+			withWarningSink(t, &stderrBuf)
 
-			if tt.wantWarning {
-				if !strings.Contains(stderr, tt.wantWarningContain) {
-					t.Errorf("display() stderr missing warning %q\nGot:\n%s", tt.wantWarningContain, stderr)
+			r := &mockreporter.MockReporter{}
+			display(r, tt.result, tt.cfg, tt.resources, tt.deployment)
+
+			if got := string(r.Stdout); got != tt.wantStdout {
+				t.Errorf("stdout payload = %q, want %q", got, tt.wantStdout)
+			}
+
+			if tt.wantSuccess && !r.HasMessage("success: No changes detected") {
+				t.Errorf("expected Success(\"No changes detected\"); messages=%v", r.Messages)
+			}
+
+			// The in-progress warning bypasses Reporter.Warn (contract
+			// exception) and goes directly to stderr — assert against the
+			// stderr buffer rather than the Mock messages.
+			gotStderr := stderrBuf.String()
+			if tt.wantWarn {
+				if !strings.Contains(gotStderr, tt.wantWarnText) {
+					t.Errorf("expected stderr to contain %q; got %q", tt.wantWarnText, gotStderr)
 				}
-			} else if strings.Contains(stderr, "is currently") {
-				t.Errorf("display() should not show warning but got:\n%s", stderr)
+				if !strings.Contains(gotStderr, "⚠") {
+					t.Errorf("expected stderr to contain warning glyph; got %q", gotStderr)
+				}
+			} else if strings.Contains(gotStderr, "is currently") {
+				t.Errorf("unexpected in-progress notice on stderr: %q", gotStderr)
+			}
+
+			// The notice must NEVER go through Reporter.Warn — even when
+			// emitted, it stays out of the Mock's message log.
+			for _, msg := range r.Messages {
+				if strings.HasPrefix(msg, "warn:") && strings.Contains(msg, "is currently") {
+					t.Errorf("in-progress notice leaked into Reporter.Warn: %q", msg)
+				}
 			}
 		})
 	}
 }
 
-func TestDisplaySilentWithDeployment(t *testing.T) {
-	tests := []struct {
-		name               string
-		result             *Result
-		deployment         *aws.DeploymentInfo
-		wantWarning        bool
-		wantWarningContain string
-	}{
-		{
-			name: "has changes with DEPLOYING deployment - should show diff and warning",
-			result: &Result{
-				HasChanges:  true,
-				UnifiedDiff: "+added line\n-removed line",
-				FileName:    "data.json",
-			},
-			deployment: &aws.DeploymentInfo{
-				DeploymentNumber:     22,
-				ConfigurationVersion: "1",
-				State:                "DEPLOYING",
-			},
-			wantWarning:        true,
-			wantWarningContain: "Deployment #22 is currently DEPLOYING",
-		},
-		{
-			name: "has changes with BAKING deployment - should show diff and warning",
-			result: &Result{
-				HasChanges:  true,
-				UnifiedDiff: "+added line\n-removed line",
-				FileName:    "data.json",
-			},
-			deployment: &aws.DeploymentInfo{
-				DeploymentNumber:     22,
-				ConfigurationVersion: "1",
-				State:                "BAKING",
-			},
-			wantWarning:        true,
-			wantWarningContain: "Deployment #22 is currently BAKING",
-		},
-		{
-			name: "has changes with COMPLETE deployment - should show diff only",
-			result: &Result{
-				HasChanges:  true,
-				UnifiedDiff: "+added line\n-removed line",
-				FileName:    "data.json",
-			},
-			deployment: &aws.DeploymentInfo{
-				DeploymentNumber:     22,
-				ConfigurationVersion: "1",
-				State:                "COMPLETE",
-			},
-			wantWarning: false,
-		},
-		{
-			name: "no changes with DEPLOYING deployment - should show warning only",
-			result: &Result{
-				HasChanges:  false,
-				UnifiedDiff: "",
-				FileName:    "data.json",
-			},
-			deployment: &aws.DeploymentInfo{
-				DeploymentNumber:     22,
-				ConfigurationVersion: "1",
-				State:                "DEPLOYING",
-			},
-			wantWarning:        true,
-			wantWarningContain: "Deployment #22 is currently DEPLOYING",
-		},
-		{
-			name: "no changes with COMPLETE deployment - should show nothing",
-			result: &Result{
-				HasChanges:  false,
-				UnifiedDiff: "",
-				FileName:    "data.json",
-			},
-			deployment: &aws.DeploymentInfo{
-				DeploymentNumber:     22,
-				ConfigurationVersion: "1",
-				State:                "COMPLETE",
-			},
-			wantWarning: false,
-		},
+func TestDisplay_NilDeployment(t *testing.T) {
+	var stderrBuf bytes.Buffer
+	withWarningSink(t, &stderrBuf)
+
+	r := &mockreporter.MockReporter{}
+	display(
+		r,
+		&Result{HasChanges: true, UnifiedDiff: "+a\n", FileName: "data.json"},
+		&config.Config{Application: "app", Environment: "env"},
+		&aws.ResolvedResources{Profile: &aws.ProfileInfo{Name: "prof"}},
+		nil,
+	)
+
+	// "(none)" must appear as the Remote Version cell when no prior deployment.
+	var found bool
+	for _, table := range r.Tables {
+		for _, row := range table.Rows {
+			if len(row) >= 2 && row[0] == "Remote Version" && row[1] == "(none)" {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Errorf("expected metadata table to contain Remote Version=(none); tables=%+v", r.Tables)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, stderr := captureOutputAndError(t, func() {
-				displaySilent(tt.result, tt.deployment)
-			})
-
-			if tt.wantWarning {
-				if !strings.Contains(stderr, tt.wantWarningContain) {
-					t.Errorf("displaySilent() stderr missing warning %q\nGot:\n%s", tt.wantWarningContain, stderr)
-				}
-			} else if strings.Contains(stderr, "is currently") {
-				t.Errorf("displaySilent() should not show warning but got:\n%s", stderr)
-			}
-		})
+	// No in-progress notice when deployment is nil.
+	if got := stderrBuf.String(); strings.Contains(got, "is currently") {
+		t.Errorf("did not expect in-progress notice for nil deployment; got %q", got)
 	}
 }
 
 func Test_countChanges(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		diff        string
 		wantAdded   int
 		wantRemoved int
 	}{
-		{
-			name:        "empty diff",
-			diff:        "",
-			wantAdded:   0,
-			wantRemoved: 0,
-		},
-		{
-			name:        "additions only",
-			diff:        "+added line 1\n+added line 2",
-			wantAdded:   2,
-			wantRemoved: 0,
-		},
-		{
-			name:        "deletions only",
-			diff:        "-removed line 1\n-removed line 2",
-			wantAdded:   0,
-			wantRemoved: 2,
-		},
-		{
-			name:        "mixed changes",
-			diff:        "+added\n-removed\n context",
-			wantAdded:   1,
-			wantRemoved: 1,
-		},
-		{
-			name:        "ignore file headers",
-			diff:        "--- a/file.json\n+++ b/file.json\n+added\n-removed",
-			wantAdded:   1,
-			wantRemoved: 1,
-		},
-		{
-			name:        "multiple additions and deletions",
-			diff:        "+line1\n+line2\n-line3\n-line4\n-line5",
-			wantAdded:   2,
-			wantRemoved: 3,
-		},
+		{"empty diff", "", 0, 0},
+		{"additions only", "+added line 1\n+added line 2", 2, 0},
+		{"deletions only", "-removed line 1\n-removed line 2", 0, 2},
+		{"mixed changes", "+added\n-removed\n context", 1, 1},
+		{"ignore file headers", "--- a/file.json\n+++ b/file.json\n+added\n-removed", 1, 1},
+		{"multiple", "+line1\n+line2\n-line3\n-line4\n-line5", 2, 3},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			added, removed := countChanges(tt.diff)
 			if added != tt.wantAdded {
 				t.Errorf("countChanges() added = %v, want %v", added, tt.wantAdded)
@@ -410,51 +211,25 @@ func Test_countChanges(t *testing.T) {
 	}
 }
 
-// Helper functions
-func captureOutput(t *testing.T, f func()) string {
-	t.Helper()
-	old := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
+func Test_ensureTrailingNewline(t *testing.T) {
+	t.Parallel()
 
-	f()
-
-	w.Close()
-	os.Stdout = old
-
-	var buf bytes.Buffer
-	if _, err := io.Copy(&buf, r); err != nil {
-		t.Fatalf("failed to copy output: %v", err)
-	}
-	return buf.String()
-}
-
-func captureOutputAndError(t *testing.T, f func()) (stdout, stderr string) {
-	t.Helper()
-	oldStdout := os.Stdout
-	oldStderr := os.Stderr
-
-	rOut, wOut, _ := os.Pipe()
-	rErr, wErr, _ := os.Pipe()
-
-	os.Stdout = wOut
-	os.Stderr = wErr
-
-	f()
-
-	wOut.Close()
-	wErr.Close()
-
-	os.Stdout = oldStdout
-	os.Stderr = oldStderr
-
-	var bufOut, bufErr bytes.Buffer
-	if _, err := io.Copy(&bufOut, rOut); err != nil {
-		t.Fatalf("failed to copy stdout: %v", err)
-	}
-	if _, err := io.Copy(&bufErr, rErr); err != nil {
-		t.Fatalf("failed to copy stderr: %v", err)
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"empty", "", ""},
+		{"already has newline", "abc\n", "abc\n"},
+		{"missing newline", "abc", "abc\n"},
 	}
 
-	return bufOut.String(), bufErr.String()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := ensureTrailingNewline(tt.in); got != tt.want {
+				t.Errorf("ensureTrailingNewline(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
 }

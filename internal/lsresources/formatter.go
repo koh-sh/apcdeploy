@@ -1,93 +1,92 @@
 package lsresources
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
-	"strings"
+
+	"github.com/koh-sh/apcdeploy/internal/reporter"
 )
 
-// FormatJSON formats the resources tree as JSON
-func FormatJSON(tree *ResourcesTree, w io.Writer, showStrategies bool) error {
+// FormatJSON encodes the resources tree as indented JSON. When showStrategies
+// is false, deployment strategies are omitted from the payload.
+func FormatJSON(tree *ResourcesTree, showStrategies bool) ([]byte, error) {
 	if !showStrategies {
 		treeCopy := *tree
 		treeCopy.DeploymentStrategies = nil
 		tree = &treeCopy
 	}
-	encoder := json.NewEncoder(w)
+	var buf bytes.Buffer
+	encoder := json.NewEncoder(&buf)
 	encoder.SetIndent("", "  ")
-	return encoder.Encode(tree)
+	if err := encoder.Encode(tree); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
-// FormatHumanReadable formats the resources tree in a human-readable format
-func FormatHumanReadable(tree *ResourcesTree, w io.Writer, showStrategies bool) error {
-	var sb strings.Builder
+// RenderHumanReadable renders the resources tree through Reporter primitives
+// (Header / Table). Color and ANSI handling stay inside the Reporter
+// implementation; this function only describes structure and content.
+//
+// The deployment-strategies section is included only when showStrategies is
+// true. When applications or strategies are absent, an explicit "no
+// resources" message is emitted via Reporter.Info so silent mode stays quiet
+// while still surfacing the empty state in normal mode.
+func RenderHumanReadable(r reporter.Reporter, tree *ResourcesTree, showStrategies bool) {
+	r.Header(fmt.Sprintf("Region: %s", tree.Region))
 
-	// Header
-	fmt.Fprintf(&sb, "Region: %s\n\n", tree.Region)
-
-	// Deployment Strategies section
 	if showStrategies {
-		sb.WriteString("Deployment Strategies:\n")
+		r.Header("Deployment Strategies")
 		if len(tree.DeploymentStrategies) == 0 {
-			sb.WriteString("  No deployment strategies found.\n")
+			r.Info("No deployment strategies found.")
 		} else {
-			for _, strategy := range tree.DeploymentStrategies {
-				fmt.Fprintf(&sb, "  - %s (ID: %s)\n", strategy.Name, strategy.ID)
-				if strategy.Description != "" {
-					fmt.Fprintf(&sb, "    Description: %s\n", strategy.Description)
-				}
-				fmt.Fprintf(&sb, "    Deployment Duration: %d minutes\n", strategy.DeploymentDurationInMinutes)
-				fmt.Fprintf(&sb, "    Final Bake Time: %d minutes\n", strategy.FinalBakeTimeInMinutes)
-				fmt.Fprintf(&sb, "    Growth Factor: %.1f%%\n", strategy.GrowthFactor)
-				if strategy.GrowthType != "" {
-					fmt.Fprintf(&sb, "    Growth Type: %s\n", strategy.GrowthType)
-				}
+			rows := make([][]string, 0, len(tree.DeploymentStrategies))
+			for _, s := range tree.DeploymentStrategies {
+				rows = append(rows, []string{
+					s.Name,
+					s.ID,
+					fmt.Sprintf("%dm", s.DeploymentDurationInMinutes),
+					fmt.Sprintf("%dm", s.FinalBakeTimeInMinutes),
+					fmt.Sprintf("%.1f%%", s.GrowthFactor),
+					s.GrowthType,
+					s.Description,
+				})
 			}
+			r.Table(
+				[]string{"Name", "ID", "Duration", "Bake Time", "Growth", "Type", "Description"},
+				rows,
+			)
 		}
-		sb.WriteString("\n")
 	}
 
-	// Check if there are any applications
 	if len(tree.Applications) == 0 {
-		sb.WriteString("Applications:\n")
-		sb.WriteString("  No applications found.\n")
-		_, err := w.Write([]byte(sb.String()))
-		return err
+		r.Header("Applications")
+		r.Info("No applications found.")
+		return
 	}
 
-	// Applications section
-	sb.WriteString("Applications:\n")
-	for i, app := range tree.Applications {
-		// Application header
-		fmt.Fprintf(&sb, "  [%d] %s (ID: %s)\n", i+1, app.Name, app.ID)
+	for _, app := range tree.Applications {
+		r.Header(fmt.Sprintf("Application: %s (ID: %s)", app.Name, app.ID))
 
-		// Configuration Profiles
-		sb.WriteString("      Configuration Profiles:\n")
-		if len(app.Profiles) == 0 {
-			sb.WriteString("        - No configuration profiles\n")
+		profileRows := make([][]string, 0, len(app.Profiles))
+		for _, p := range app.Profiles {
+			profileRows = append(profileRows, []string{p.Name, p.ID})
+		}
+		if len(profileRows) == 0 {
+			r.Info("No configuration profiles.")
 		} else {
-			for _, profile := range app.Profiles {
-				fmt.Fprintf(&sb, "        - %s (ID: %s)\n", profile.Name, profile.ID)
-			}
+			r.Table([]string{"Configuration Profile", "ID"}, profileRows)
 		}
 
-		// Environments
-		sb.WriteString("      Environments:\n")
-		if len(app.Environments) == 0 {
-			sb.WriteString("        - No environments\n")
-		} else {
-			for _, env := range app.Environments {
-				fmt.Fprintf(&sb, "        - %s (ID: %s)\n", env.Name, env.ID)
-			}
+		envRows := make([][]string, 0, len(app.Environments))
+		for _, e := range app.Environments {
+			envRows = append(envRows, []string{e.Name, e.ID})
 		}
-
-		// Add spacing between applications
-		if i < len(tree.Applications)-1 {
-			sb.WriteString("\n")
+		if len(envRows) == 0 {
+			r.Info("No environments.")
+		} else {
+			r.Table([]string{"Environment", "ID"}, envRows)
 		}
 	}
-
-	_, err := w.Write([]byte(sb.String()))
-	return err
 }

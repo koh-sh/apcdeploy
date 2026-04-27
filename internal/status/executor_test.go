@@ -152,7 +152,7 @@ region: us-east-1
 	// Check that warning was reported
 	foundWarning := false
 	for _, msg := range reporter.Messages {
-		if strings.Contains(msg, "warning") && strings.Contains(msg, "No deployments found") {
+		if strings.Contains(msg, "warn") && strings.Contains(msg, "No deployments found") {
 			foundWarning = true
 			break
 		}

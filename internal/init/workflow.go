@@ -14,14 +14,14 @@ import (
 // InitWorkflow handles the complete initialization workflow including interactive selection
 type InitWorkflow struct {
 	awsClient   *awsInternal.Client
-	reporter    reporter.ProgressReporter
+	reporter    reporter.Reporter
 	prompter    prompt.Prompter
 	selector    *InteractiveSelector
 	initializer *Initializer
 }
 
 // NewInitWorkflow creates a new InitWorkflow
-func NewInitWorkflow(ctx context.Context, opts *Options, prompter prompt.Prompter, reporter reporter.ProgressReporter) (*InitWorkflow, error) {
+func NewInitWorkflow(ctx context.Context, opts *Options, prompter prompt.Prompter, rep reporter.Reporter) (*InitWorkflow, error) {
 	// Check TTY availability if any interactive prompts will be needed
 	needsInteractive := opts.Region == "" || opts.Application == "" || opts.Profile == "" || opts.Environment == ""
 	if needsInteractive {
@@ -31,7 +31,7 @@ func NewInitWorkflow(ctx context.Context, opts *Options, prompter prompt.Prompte
 	}
 
 	// Step 1: Region selection (needed before creating AWS client)
-	selectedRegion, err := SelectOrUseRegion(ctx, opts.Region, prompter, reporter)
+	selectedRegion, err := SelectOrUseRegion(ctx, opts.Region, prompter, rep)
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +42,7 @@ func NewInitWorkflow(ctx context.Context, opts *Options, prompter prompt.Prompte
 		return nil, err
 	}
 
-	return NewInitWorkflowWithClient(awsClient, prompter, reporter), nil
+	return NewInitWorkflowWithClient(awsClient, prompter, rep), nil
 }
 
 // SelectOrUseRegion returns the provided region or prompts the user to select
@@ -50,7 +50,7 @@ func NewInitWorkflow(ctx context.Context, opts *Options, prompter prompt.Prompte
 //
 // TTY availability is the caller's responsibility; callers that will enter
 // interactive mode should run prompter.CheckTTY() beforehand.
-func SelectOrUseRegion(ctx context.Context, providedRegion string, prompter prompt.Prompter, reporter reporter.ProgressReporter) (string, error) {
+func SelectOrUseRegion(ctx context.Context, providedRegion string, prompter prompt.Prompter, rep reporter.Reporter) (string, error) {
 	if providedRegion != "" {
 		return providedRegion, nil
 	}
@@ -61,19 +61,19 @@ func SelectOrUseRegion(ctx context.Context, providedRegion string, prompter prom
 	}
 	accountClient := account.NewFromConfig(accountCfg)
 
-	selector := NewInteractiveSelector(prompter, reporter)
+	selector := NewInteractiveSelector(prompter, rep)
 	return selector.SelectRegion(ctx, accountClient, providedRegion)
 }
 
 // NewInitWorkflowWithClient creates a new InitWorkflow with a provided AWS client
 // This is useful for testing with mock clients
-func NewInitWorkflowWithClient(awsClient *awsInternal.Client, prompter prompt.Prompter, reporter reporter.ProgressReporter) *InitWorkflow {
+func NewInitWorkflowWithClient(awsClient *awsInternal.Client, prompter prompt.Prompter, rep reporter.Reporter) *InitWorkflow {
 	return &InitWorkflow{
 		awsClient:   awsClient,
-		reporter:    reporter,
+		reporter:    rep,
 		prompter:    prompter,
-		selector:    NewInteractiveSelector(prompter, reporter),
-		initializer: New(awsClient, reporter),
+		selector:    NewInteractiveSelector(prompter, rep),
+		initializer: New(awsClient, rep),
 	}
 }
 
@@ -121,7 +121,6 @@ func (w *InitWorkflow) Run(ctx context.Context, opts *Options) error {
 		ConfigFile:  opts.ConfigFile,
 		OutputData:  opts.OutputData,
 		Force:       opts.Force,
-		Silent:      opts.Silent,
 	}
 
 	// Step 8: Run existing initialization logic

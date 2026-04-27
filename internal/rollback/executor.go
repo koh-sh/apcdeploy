@@ -21,13 +21,13 @@ var ErrNoOngoingDeployment = errors.New("no ongoing deployment found")
 
 // Executor handles the rollback operation orchestration
 type Executor struct {
-	reporter      reporter.ProgressReporter
+	reporter      reporter.Reporter
 	prompter      prompt.Prompter
 	clientFactory func(context.Context, string) (*aws.Client, error)
 }
 
 // NewExecutor creates a new rollback executor
-func NewExecutor(rep reporter.ProgressReporter, prom prompt.Prompter) *Executor {
+func NewExecutor(rep reporter.Reporter, prom prompt.Prompter) *Executor {
 	return &Executor{
 		reporter:      rep,
 		prompter:      prom,
@@ -37,7 +37,7 @@ func NewExecutor(rep reporter.ProgressReporter, prom prompt.Prompter) *Executor 
 
 // NewExecutorWithFactory creates a new rollback executor with a custom client factory
 // This is useful for testing with mock clients
-func NewExecutorWithFactory(rep reporter.ProgressReporter, prom prompt.Prompter, factory func(context.Context, string) (*aws.Client, error)) *Executor {
+func NewExecutorWithFactory(rep reporter.Reporter, prom prompt.Prompter, factory func(context.Context, string) (*aws.Client, error)) *Executor {
 	return &Executor{
 		reporter:      rep,
 		prompter:      prom,
@@ -60,7 +60,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	}
 
 	// Step 3: Resolve resources
-	e.reporter.Progress("Resolving resources...")
+	e.reporter.Step("Resolving resources...")
 	resolver := aws.NewResolver(awsClient)
 	resources, err := resolver.ResolveAll(ctx, cfg.Application, cfg.ConfigurationProfile, cfg.Environment, cfg.DeploymentStrategy)
 	if err != nil {
@@ -68,7 +68,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	}
 
 	// Step 4: Find ongoing deployment
-	e.reporter.Progress("Checking for ongoing deployment...")
+	e.reporter.Step("Checking for ongoing deployment...")
 	hasOngoing, deployment, err := awsClient.CheckOngoingDeployment(ctx, resources.ApplicationID, resources.EnvironmentID)
 	if err != nil {
 		return fmt.Errorf("failed to check ongoing deployment: %w", err)
@@ -94,10 +94,8 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 			return fmt.Errorf("use --yes to skip confirmation: %w", err)
 		}
 
-		// Show deployment information unless in silent mode
-		if !opts.Silent {
-			display.ShowDeploymentStatus(details, cfg, resources)
-		}
+		// Show deployment information (silent mode is handled by the Reporter).
+		display.DeploymentStatus(e.reporter, details, cfg, resources)
 
 		message := fmt.Sprintf("Stop deployment #%d? This will rollback the deployment. (Y/Yes)", deploymentNumber)
 		response, err := e.prompter.Input(message, "")
@@ -113,7 +111,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	}
 
 	// Step 7: Stop deployment
-	e.reporter.Progress(fmt.Sprintf("Stopping deployment #%d...", deploymentNumber))
+	e.reporter.Step(fmt.Sprintf("Stopping deployment #%d...", deploymentNumber))
 	if err := awsClient.StopDeployment(ctx, resources.ApplicationID, resources.EnvironmentID, deploymentNumber); err != nil {
 		return fmt.Errorf("failed to stop deployment: %w", err)
 	}

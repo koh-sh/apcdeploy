@@ -11,12 +11,12 @@ import (
 
 // Executor handles the deployment orchestration
 type Executor struct {
-	reporter        reporter.ProgressReporter
+	reporter        reporter.Reporter
 	deployerFactory func(context.Context, *config.Config) (*Deployer, error)
 }
 
 // NewExecutor creates a new deployment executor
-func NewExecutor(rep reporter.ProgressReporter) *Executor {
+func NewExecutor(rep reporter.Reporter) *Executor {
 	return &Executor{
 		reporter:        rep,
 		deployerFactory: New,
@@ -25,7 +25,7 @@ func NewExecutor(rep reporter.ProgressReporter) *Executor {
 
 // NewExecutorWithFactory creates a new deployment executor with a custom deployer factory
 // This is useful for testing with mock deployers
-func NewExecutorWithFactory(rep reporter.ProgressReporter, factory func(context.Context, *config.Config) (*Deployer, error)) *Executor {
+func NewExecutorWithFactory(rep reporter.Reporter, factory func(context.Context, *config.Config) (*Deployer, error)) *Executor {
 	return &Executor{
 		reporter:        rep,
 		deployerFactory: factory,
@@ -45,7 +45,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	}
 
 	// Step 1: Load configuration
-	e.reporter.Progress("Loading configuration...")
+	e.reporter.Step("Loading configuration...")
 	cfg, dataContent, err := loadConfiguration(opts.ConfigFile)
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
@@ -59,7 +59,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	}
 
 	// Step 3: Resolve resources
-	e.reporter.Progress("Resolving AWS resources...")
+	e.reporter.Step("Resolving AWS resources...")
 	resolved, err := deployer.ResolveResources(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to resolve resources: %w", err)
@@ -72,7 +72,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	))
 
 	// Step 4: Check for ongoing deployments
-	e.reporter.Progress("Checking for ongoing deployments...")
+	e.reporter.Step("Checking for ongoing deployments...")
 	hasOngoingDeployment, _, err := deployer.CheckOngoingDeployment(ctx, resolved)
 	if err != nil {
 		return fmt.Errorf("failed to check ongoing deployments: %w", err)
@@ -89,7 +89,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	}
 
 	// Step 6: Validate local data
-	e.reporter.Progress("Validating configuration data...")
+	e.reporter.Step("Validating configuration data...")
 	if err := deployer.ValidateLocalData(dataContent, contentType); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
 	}
@@ -97,7 +97,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 
 	// Step 6.5: Check for differences (unless --force is specified)
 	if !opts.Force {
-		e.reporter.Progress("Checking for configuration changes...")
+		e.reporter.Step("Checking for configuration changes...")
 		hasChanges, err := deployer.HasConfigurationChanges(ctx, resolved, dataContent, cfg.DataFile, contentType)
 		if err != nil {
 			return fmt.Errorf("failed to check for changes: %w", err)
@@ -111,7 +111,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	}
 
 	// Step 7: Create hosted configuration version
-	e.reporter.Progress("Creating configuration version...")
+	e.reporter.Step("Creating configuration version...")
 	versionNumber, err := deployer.CreateVersion(ctx, resolved, dataContent, contentType)
 	if err != nil {
 		// Check if this is a validation error and provide user-friendly message
@@ -123,7 +123,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	e.reporter.Success(fmt.Sprintf("Created configuration version %d", versionNumber))
 
 	// Step 8: Start deployment
-	e.reporter.Progress("Starting deployment...")
+	e.reporter.Step("Starting deployment...")
 	deploymentNumber, err := deployer.StartDeployment(ctx, resolved, versionNumber)
 	if err != nil {
 		return fmt.Errorf("failed to start deployment: %w", err)
@@ -134,23 +134,25 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	switch {
 	case opts.WaitDeploy:
 		// Wait for deploy phase only (until BAKING starts)
-		e.reporter.Progress("Waiting for deployment phase to complete...")
-		if err := deployer.WaitForDeploymentPhase(ctx, resolved, deploymentNumber, false, opts.Timeout); err != nil {
+		pb := e.reporter.Progress("Deploying...")
+		if err := deployer.WaitForDeploymentPhase(ctx, resolved, deploymentNumber, false, opts.Timeout, MakeDeploymentTick(pb)); err != nil {
+			pb.Stop()
 			return fmt.Errorf("deployment failed: %w", err)
 		}
-		e.reporter.Success("Deployment phase completed (now baking)")
+		pb.Done("Deployment phase completed (now baking)")
 
 	case opts.WaitBake:
 		// Wait for complete deployment (deploy + bake)
-		e.reporter.Progress("Waiting for deployment to complete...")
-		if err := deployer.WaitForDeploymentPhase(ctx, resolved, deploymentNumber, true, opts.Timeout); err != nil {
+		pb := e.reporter.Progress("Deploying...")
+		if err := deployer.WaitForDeploymentPhase(ctx, resolved, deploymentNumber, true, opts.Timeout, MakeDeploymentTick(pb)); err != nil {
+			pb.Stop()
 			return fmt.Errorf("deployment failed: %w", err)
 		}
-		e.reporter.Success("Deployment completed successfully")
+		pb.Done("Deployment completed successfully")
 
 	default:
 		// No wait requested
-		e.reporter.Warning(fmt.Sprintf("Deployment #%d is in progress. Use 'apcdeploy status' to check the status.", deploymentNumber))
+		e.reporter.Warn(fmt.Sprintf("Deployment #%d is in progress. Use 'apcdeploy status' to check the status.", deploymentNumber))
 	}
 
 	return nil

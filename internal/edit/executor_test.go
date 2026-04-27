@@ -50,7 +50,7 @@ func TestExecutorValidatesNegativeTimeout(t *testing.T) {
 func TestExecutorFactoryErrorWrapped(t *testing.T) {
 	t.Parallel()
 
-	factory := func(ctx context.Context, opts *Options, p prompt.Prompter, r reporter.ProgressReporter) (*workflow, error) {
+	factory := func(ctx context.Context, opts *Options, p prompt.Prompter, r reporter.Reporter) (*workflow, error) {
 		return nil, errors.New("boom")
 	}
 	executor := NewExecutorWithFactory(&reporterTesting.MockReporter{}, &promptTesting.MockPrompter{}, factory)
@@ -67,7 +67,7 @@ func TestExecutorFactoryErrorWrapped(t *testing.T) {
 func TestExecutorTTYErrorPassesThrough(t *testing.T) {
 	t.Parallel()
 
-	factory := func(ctx context.Context, opts *Options, p prompt.Prompter, r reporter.ProgressReporter) (*workflow, error) {
+	factory := func(ctx context.Context, opts *Options, p prompt.Prompter, r reporter.Reporter) (*workflow, error) {
 		return nil, fmt.Errorf("%w: please provide --region, --app, --profile, and --env flags", prompt.ErrNoTTY)
 	}
 	executor := NewExecutorWithFactory(&reporterTesting.MockReporter{}, &promptTesting.MockPrompter{}, factory)

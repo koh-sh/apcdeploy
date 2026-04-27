@@ -2,112 +2,97 @@ package diff
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
 	"github.com/koh-sh/apcdeploy/internal/aws"
+	"github.com/koh-sh/apcdeploy/internal/cli"
 	"github.com/koh-sh/apcdeploy/internal/config"
+	"github.com/koh-sh/apcdeploy/internal/reporter"
 )
 
-// displaySilent shows only the diff content in silent mode
-func displaySilent(result *Result, deployment *aws.DeploymentInfo) {
-	// In silent mode:
-	// - No output if there are no changes
-	// - Only show the diff content if there are changes
-	if result.HasChanges {
-		displayColorizedDiff(result.UnifiedDiff)
+// inProgressWarningSink is the writer used by the "deployment in progress"
+// notice. It is a package-level variable so tests can intercept it; in
+// production it is always os.Stderr.
+var inProgressWarningSink io.Writer = os.Stderr
+
+// display renders the diff result through the Reporter.
+//
+// The unified diff itself goes to stdout via Reporter.Diff (always shown,
+// even under --silent). The header / metadata / summary lines go through
+// Reporter primitives so silent mode suppresses them automatically — callers
+// MUST NOT branch on opts.Silent.
+func display(r reporter.Reporter, result *Result, cfg *config.Config, resources *aws.ResolvedResources, deployment *aws.DeploymentInfo) {
+	r.Header("Configuration Diff")
+
+	metaRows := [][]string{
+		{"Application", cfg.Application},
+		{"Profile", resources.Profile.Name},
+		{"Environment", cfg.Environment},
 	}
-
-	// Show deployment warning in silent mode too if deployment is in progress.
-	// This is intentional because an ongoing deployment that gets rolled back
-	// could change the diff result, and users should be aware of this risk
-	// even in silent/automated environments.
-	displayDeploymentWarning(deployment)
-}
-
-// display shows the diff result in a user-friendly format
-func display(result *Result, cfg *config.Config, resources *aws.ResolvedResources, deployment *aws.DeploymentInfo) {
-	// Display header to stderr (metadata)
-	fmt.Fprintln(os.Stderr, "Configuration Diff")
-	fmt.Fprintln(os.Stderr, "==================")
-	fmt.Fprintln(os.Stderr)
-	fmt.Fprintf(os.Stderr, "Application:   %s\n", cfg.Application)
-	fmt.Fprintf(os.Stderr, "Profile:       %s\n", resources.Profile.Name)
-	fmt.Fprintf(os.Stderr, "Environment:   %s\n", cfg.Environment)
-	fmt.Fprintln(os.Stderr)
-
 	if deployment != nil {
-		fmt.Fprintf(os.Stderr, "Remote Version: %s (Deployment #%d)\n", deployment.ConfigurationVersion, deployment.DeploymentNumber)
+		metaRows = append(metaRows, []string{
+			"Remote Version", fmt.Sprintf("%s (Deployment #%d)", deployment.ConfigurationVersion, deployment.DeploymentNumber),
+		})
 		if deployment.State != "" {
-			fmt.Fprintf(os.Stderr, "Status:         %s\n", deployment.State)
+			metaRows = append(metaRows, []string{"Status", cli.StateBadge(string(deployment.State))})
 		}
 	} else {
-		fmt.Fprintln(os.Stderr, "Remote Version: (none)")
+		metaRows = append(metaRows, []string{"Remote Version", "(none)"})
 	}
-	fmt.Fprintf(os.Stderr, "Local File:     %s\n", result.FileName)
-	fmt.Fprintln(os.Stderr)
+	metaRows = append(metaRows, []string{"Local File", result.FileName})
+	r.Table([]string{"Field", "Value"}, metaRows)
 
-	// Check if there are changes
 	if !result.HasChanges {
-		fmt.Fprintln(os.Stderr, "✓ No changes detected")
-		// Show deployment warning even if no changes
+		r.Success("No changes detected")
 		displayDeploymentWarning(deployment)
 		return
 	}
 
-	// Display the diff header to stderr
-	fmt.Fprintln(os.Stderr, "Changes:")
-	fmt.Fprintln(os.Stderr, "--------")
-	// Display the actual diff to stdout (machine-readable)
-	displayColorizedDiff(result.UnifiedDiff)
-	fmt.Fprintln(os.Stderr)
+	// Diff payload to stdout (machine-readable; always shown).
+	r.Diff([]byte(ensureTrailingNewline(result.UnifiedDiff)))
 
-	// Display summary to stderr (metadata)
-	addedLines, removedLines := countChanges(result.UnifiedDiff)
-	fmt.Fprintf(os.Stderr, "Summary: +%d additions, -%d deletions\n", addedLines, removedLines)
+	added, removed := countChanges(result.UnifiedDiff)
+	r.Info(fmt.Sprintf("Summary: +%d additions, -%d deletions", added, removed))
 
-	// Show deployment warning after summary
 	displayDeploymentWarning(deployment)
 }
 
-// displayDeploymentWarning shows a warning if deployment is in progress
+// displayDeploymentWarning surfaces a notice when the latest deployment is
+// still in progress, since the diff is taken against an in-flight version.
+//
+// CONTRACT EXCEPTION (see .claude/rules/output-contract.md "diff in-progress
+// warning"): this writes directly to stderr instead of going through
+// Reporter.Warn so the notice still reaches scripts under --silent. An
+// in-flight deployment can be rolled back mid-rollout and change what the
+// diff is taken against, so users in automated pipelines must still see this
+// risk.
 func displayDeploymentWarning(deployment *aws.DeploymentInfo) {
-	if deployment != nil && (deployment.State == "DEPLOYING" || deployment.State == "BAKING") {
-		fmt.Fprintln(os.Stderr)
-		fmt.Fprintf(os.Stderr, "⚠ Deployment #%d is currently %s\n", deployment.DeploymentNumber, deployment.State)
-		fmt.Fprintln(os.Stderr, "The diff is calculated against the currently deploying version.")
+	if deployment == nil {
+		return
 	}
+	state := string(deployment.State)
+	if state != "DEPLOYING" && state != "BAKING" {
+		return
+	}
+	fmt.Fprintln(inProgressWarningSink)
+	fmt.Fprintf(inProgressWarningSink, "⚠ Deployment #%d is currently %s\n", deployment.DeploymentNumber, state)
+	fmt.Fprintln(inProgressWarningSink, "The diff is calculated against the currently deploying version.")
 }
 
-// displayColorizedDiff displays the diff with colors
-func displayColorizedDiff(diff string) {
-	lines := strings.SplitSeq(diff, "\n")
-	for line := range lines {
-		if len(line) == 0 {
-			continue
-		}
-
-		switch {
-		case strings.HasPrefix(line, "+"):
-			// Green for additions
-			fmt.Printf("\033[32m%s\033[0m\n", line)
-		case strings.HasPrefix(line, "-"):
-			// Red for deletions
-			fmt.Printf("\033[31m%s\033[0m\n", line)
-		case strings.HasPrefix(line, "@"):
-			// Cyan for diff headers
-			fmt.Printf("\033[36m%s\033[0m\n", line)
-		default:
-			// Normal for context lines
-			fmt.Println(line)
-		}
+// ensureTrailingNewline guarantees the diff payload ends with a newline so
+// piped consumers see clean line breaks.
+func ensureTrailingNewline(s string) string {
+	if s == "" || strings.HasSuffix(s, "\n") {
+		return s
 	}
+	return s + "\n"
 }
 
-// countChanges counts the number of added and removed lines
+// countChanges counts the number of added and removed lines in a unified diff.
 func countChanges(diff string) (added int, removed int) {
-	lines := strings.SplitSeq(diff, "\n")
-	for line := range lines {
+	for line := range strings.SplitSeq(diff, "\n") {
 		switch {
 		case strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++"):
 			added++

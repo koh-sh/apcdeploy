@@ -6,6 +6,7 @@ import (
 	"os"
 
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
+	"github.com/koh-sh/apcdeploy/internal/cli"
 	"github.com/spf13/cobra"
 )
 
@@ -70,15 +71,10 @@ func Execute() {
 	rootCmd.SilenceErrors = true
 
 	if err := rootCmd.Execute(); err != nil {
-		// Print error message (only when not in silent mode or always show errors)
-		if silent {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		} else {
-			// Print error with blank lines before and after for better visibility
-			fmt.Fprintln(os.Stderr)
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			fmt.Fprintln(os.Stderr)
-		}
+		// Funnel the top-level error through the Reporter so the styled "✗"
+		// prefix is consistent with the rest of stderr output. Both real and
+		// silent reporters always emit Error.
+		cli.GetReporter(silent).Error(err.Error())
 		// Exit 2 when the failure is "no prior deployment" so scripts can
 		// distinguish that condition (e.g. first-time setup) from real errors.
 		if errors.Is(err, awsInternal.ErrNoDeployment) {

@@ -11,13 +11,13 @@ import (
 
 // Executor handles the init command orchestration
 type Executor struct {
-	reporter           reporter.ProgressReporter
+	reporter           reporter.Reporter
 	prompter           prompt.Prompter
-	initializerFactory func(context.Context, *Options, prompt.Prompter, reporter.ProgressReporter) (*InitWorkflow, error)
+	initializerFactory func(context.Context, *Options, prompt.Prompter, reporter.Reporter) (*InitWorkflow, error)
 }
 
 // NewExecutor creates a new init executor
-func NewExecutor(rep reporter.ProgressReporter, prom prompt.Prompter) *Executor {
+func NewExecutor(rep reporter.Reporter, prom prompt.Prompter) *Executor {
 	return &Executor{
 		reporter:           rep,
 		prompter:           prom,
@@ -27,7 +27,7 @@ func NewExecutor(rep reporter.ProgressReporter, prom prompt.Prompter) *Executor 
 
 // NewExecutorWithFactory creates a new init executor with a custom initializer factory
 // This is useful for testing with mock dependencies
-func NewExecutorWithFactory(rep reporter.ProgressReporter, prom prompt.Prompter, factory func(context.Context, *Options, prompt.Prompter, reporter.ProgressReporter) (*InitWorkflow, error)) *Executor {
+func NewExecutorWithFactory(rep reporter.Reporter, prom prompt.Prompter, factory func(context.Context, *Options, prompt.Prompter, reporter.Reporter) (*InitWorkflow, error)) *Executor {
 	return &Executor{
 		reporter:           rep,
 		prompter:           prom,

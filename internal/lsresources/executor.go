@@ -3,8 +3,6 @@ package lsresources
 import (
 	"context"
 	"fmt"
-	"io"
-	"os"
 
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/reporter"
@@ -15,12 +13,12 @@ type ClientFactory func(ctx context.Context, region string) (*awsInternal.Client
 
 // Executor handles the resource listing orchestration
 type Executor struct {
-	reporter      reporter.ProgressReporter
+	reporter      reporter.Reporter
 	clientFactory ClientFactory
 }
 
 // NewExecutor creates a new list-resources executor
-func NewExecutor(rep reporter.ProgressReporter) *Executor {
+func NewExecutor(rep reporter.Reporter) *Executor {
 	return &Executor{
 		reporter:      rep,
 		clientFactory: awsInternal.NewClient,
@@ -29,22 +27,21 @@ func NewExecutor(rep reporter.ProgressReporter) *Executor {
 
 // NewExecutorWithFactory creates a new list-resources executor with a custom client factory
 // This is useful for testing with mock clients
-func NewExecutorWithFactory(rep reporter.ProgressReporter, factory ClientFactory) *Executor {
+func NewExecutorWithFactory(rep reporter.Reporter, factory ClientFactory) *Executor {
 	return &Executor{
 		reporter:      rep,
 		clientFactory: factory,
 	}
 }
 
-// Execute performs the complete resource listing workflow
+// Execute performs the complete resource listing workflow.
+//
+// In JSON mode the encoded payload is written to stdout via Reporter.Data;
+// in normal mode the tree is rendered through Reporter.Header / Reporter.Table
+// (stderr, suppressed under --silent).
 func (e *Executor) Execute(ctx context.Context, opts *Options) error {
-	return e.ExecuteWithWriter(ctx, opts, os.Stdout)
-}
-
-// ExecuteWithWriter performs the complete resource listing workflow with a custom writer
-func (e *Executor) ExecuteWithWriter(ctx context.Context, opts *Options, w io.Writer) error {
 	// Step 1: Create AWS client (with or without explicit region)
-	e.reporter.Progress("Creating AWS client...")
+	e.reporter.Step("Creating AWS client...")
 	client, err := e.clientFactory(ctx, opts.Region)
 	if err != nil {
 		return fmt.Errorf("failed to create AWS client: %w", err)
@@ -53,10 +50,10 @@ func (e *Executor) ExecuteWithWriter(ctx context.Context, opts *Options, w io.Wr
 
 	// Get the actual region used (either provided or SDK default)
 	region := client.Region
-	e.reporter.Progress(fmt.Sprintf("Using region: %s", region))
+	e.reporter.Step(fmt.Sprintf("Using region: %s", region))
 
 	// Step 2: List resources
-	e.reporter.Progress("Fetching AppConfig resources...")
+	e.reporter.Step("Fetching AppConfig resources...")
 	lister := New(client, region)
 	tree, err := lister.ListResources(ctx)
 	if err != nil {
@@ -64,18 +61,16 @@ func (e *Executor) ExecuteWithWriter(ctx context.Context, opts *Options, w io.Wr
 	}
 	e.reporter.Success(fmt.Sprintf("Found %d application(s)", len(tree.Applications)))
 
-	// Step 3: Format and output results
-	e.reporter.Progress("Formatting output...")
+	// Step 3: Format and emit results
 	if opts.JSON {
-		if err := FormatJSON(tree, w, opts.ShowStrategies); err != nil {
+		payload, err := FormatJSON(tree, opts.ShowStrategies)
+		if err != nil {
 			return fmt.Errorf("failed to format JSON output: %w", err)
 		}
-	} else {
-		if err := FormatHumanReadable(tree, w, opts.ShowStrategies); err != nil {
-			return fmt.Errorf("failed to format output: %w", err)
-		}
+		e.reporter.Data(payload)
+		return nil
 	}
-	e.reporter.Success("Output generated successfully")
 
+	RenderHumanReadable(e.reporter, tree, opts.ShowStrategies)
 	return nil
 }

@@ -156,9 +156,9 @@ func TestExecutorFullWorkflowWithMock(t *testing.T) {
 	}
 
 	// Create workflow factory that uses the mock client
-	workflowFactory := func(ctx context.Context, opts *Options, prompter prompt.Prompter, reporter reporter.ProgressReporter) (*InitWorkflow, error) {
+	workflowFactory := func(ctx context.Context, opts *Options, prompter prompt.Prompter, rep reporter.Reporter) (*InitWorkflow, error) {
 		awsClient := awsInternal.NewTestClient(mockClient)
-		return NewInitWorkflowWithClient(awsClient, prompter, reporter), nil
+		return NewInitWorkflowWithClient(awsClient, prompter, rep), nil
 	}
 
 	mockReporter := &reporterTesting.MockReporter{}
@@ -317,9 +317,9 @@ func TestExecutorWithInteractiveSelection(t *testing.T) {
 	}
 
 	// Create workflow factory that uses the mock client
-	workflowFactory := func(ctx context.Context, opts *Options, prompter prompt.Prompter, reporter reporter.ProgressReporter) (*InitWorkflow, error) {
+	workflowFactory := func(ctx context.Context, opts *Options, prompter prompt.Prompter, rep reporter.Reporter) (*InitWorkflow, error) {
 		awsClient := awsInternal.NewTestClient(mockClient)
-		return NewInitWorkflowWithClient(awsClient, prompter, reporter), nil
+		return NewInitWorkflowWithClient(awsClient, prompter, rep), nil
 	}
 
 	mockReporter := &reporterTesting.MockReporter{}
@@ -368,7 +368,7 @@ func TestExecutorFactoryError(t *testing.T) {
 	mockPrompter := &promptTesting.MockPrompter{}
 
 	// Create factory that returns an error
-	workflowFactory := func(ctx context.Context, opts *Options, prompter prompt.Prompter, reporter reporter.ProgressReporter) (*InitWorkflow, error) {
+	workflowFactory := func(ctx context.Context, opts *Options, prompter prompt.Prompter, rep reporter.Reporter) (*InitWorkflow, error) {
 		return nil, fmt.Errorf("factory error")
 	}
 
@@ -401,7 +401,7 @@ func TestExecutorTTYErrorFromFactory(t *testing.T) {
 	mockPrompter := &promptTesting.MockPrompter{}
 
 	// Create factory that returns a TTY error
-	workflowFactory := func(ctx context.Context, opts *Options, prompter prompt.Prompter, reporter reporter.ProgressReporter) (*InitWorkflow, error) {
+	workflowFactory := func(ctx context.Context, opts *Options, prompter prompt.Prompter, rep reporter.Reporter) (*InitWorkflow, error) {
 		return nil, fmt.Errorf("%w: please provide --region, --app, --profile, and --env flags", prompt.ErrNoTTY)
 	}
 
@@ -446,9 +446,9 @@ func TestExecutorTTYErrorFromWorkflowRun(t *testing.T) {
 	mockClient := &awsMock.MockAppConfigClient{}
 
 	// Create workflow factory that uses the mock client
-	workflowFactory := func(ctx context.Context, opts *Options, prompter prompt.Prompter, reporter reporter.ProgressReporter) (*InitWorkflow, error) {
+	workflowFactory := func(ctx context.Context, opts *Options, prompter prompt.Prompter, rep reporter.Reporter) (*InitWorkflow, error) {
 		awsClient := awsInternal.NewTestClient(mockClient)
-		return NewInitWorkflowWithClient(awsClient, prompter, reporter), nil
+		return NewInitWorkflowWithClient(awsClient, prompter, rep), nil
 	}
 
 	executor := NewExecutorWithFactory(mockReporter, mockPrompter, workflowFactory)

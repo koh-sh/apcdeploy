@@ -242,9 +242,13 @@ apcdeploy ls-resources --show-strategies
 # Output as JSON (useful for scripts and AI agents)
 apcdeploy ls-resources --json
 
-# Suppress progress messages, show only results
-apcdeploy ls-resources --silent
+# Suppress progress messages and emit only the JSON payload to stdout
+apcdeploy ls-resources --json --silent
 ```
+
+The human-readable view is rendered through Reporter primitives on stderr,
+which `--silent` suppresses entirely. For machine consumption combine
+`--json` with `--silent` so only the JSON payload reaches stdout.
 
 #### Flags
 
@@ -424,8 +428,8 @@ apcdeploy ls-resources --region us-east-1 --show-strategies
 apcdeploy ls-resources --region us-east-1
 apcdeploy init  # Interactive mode will show the same resources
 
-# Use in scripts
-apcdeploy ls-resources --region us-west-2 --silent > resources.txt
+# Use in scripts (JSON payload to stdout, Reporter chatter suppressed)
+apcdeploy ls-resources --region us-west-2 --json --silent > resources.json
 ```
 
 ### Global Flags

@@ -14,6 +14,7 @@ import (
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/aws/mock"
 	"github.com/koh-sh/apcdeploy/internal/config"
+	reportertest "github.com/koh-sh/apcdeploy/internal/reporter/testing"
 )
 
 func TestLoadConfiguration(t *testing.T) {
@@ -872,6 +873,44 @@ func TestHasConfigurationChanges(t *testing.T) {
 
 			if hasChanges != tt.wantChanges {
 				t.Errorf("HasConfigurationChanges() = %v, want %v", hasChanges, tt.wantChanges)
+			}
+		})
+	}
+}
+
+// TestMakeDeploymentTick verifies that the helper translates AppConfig
+// deployment states into progress-bar updates, including the BAKING-pins-to-100%
+// behavior that callers in run/edit rely on.
+func TestMakeDeploymentTick(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		state       types.DeploymentState
+		percent     float64
+		wantPercent float64
+		wantMsg     string
+	}{
+		{"deploying mid", types.DeploymentStateDeploying, 42.5, 42.5, "Deploying..."},
+		{"deploying zero", types.DeploymentStateDeploying, 0, 0, "Deploying..."},
+		{"baking pins to 100", types.DeploymentStateBaking, 30, 100, "Baking..."},
+		{"complete falls through to deploying label", types.DeploymentStateComplete, 100, 100, "Deploying..."},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			m := &reportertest.MockReporter{}
+			pb := m.Progress("init")
+			tick := MakeDeploymentTick(pb)
+			tick(tt.state, tt.percent)
+
+			if len(m.ProgressCalls) != 1 || len(m.ProgressCalls[0].Updates) != 1 {
+				t.Fatalf("expected exactly one update; got %+v", m.ProgressCalls)
+			}
+			got := m.ProgressCalls[0].Updates[0]
+			if got.Percent != tt.wantPercent || got.Message != tt.wantMsg {
+				t.Errorf("update = %+v, want percent=%v msg=%q", got, tt.wantPercent, tt.wantMsg)
 			}
 		})
 	}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/koh-sh/apcdeploy/internal/config"
@@ -17,13 +16,13 @@ var ErrUserDeclined = errors.New("operation declined by user")
 
 // Executor handles the configuration retrieval orchestration
 type Executor struct {
-	reporter      reporter.ProgressReporter
+	reporter      reporter.Reporter
 	prompter      prompt.Prompter
 	getterFactory func(context.Context, *config.Config) (*Getter, error)
 }
 
 // NewExecutor creates a new get executor
-func NewExecutor(rep reporter.ProgressReporter, prom prompt.Prompter) *Executor {
+func NewExecutor(rep reporter.Reporter, prom prompt.Prompter) *Executor {
 	return &Executor{
 		reporter:      rep,
 		prompter:      prom,
@@ -33,7 +32,7 @@ func NewExecutor(rep reporter.ProgressReporter, prom prompt.Prompter) *Executor 
 
 // NewExecutorWithFactory creates a new get executor with a custom getter factory
 // This is useful for testing with mock getters
-func NewExecutorWithFactory(rep reporter.ProgressReporter, prom prompt.Prompter, factory func(context.Context, *config.Config) (*Getter, error)) *Executor {
+func NewExecutorWithFactory(rep reporter.Reporter, prom prompt.Prompter, factory func(context.Context, *config.Config) (*Getter, error)) *Executor {
 	return &Executor{
 		reporter:      rep,
 		prompter:      prom,
@@ -44,7 +43,7 @@ func NewExecutorWithFactory(rep reporter.ProgressReporter, prom prompt.Prompter,
 // Execute performs the complete configuration retrieval workflow
 func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	// Step 1: Load configuration
-	e.reporter.Progress("Loading configuration...")
+	e.reporter.Step("Loading configuration...")
 	cfg, err := config.LoadConfig(opts.ConfigFile)
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
@@ -58,7 +57,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	}
 
 	// Step 3: Resolve resources
-	e.reporter.Progress("Resolving AWS resources...")
+	e.reporter.Step("Resolving AWS resources...")
 	resolved, err := getter.ResolveResources(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to resolve resources: %w", err)
@@ -90,7 +89,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	}
 
 	// Step 5: Get latest configuration
-	e.reporter.Progress("Fetching latest configuration...")
+	e.reporter.Step("Fetching latest configuration...")
 	configData, err := getter.GetConfiguration(ctx, resolved)
 	if err != nil {
 		return fmt.Errorf("failed to get configuration for profile '%s' in environment '%s': %w",
@@ -99,9 +98,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	e.reporter.Success("Configuration retrieved successfully")
 
 	// Step 6: Output configuration to stdout
-	if _, err := os.Stdout.Write(configData); err != nil {
-		return fmt.Errorf("failed to write configuration to stdout: %w", err)
-	}
+	e.reporter.Data(configData)
 
 	return nil
 }

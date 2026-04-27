@@ -12,18 +12,19 @@ import (
 	initPkg "github.com/koh-sh/apcdeploy/internal/init"
 	"github.com/koh-sh/apcdeploy/internal/prompt"
 	"github.com/koh-sh/apcdeploy/internal/reporter"
+	"github.com/koh-sh/apcdeploy/internal/run"
 )
 
 // workflow orchestrates the edit command against AWS AppConfig.
 type workflow struct {
 	awsClient *awsInternal.Client
-	reporter  reporter.ProgressReporter
+	reporter  reporter.Reporter
 	prompter  prompt.Prompter
 	selector  *initPkg.InteractiveSelector
 }
 
 // newWorkflow creates a workflow, resolving the AWS region interactively if needed.
-func newWorkflow(ctx context.Context, opts *Options, prompter prompt.Prompter, rep reporter.ProgressReporter) (*workflow, error) {
+func newWorkflow(ctx context.Context, opts *Options, prompter prompt.Prompter, rep reporter.Reporter) (*workflow, error) {
 	// A TTY is required in two cases:
 	//   - any targeting flag is missing (interactive selection is needed)
 	//   - $EDITOR is unset and we'll fall back to vi, which itself needs a TTY
@@ -52,7 +53,7 @@ func newWorkflow(ctx context.Context, opts *Options, prompter prompt.Prompter, r
 }
 
 // newWorkflowWithClient constructs a workflow with a pre-built AWS client (for tests).
-func newWorkflowWithClient(awsClient *awsInternal.Client, prompter prompt.Prompter, rep reporter.ProgressReporter) *workflow {
+func newWorkflowWithClient(awsClient *awsInternal.Client, prompter prompt.Prompter, rep reporter.Reporter) *workflow {
 	return &workflow{
 		awsClient: awsClient,
 		reporter:  rep,
@@ -108,7 +109,7 @@ func (w *workflow) resolveTargets(ctx context.Context, opts *Options) (*resolved
 		return nil, err
 	}
 
-	w.reporter.Progress("Resolving AWS resources...")
+	w.reporter.Step("Resolving AWS resources...")
 	profile, err := resolver.ResolveConfigurationProfile(ctx, appID, selectedProfile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve configuration profile: %w", err)
@@ -129,7 +130,7 @@ func (w *workflow) resolveTargets(ctx context.Context, opts *Options) (*resolved
 // so users hitting that abort path don't see a misleading success message
 // immediately followed by an error.
 func (w *workflow) prepareDeployment(ctx context.Context, t *resolvedTargets, opts *Options) (*awsInternal.DeployedConfigInfo, string, error) {
-	w.reporter.Progress("Checking for ongoing deployments...")
+	w.reporter.Step("Checking for ongoing deployments...")
 	ongoing, _, err := w.awsClient.CheckOngoingDeployment(ctx, t.AppID, t.EnvID)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to check ongoing deployments: %w", err)
@@ -139,7 +140,7 @@ func (w *workflow) prepareDeployment(ctx context.Context, t *resolvedTargets, op
 	}
 	w.reporter.Success("No ongoing deployments")
 
-	w.reporter.Progress("Fetching latest deployed configuration...")
+	w.reporter.Step("Fetching latest deployed configuration...")
 	deployed, err := awsInternal.GetLatestDeployedConfiguration(ctx, w.awsClient, t.AppID, t.EnvID, t.Profile.ID)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to get latest deployed configuration: %w", err)
@@ -162,13 +163,13 @@ func (w *workflow) prepareDeployment(ctx context.Context, t *resolvedTargets, op
 // configuration version when content changed, and starts the deployment.
 func (w *workflow) editAndDeploy(ctx context.Context, t *resolvedTargets, deployed *awsInternal.DeployedConfigInfo, strategyID string, opts *Options) error {
 	ext := config.ExtensionForContentType(deployed.ContentType)
-	w.reporter.Progress(fmt.Sprintf("Opening editor (%s)...", editorCommand()))
+	w.reporter.Step(fmt.Sprintf("Opening editor (%s)...", editorCommand()))
 	_, edited, err := editBuffer(deployed.Content, ext)
 	if err != nil {
 		return fmt.Errorf("failed to edit configuration: %w", err)
 	}
 
-	w.reporter.Progress("Validating configuration data...")
+	w.reporter.Step("Validating configuration data...")
 	if err := config.ValidateData(edited, deployed.ContentType); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
 	}
@@ -183,7 +184,7 @@ func (w *workflow) editAndDeploy(ctx context.Context, t *resolvedTargets, deploy
 		return nil
 	}
 
-	w.reporter.Progress("Creating configuration version...")
+	w.reporter.Step("Creating configuration version...")
 	versionNumber, err := w.awsClient.CreateHostedConfigurationVersion(ctx, t.AppID, t.Profile.ID, edited, deployed.ContentType, "")
 	if err != nil {
 		if awsInternal.IsValidationError(err) {
@@ -193,7 +194,7 @@ func (w *workflow) editAndDeploy(ctx context.Context, t *resolvedTargets, deploy
 	}
 	w.reporter.Success(fmt.Sprintf("Created configuration version %d", versionNumber))
 
-	w.reporter.Progress("Starting deployment...")
+	w.reporter.Step("Starting deployment...")
 	deploymentNumber, err := w.awsClient.StartDeployment(ctx, t.AppID, t.EnvID, t.Profile.ID, strategyID, versionNumber, "")
 	if err != nil {
 		return fmt.Errorf("failed to start deployment: %w", err)
@@ -224,19 +225,21 @@ func (w *workflow) waitIfRequested(ctx context.Context, appID, envID string, dep
 	timeout := time.Duration(opts.Timeout) * time.Second
 	switch {
 	case opts.WaitDeploy:
-		w.reporter.Progress("Waiting for deployment phase to complete...")
-		if err := w.awsClient.WaitForDeploymentPhase(ctx, appID, envID, deploymentNumber, false, timeout); err != nil {
+		pb := w.reporter.Progress("Deploying...")
+		if err := w.awsClient.WaitForDeploymentPhase(ctx, appID, envID, deploymentNumber, false, timeout, run.MakeDeploymentTick(pb)); err != nil {
+			pb.Stop()
 			return fmt.Errorf("deployment failed: %w", err)
 		}
-		w.reporter.Success("Deployment phase completed (now baking)")
+		pb.Done("Deployment phase completed (now baking)")
 	case opts.WaitBake:
-		w.reporter.Progress("Waiting for deployment to complete...")
-		if err := w.awsClient.WaitForDeploymentPhase(ctx, appID, envID, deploymentNumber, true, timeout); err != nil {
+		pb := w.reporter.Progress("Deploying...")
+		if err := w.awsClient.WaitForDeploymentPhase(ctx, appID, envID, deploymentNumber, true, timeout, run.MakeDeploymentTick(pb)); err != nil {
+			pb.Stop()
 			return fmt.Errorf("deployment failed: %w", err)
 		}
-		w.reporter.Success("Deployment completed successfully")
+		pb.Done("Deployment completed successfully")
 	default:
-		w.reporter.Warning(fmt.Sprintf("Deployment #%d is in progress. Use 'apcdeploy status' to check the status.", deploymentNumber))
+		w.reporter.Warn(fmt.Sprintf("Deployment #%d is in progress. Use 'apcdeploy status' to check the status.", deploymentNumber))
 	}
 	return nil
 }

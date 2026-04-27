@@ -14,11 +14,11 @@ import (
 // InteractiveSelector handles interactive resource selection
 type InteractiveSelector struct {
 	prompter prompt.Prompter
-	reporter reporter.ProgressReporter
+	reporter reporter.Reporter
 }
 
 // NewInteractiveSelector creates a new InteractiveSelector
-func NewInteractiveSelector(p prompt.Prompter, r reporter.ProgressReporter) *InteractiveSelector {
+func NewInteractiveSelector(p prompt.Prompter, r reporter.Reporter) *InteractiveSelector {
 	return &InteractiveSelector{
 		prompter: p,
 		reporter: r,
@@ -54,7 +54,7 @@ func (s *InteractiveSelector) SelectRegion(ctx context.Context, accountClient aw
 		return providedRegion, nil
 	}
 
-	s.reporter.Progress("Fetching available regions...")
+	s.reporter.Step("Fetching available regions...")
 
 	// List enabled regions
 	regions, err := awsInternal.ListEnabledRegions(ctx, accountClient)
@@ -82,7 +82,7 @@ func (s *InteractiveSelector) SelectApplication(ctx context.Context, client *aws
 		return providedApp, nil
 	}
 
-	s.reporter.Progress("Fetching applications...")
+	s.reporter.Step("Fetching applications...")
 
 	// List applications
 	applications, err := client.ListAllApplications(ctx)
@@ -119,7 +119,7 @@ func (s *InteractiveSelector) SelectConfigurationProfile(ctx context.Context, cl
 		return providedProfile, nil
 	}
 
-	s.reporter.Progress("Fetching configuration profiles...")
+	s.reporter.Step("Fetching configuration profiles...")
 
 	// List profiles
 	configProfiles, err := client.ListAllConfigurationProfiles(ctx, appID)
@@ -156,7 +156,7 @@ func (s *InteractiveSelector) SelectEnvironment(ctx context.Context, client *aws
 		return providedEnv, nil
 	}
 
-	s.reporter.Progress("Fetching environments...")
+	s.reporter.Step("Fetching environments...")
 
 	// List environments
 	environments, err := client.ListAllEnvironments(ctx, appID)

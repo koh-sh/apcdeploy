@@ -61,7 +61,7 @@ Dev tools (Go toolchain, golangci-lint, gofumpt, tparse, octocov, goreleaser, te
 ./apcdeploy context  # Output llms.md for AI assistants
 
 # Silent mode (suppress verbose output)
-./apcdeploy ls-resources --region us-east-1 --silent
+./apcdeploy ls-resources --region us-east-1 --json --silent  # silent without --json yields no stdout
 ./apcdeploy diff -c apcdeploy.yml --silent
 ./apcdeploy status -c apcdeploy.yml --silent
 ```
@@ -96,7 +96,7 @@ All commands follow the pattern: `cmd/<command>.go` → `internal/<command>/exec
    - `executor.go`: Main execution logic using Factory pattern for testability
    - `options.go`: Command-specific options struct
    - `workflow.go` (init, edit commands): Handles multi-step workflow including interactive prompts and resource resolution
-   - Executors accept a `reporter.ProgressReporter` for user feedback
+   - Executors accept a `reporter.Reporter` for user feedback
 
 ### Core Packages
 
@@ -138,12 +138,16 @@ Configuration file management:
 
 #### internal/reporter
 
-Progress reporting interface used across all commands:
+The single output abstraction used by every command. See [Output Contract](.claude/rules/output-contract.md) for the full contract.
 
-- `ProgressReporter`: Interface with `Progress()`, `Success()`, `Warning()` methods
-- `internal/cli/reporter.go`: Console implementation with colored output using lipgloss
-- `internal/cli/silent_reporter.go`: Silent implementation that suppresses all output (for `--silent` flag)
-- `internal/cli/factory.go`: Factory function `GetReporter()` to select appropriate reporter
+- `Reporter`: Interface with `Step`, `Success`, `Info`, `Warn`, `Error`, `Header`, `Box`, `Table`, `Spin`, `Progress`, `Data`, `Diff`
+- `internal/cli/reporter.go`: TTY-aware console implementation using lipgloss styles + bubbles spinner frames
+- `internal/cli/silent_reporter.go`: Silent variant that suppresses everything except `Error` / `Data` / `Diff`
+- `internal/cli/style.go`: Centralized lipgloss styles (the only place ANSI/color is defined)
+- `internal/cli/factory.go`: `GetReporter(silent bool) reporter.Reporter` selects the appropriate implementation
+- `internal/cli/tty.go`: TTY detection used to degrade animations and color in non-interactive environments
+
+Executors MUST NOT call `fmt.Fprint*` directly; all output flows through `Reporter`. Executors MUST NOT branch on `opts.Silent` — Reporter selection in `cmd/root.go` handles silent semantics.
 
 #### internal/prompt
 
@@ -174,7 +178,7 @@ Resource listing functionality for discovering AppConfig resources:
 
 - `executor.go`: Orchestrates the resource listing workflow using Factory pattern
 - `lister.go`: Core logic for fetching AppConfig resources (applications, profiles, environments, deployment strategies)
-- `formatter.go`: Formats output in human-readable or JSON format
+- `formatter.go`: `FormatJSON` returns the JSON payload; `RenderHumanReadable` emits the human view through Reporter primitives (`Header` / `Table` / `Info`)
 - `types.go`: Defines data structures (`ResourcesTree`, `Application`, `ConfigurationProfile`, `Environment`, `DeploymentStrategy`)
 - `options.go`: Command-specific options struct (`Region`, `JSON`, `ShowStrategies`, `Silent`)
 - Factory pattern enables dependency injection for testing (custom `ClientFactory`)
@@ -261,15 +265,14 @@ Key characteristics:
    - Fetch all environments
    - Sort profiles and environments by name
 5. Sort applications by name for consistent output
-6. Format output:
-   - Human-readable format: Hierarchical text view with optional deployment strategies section
-   - JSON format: Structured JSON with all resource details
-7. Output to stdout
+6. Emit output:
+   - Human-readable mode: Reporter primitives (`Header` per region/app, `Table` for strategies/profiles/environments) on stderr — suppressed under `--silent`
+   - JSON mode: Encoded payload written to stdout via `Reporter.Data` (always shown, even under `--silent`)
 
 Key characteristics:
 - No configuration file required (operates independently)
 - Read-only operation (no AWS resource modifications)
-- Supports silent mode for script-friendly output
+- Use `--json` for script consumption; the human-readable view is for terminals only and is suppressed entirely under `--silent`
 - Deployment strategies fetched but hidden by default (use `--show-strategies` to display)
 - All resources sorted alphabetically for consistent output
 
@@ -352,25 +355,15 @@ data_file: <path>  # relative to apcdeploy.yml or absolute
 region: <aws-region>  # optional, uses AWS SDK default if omitted
 ```
 
-## Silent Mode
+## Output Contract
 
-The `--silent` (or `-s`) flag is a global flag that suppresses verbose output and shows only essential information.
+Every command produces output through `internal/reporter`. The full contract — channels (stdout vs stderr), output kinds (Step/Success/Info/Warn/Error/Header/Box/Table/Spin/Data/Diff), `--silent` semantics, TTY degradation, and rules for adding new commands — lives in [.claude/rules/output-contract.md](.claude/rules/output-contract.md).
 
-### Behavior
+Quick reference:
 
-- **Suppressed**: Progress messages, success messages, warnings
-- **Always shown**: Error messages (via stderr), final results (diff output, status, etc.)
-- **Use cases**: CI/CD pipelines, scripting, machine-readable output
-
-### Implementation
-
-- Silent mode is implemented via the `reporter.ProgressReporter` interface
-- `internal/cli/factory.go` provides `GetReporter()` to select the appropriate reporter
-- When `--silent` is set, `SilentReporter` is used, which has no-op implementations for all methods
-- Each command's Options struct includes a `Silent` field for conditional display logic
-- Commands like `diff` and `status` use `opts.Silent` to choose between verbose and silent display functions
-
-### Examples
+- stdout = machine-readable payload (one per command, e.g. `get` body, `diff` body, `ls-resources --json` payload, `status --silent` state).
+- stderr = human-readable progress, structure, errors.
+- `--silent` (`-s`) suppresses everything except `Error`, `Data`, `Diff`. Executors MUST NOT branch on `opts.Silent`.
 
 ```bash
 # Show only the diff without metadata
