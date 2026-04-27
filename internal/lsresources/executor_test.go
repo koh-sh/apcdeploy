@@ -1,7 +1,6 @@
 package lsresources
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"strings"
@@ -14,6 +13,33 @@ import (
 	awsMock "github.com/koh-sh/apcdeploy/internal/aws/mock"
 	reporterTesting "github.com/koh-sh/apcdeploy/internal/reporter/testing"
 )
+
+// reporterText flattens MockReporter output (stdout payload, table cells,
+// header/info/warn/error messages) so substring assertions stay simple.
+func reporterText(r *reporterTesting.MockReporter) string {
+	var b strings.Builder
+	b.Write(r.Stdout)
+	b.WriteByte('\n')
+	for _, msg := range r.Messages {
+		b.WriteString(msg)
+		b.WriteByte('\n')
+	}
+	for _, tbl := range r.Tables {
+		for _, h := range tbl.Headers {
+			b.WriteString(h)
+			b.WriteByte('|')
+		}
+		b.WriteByte('\n')
+		for _, row := range tbl.Rows {
+			for _, cell := range row {
+				b.WriteString(cell)
+				b.WriteByte('|')
+			}
+			b.WriteByte('\n')
+		}
+	}
+	return b.String()
+}
 
 func TestNewExecutor(t *testing.T) {
 	t.Parallel()
@@ -83,7 +109,7 @@ func TestExecutor_ExecuteUsesStdout(t *testing.T) {
 	}
 }
 
-func TestExecutor_ExecuteWithWriter(t *testing.T) {
+func TestExecutor_Execute(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -294,13 +320,8 @@ func TestExecutor_ExecuteWithWriter(t *testing.T) {
 			// Create executor with factory
 			executor := NewExecutorWithFactory(mockReporter, factory)
 
-			// Capture output
-			var output bytes.Buffer
+			err := executor.Execute(context.Background(), tt.opts)
 
-			// Execute
-			err := executor.ExecuteWithWriter(context.Background(), tt.opts, &output)
-
-			// Assertions
 			if tt.expectError {
 				if err == nil {
 					t.Errorf("expected error but got nil")
@@ -314,7 +335,7 @@ func TestExecutor_ExecuteWithWriter(t *testing.T) {
 				if err != nil {
 					t.Errorf("expected no error but got: %v", err)
 				}
-				tt.validateOutput(t, output.String())
+				tt.validateOutput(t, reporterText(mockReporter))
 			}
 		})
 	}

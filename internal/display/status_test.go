@@ -63,6 +63,22 @@ func TestDeploymentStatus(t *testing.T) {
 			wantTableHas: []string{"DEPLOYING", "v2.0.0", "30.0%", "10.0%", "5 minutes"},
 		},
 		{
+			name: "baking deployment shows progress section",
+			deployment: &aws.DeploymentDetails{
+				DeploymentNumber:       3,
+				State:                  types.DeploymentStateBaking,
+				ConfigurationVersion:   "v3.0.0",
+				StartedAt:              new(time.Now().Add(-10 * time.Minute)),
+				PercentageComplete:     100,
+				FinalBakeTimeInMinutes: 5,
+			},
+			cfg:          &config.Config{Application: "test-app", Environment: "staging"},
+			resources:    &aws.ResolvedResources{Profile: &aws.ProfileInfo{Name: "stage-profile"}},
+			wantStdout:   "BAKING\n",
+			wantHeaders:  []string{"Deployment Status", "Progress"},
+			wantTableHas: []string{"BAKING", "v3.0.0", "100.0%", "Baking (monitoring for issues)"},
+		},
+		{
 			name: "rolled back deployment surfaces warn + reason",
 			deployment: &aws.DeploymentDetails{
 				DeploymentNumber:       4,
@@ -213,68 +229,6 @@ func TestFormatCurrentPhase(t *testing.T) {
 			t.Parallel()
 			if got := formatCurrentPhase(tt.deployment); got != tt.want {
 				t.Errorf("formatCurrentPhase() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestGetRollbackReason(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		eventLog []types.DeploymentEvent
-		want     string
-	}{
-		{
-			name: "rollback with CloudWatch alarm",
-			eventLog: []types.DeploymentEvent{
-				{EventType: types.DeploymentEventTypeRollbackStarted, Description: new("Rollback initiated by CloudWatch Alarm")},
-			},
-			want: "Rollback initiated by CloudWatch Alarm",
-		},
-		{
-			name: "rollback completed event",
-			eventLog: []types.DeploymentEvent{
-				{EventType: types.DeploymentEventTypeRollbackCompleted, Description: new("Rollback completed successfully")},
-			},
-			want: "Rollback completed successfully",
-		},
-		{
-			name: "no rollback events",
-			eventLog: []types.DeploymentEvent{
-				{EventType: types.DeploymentEventTypeDeploymentStarted, Description: new("Deployment started")},
-			},
-			want: "",
-		},
-		{
-			name:     "empty event log",
-			eventLog: []types.DeploymentEvent{},
-			want:     "",
-		},
-		{
-			name: "rollback event without description",
-			eventLog: []types.DeploymentEvent{
-				{EventType: types.DeploymentEventTypeRollbackStarted, Description: nil},
-			},
-			want: "",
-		},
-		{
-			name: "multiple events, get most recent rollback",
-			eventLog: []types.DeploymentEvent{
-				{EventType: types.DeploymentEventTypeDeploymentStarted, Description: new("Deployment started")},
-				{EventType: types.DeploymentEventTypeRollbackStarted, Description: new("First rollback")},
-				{EventType: types.DeploymentEventTypeRollbackStarted, Description: new("Second rollback")},
-			},
-			want: "Second rollback",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			if got := getRollbackReason(tt.eventLog); got != tt.want {
-				t.Errorf("getRollbackReason() = %v, want %v", got, tt.want)
 			}
 		})
 	}

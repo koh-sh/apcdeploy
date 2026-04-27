@@ -16,9 +16,10 @@ all output flows through the `Reporter`.
 | stderr | Human-readable progress, structure, errors | Most kinds suppressed (see below) |
 
 A command must pick exactly one stdout payload (or none). Examples: `get` writes
-the configuration body, `diff` writes the unified diff, `ls-resources` writes
-the formatted tree (or JSON), `status --silent` writes the deployment state,
-`context` writes `llms.md`. Everything else goes to stderr.
+the configuration body, `diff` writes the unified diff, `ls-resources --json`
+writes the JSON tree (the human-readable view goes through Reporter primitives
+on stderr), `status --silent` writes the deployment state, `context` writes
+`llms.md`. Everything else goes to stderr.
 
 ## Output kinds
 
@@ -36,11 +37,19 @@ silent-mode behavior, and visual treatment.
 | `Box(title, lines)` | stderr | suppressed | bordered card | Multi-line panel (e.g. init's "Next steps") |
 | `Table(headers, rows)` | stderr | suppressed | lipgloss table | Structured key/value or row data |
 | `Spin(msg) Spinner` | stderr | suppressed; non-TTY: `Step` once | animated frames | Live indicator wrapping a long call |
+| `Progress(msg) ProgressBar` | stderr | suppressed; non-TTY: `Step` at thresholds | live bar with `[####  ] 50%` | Percentage progress for long operations (deployment monitoring) |
 | `Data(p []byte)` | **stdout** | **always shown** | none | Machine-readable payload |
 | `Diff(p []byte)` | **stdout** | **always shown** | colorized when TTY | Unified diff payload |
 
 `Spinner` is `interface { Done(msg string); Fail(msg string) }`. `Done` emits a
 `Success`-equivalent line; `Fail` emits an `Error`-equivalent line on stderr.
+
+`ProgressBar` is `interface { Update(percent float64, msg string); Done(msg
+string); Fail(msg string); Stop() }`. `Update` advances the bar (`percent` is
+clamped to `[0.0, 1.0]`). `Done` finalizes with a `Success`-equivalent line;
+`Fail` finalizes with an `Error`-equivalent line. `Stop` finalizes silently —
+use it when the surrounding caller will emit its own terminal line so the bar
+does not double-print. Exactly one of `Done`/`Fail`/`Stop` MUST be called.
 
 ## Confirmations
 
@@ -60,7 +69,7 @@ Reporter kind — they live in `internal/prompt`. The contract for confirmations
 silent variant. Rules:
 
 - Silent mode suppresses Step / Success / Info / Warn / Header / Box / Table /
-  Spin entirely.
+  Spin / Progress entirely.
 - Silent mode preserves Error (always to stderr) and Data / Diff (always to
   stdout) so scripts still receive errors and payloads.
 - Silent mode does NOT change confirmation behavior — the user still must pass
@@ -75,6 +84,9 @@ When stderr is not a TTY (CI, pipes, redirects), the Reporter degrades:
 
 - `Spin` collapses to a single `Step` line; `Spinner.Done`/`Fail` emit a
   matching `Success`/`Error` line.
+- `Progress` collapses to coarse `Step` lines emitted only when crossing 25 /
+  50 / 75 / 100 % thresholds; `ProgressBar.Done`/`Fail` emit the same
+  `Success`/`Error` lines as the TTY path.
 - `Header` / `Box` / `Table` drop borders and color but keep structure (plain
   text with the same content).
 - `Diff` drops ANSI color so piped consumers get clean text.
@@ -111,8 +123,7 @@ without adding a similar entry here.
 ## What MUST NOT happen
 
 - No `fmt.Fprint*` to `os.Stderr` or `os.Stdout` from `internal/<cmd>/` or
-  `cmd/`. The only legal direct write is via Reporter (or via a writer the
-  caller injected, e.g. the `io.Writer` parameter on `lsresources`).
+  `cmd/`. The only legal direct write is via Reporter.
 - No raw `\033[...m` ANSI escape codes anywhere except inside `internal/cli`.
 - No emoji or symbol prefixes in messages passed to Reporter — the Reporter
   prepends them. Pass the message text only.

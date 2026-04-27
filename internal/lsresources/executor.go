@@ -3,11 +3,8 @@ package lsresources
 import (
 	"context"
 	"fmt"
-	"io"
-	"os"
 
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
-	"github.com/koh-sh/apcdeploy/internal/cli"
 	"github.com/koh-sh/apcdeploy/internal/reporter"
 )
 
@@ -37,13 +34,12 @@ func NewExecutorWithFactory(rep reporter.Reporter, factory ClientFactory) *Execu
 	}
 }
 
-// Execute performs the complete resource listing workflow
+// Execute performs the complete resource listing workflow.
+//
+// In JSON mode the encoded payload is written to stdout via Reporter.Data;
+// in normal mode the tree is rendered through Reporter.Header / Reporter.Table
+// (stderr, suppressed under --silent).
 func (e *Executor) Execute(ctx context.Context, opts *Options) error {
-	return e.ExecuteWithWriter(ctx, opts, os.Stdout)
-}
-
-// ExecuteWithWriter performs the complete resource listing workflow with a custom writer
-func (e *Executor) ExecuteWithWriter(ctx context.Context, opts *Options, w io.Writer) error {
 	// Step 1: Create AWS client (with or without explicit region)
 	e.reporter.Step("Creating AWS client...")
 	client, err := e.clientFactory(ctx, opts.Region)
@@ -65,22 +61,16 @@ func (e *Executor) ExecuteWithWriter(ctx context.Context, opts *Options, w io.Wr
 	}
 	e.reporter.Success(fmt.Sprintf("Found %d application(s)", len(tree.Applications)))
 
-	// Step 3: Format and output results
-	e.reporter.Step("Formatting output...")
+	// Step 3: Format and emit results
 	if opts.JSON {
-		if err := FormatJSON(tree, w, opts.ShowStrategies); err != nil {
+		payload, err := FormatJSON(tree, opts.ShowStrategies)
+		if err != nil {
 			return fmt.Errorf("failed to format JSON output: %w", err)
 		}
-	} else {
-		tty := false
-		if f, ok := w.(*os.File); ok {
-			tty = cli.IsTerminal(f)
-		}
-		if err := FormatHumanReadable(tree, w, opts.ShowStrategies, tty); err != nil {
-			return fmt.Errorf("failed to format output: %w", err)
-		}
+		e.reporter.Data(payload)
+		return nil
 	}
-	e.reporter.Success("Output generated successfully")
 
+	RenderHumanReadable(e.reporter, tree, opts.ShowStrategies)
 	return nil
 }

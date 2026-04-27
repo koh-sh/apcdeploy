@@ -70,6 +70,9 @@ type silentSpinner struct {
 }
 
 func (s *silentSpinner) Done(string) {
+	if s.finished {
+		return
+	}
 	s.finished = true
 }
 
@@ -89,6 +92,9 @@ type silentProgressBar struct {
 func (p *silentProgressBar) Update(float64, string) {}
 
 func (p *silentProgressBar) Done(string) {
+	if p.finished {
+		return
+	}
 	p.finished = true
 }
 
@@ -101,5 +107,8 @@ func (p *silentProgressBar) Fail(msg string) {
 }
 
 func (p *silentProgressBar) Stop() {
+	if p.finished {
+		return
+	}
 	p.finished = true
 }

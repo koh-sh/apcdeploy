@@ -16,11 +16,10 @@ import (
 // stdout, degrading borders/animations when the underlying file is not a
 // terminal.
 type Reporter struct {
-	outW    io.Writer
-	errW    io.Writer
-	outTTY  bool
-	errTTY  bool
-	outFile *os.File
+	outW   io.Writer
+	errW   io.Writer
+	outTTY bool
+	errTTY bool
 }
 
 var _ reporter.Reporter = (*Reporter)(nil)
@@ -28,11 +27,10 @@ var _ reporter.Reporter = (*Reporter)(nil)
 // NewReporter constructs a Reporter bound to os.Stdout / os.Stderr.
 func NewReporter() *Reporter {
 	return &Reporter{
-		outW:    os.Stdout,
-		errW:    os.Stderr,
-		outTTY:  IsTerminal(os.Stdout),
-		errTTY:  IsTerminal(os.Stderr),
-		outFile: os.Stdout,
+		outW:   os.Stdout,
+		errW:   os.Stderr,
+		outTTY: IsTerminal(os.Stdout),
+		errTTY: IsTerminal(os.Stderr),
 	}
 }
 

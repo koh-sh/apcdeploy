@@ -140,6 +140,10 @@ func (d *Deployer) WaitForDeploymentPhase(ctx context.Context, resolved *aws.Res
 // PercentageComplete; once BAKING starts the percentage pins at 100% and the
 // label is swapped to "Baking..." so the bar reads naturally during the bake
 // phase.
+//
+// Currently shared between `run` and `edit` only. If a third caller appears,
+// move this to a neutral location (e.g. internal/aws or a new internal
+// package) so feature packages stop reaching across to `run` for the helper.
 func MakeDeploymentTick(pb reporter.ProgressBar) aws.DeploymentTickFunc {
 	return func(state types.DeploymentState, percent float64) {
 		if state == types.DeploymentStateBaking {

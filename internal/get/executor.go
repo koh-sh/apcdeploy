@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/koh-sh/apcdeploy/internal/config"
@@ -99,9 +98,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	e.reporter.Success("Configuration retrieved successfully")
 
 	// Step 6: Output configuration to stdout
-	if _, err := os.Stdout.Write(configData); err != nil {
-		return fmt.Errorf("failed to write configuration to stdout: %w", err)
-	}
+	e.reporter.Data(configData)
 
 	return nil
 }

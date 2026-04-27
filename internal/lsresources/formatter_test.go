@@ -1,22 +1,24 @@
 package lsresources
 
 import (
-	"bytes"
 	"encoding/json"
 	"strings"
 	"testing"
+
+	reporterTesting "github.com/koh-sh/apcdeploy/internal/reporter/testing"
 )
 
 func TestFormatJSON(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		tree     *ResourcesTree
-		validate func(*testing.T, string)
+		name           string
+		tree           *ResourcesTree
+		showStrategies bool
+		validate       func(*testing.T, string)
 	}{
 		{
-			name: "full tree with multiple applications",
+			name: "full tree includes strategies when showStrategies is true",
 			tree: &ResourcesTree{
 				Region: "us-east-1",
 				DeploymentStrategies: []DeploymentStrategy{
@@ -43,14 +45,12 @@ func TestFormatJSON(t *testing.T) {
 					},
 				},
 			},
+			showStrategies: true,
 			validate: func(t *testing.T, output string) {
-				// Verify it's valid JSON
 				var result ResourcesTree
 				if err := json.Unmarshal([]byte(output), &result); err != nil {
 					t.Errorf("invalid JSON output: %v", err)
 				}
-
-				// Verify structure
 				if result.Region != "us-east-1" {
 					t.Errorf("expected region us-east-1, got %s", result.Region)
 				}
@@ -60,19 +60,44 @@ func TestFormatJSON(t *testing.T) {
 				if len(result.DeploymentStrategies) != 1 {
 					t.Errorf("expected 1 deployment strategy, got %d", len(result.DeploymentStrategies))
 				}
-				// Verify deployment strategy details
 				if result.DeploymentStrategies[0].GrowthFactor != 100 {
 					t.Errorf("expected growth factor 100, got %f", result.DeploymentStrategies[0].GrowthFactor)
 				}
 			},
 		},
 		{
-			name: "empty applications",
+			name: "showStrategies false omits deployment strategies",
+			tree: &ResourcesTree{
+				Region: "us-east-1",
+				DeploymentStrategies: []DeploymentStrategy{
+					{Name: "AppConfig.AllAtOnce", ID: "strategy-1"},
+				},
+				Applications: []Application{
+					{Name: "app1", ID: "app-id-1"},
+				},
+			},
+			showStrategies: false,
+			validate: func(t *testing.T, output string) {
+				var result ResourcesTree
+				if err := json.Unmarshal([]byte(output), &result); err != nil {
+					t.Errorf("invalid JSON output: %v", err)
+				}
+				if len(result.DeploymentStrategies) != 0 {
+					t.Errorf("expected 0 strategies, got %d", len(result.DeploymentStrategies))
+				}
+				if len(result.Applications) != 1 {
+					t.Errorf("expected 1 application, got %d", len(result.Applications))
+				}
+			},
+		},
+		{
+			name: "empty tree marshals successfully",
 			tree: &ResourcesTree{
 				Region:               "us-west-2",
 				Applications:         []Application{},
 				DeploymentStrategies: []DeploymentStrategy{},
 			},
+			showStrategies: true,
 			validate: func(t *testing.T, output string) {
 				var result ResourcesTree
 				if err := json.Unmarshal([]byte(output), &result); err != nil {
@@ -81,9 +106,6 @@ func TestFormatJSON(t *testing.T) {
 				if len(result.Applications) != 0 {
 					t.Errorf("expected 0 applications, got %d", len(result.Applications))
 				}
-				if len(result.DeploymentStrategies) != 0 {
-					t.Errorf("expected 0 deployment strategies, got %d", len(result.DeploymentStrategies))
-				}
 			},
 		},
 	}
@@ -92,109 +114,32 @@ func TestFormatJSON(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var buf bytes.Buffer
-			err := FormatJSON(tt.tree, &buf, true)
+			payload, err := FormatJSON(tt.tree, tt.showStrategies)
 			if err != nil {
-				t.Errorf("unexpected error: %v", err)
+				t.Fatalf("FormatJSON returned error: %v", err)
 			}
-
-			tt.validate(t, buf.String())
+			tt.validate(t, string(payload))
 		})
 	}
 }
 
-func TestFormatJSON_WithoutStrategies(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		tree     *ResourcesTree
-		validate func(*testing.T, string)
-	}{
-		{
-			name: "showStrategies false excludes deployment strategies",
-			tree: &ResourcesTree{
-				Region: "us-east-1",
-				DeploymentStrategies: []DeploymentStrategy{
-					{
-						Name:                        "AppConfig.AllAtOnce",
-						ID:                          "strategy-1",
-						Description:                 "Quick deployment",
-						DeploymentDurationInMinutes: 0,
-						FinalBakeTimeInMinutes:      0,
-						GrowthFactor:                100,
-						GrowthType:                  "LINEAR",
-					},
-				},
-				Applications: []Application{
-					{
-						Name: "app1",
-						ID:   "app-id-1",
-						Profiles: []ConfigurationProfile{
-							{Name: "profile1", ID: "prof-id-1"},
-						},
-						Environments: []Environment{
-							{Name: "dev", ID: "env-id-1"},
-						},
-					},
-				},
-			},
-			validate: func(t *testing.T, output string) {
-				var result ResourcesTree
-				if err := json.Unmarshal([]byte(output), &result); err != nil {
-					t.Errorf("invalid JSON output: %v", err)
-				}
-
-				// Verify deployment strategies are excluded
-				if len(result.DeploymentStrategies) != 0 {
-					t.Errorf("expected 0 deployment strategies with showStrategies=false, got %d", len(result.DeploymentStrategies))
-				}
-
-				// Verify applications are still included
-				if len(result.Applications) != 1 {
-					t.Errorf("expected 1 application, got %d", len(result.Applications))
-				}
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			var buf bytes.Buffer
-			err := FormatJSON(tt.tree, &buf, false) // showStrategies = false
-			if err != nil {
-				t.Errorf("unexpected error: %v", err)
-			}
-
-			tt.validate(t, buf.String())
-		})
-	}
-}
-
-func TestFormatHumanReadable(t *testing.T) {
+func TestRenderHumanReadable(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name             string
 		tree             *ResourcesTree
-		expectedContains []string
+		showStrategies   bool
+		expectedHeaders  []string
+		expectedTableHas []string
+		expectedInfo     []string
+		denyHeaders      []string
 	}{
 		{
-			name: "full tree with multiple applications",
+			name: "full tree with strategies and applications",
 			tree: &ResourcesTree{
 				Region: "us-east-1",
 				DeploymentStrategies: []DeploymentStrategy{
-					{
-						Name:                        "AppConfig.AllAtOnce",
-						ID:                          "strategy-1",
-						Description:                 "Quick deployment",
-						DeploymentDurationInMinutes: 0,
-						FinalBakeTimeInMinutes:      0,
-						GrowthFactor:                100,
-						GrowthType:                  "LINEAR",
-					},
 					{
 						Name:                        "AppConfig.Linear",
 						ID:                          "strategy-2",
@@ -211,66 +156,66 @@ func TestFormatHumanReadable(t *testing.T) {
 						ID:   "app-id-1",
 						Profiles: []ConfigurationProfile{
 							{Name: "profile1", ID: "prof-id-1"},
-							{Name: "profile2", ID: "prof-id-2"},
 						},
 						Environments: []Environment{
 							{Name: "dev", ID: "env-id-1"},
-							{Name: "prod", ID: "env-id-2"},
-						},
-					},
-					{
-						Name: "app2",
-						ID:   "app-id-2",
-						Profiles: []ConfigurationProfile{
-							{Name: "profile3", ID: "prof-id-3"},
-						},
-						Environments: []Environment{
-							{Name: "staging", ID: "env-id-3"},
 						},
 					},
 				},
 			},
-			expectedContains: []string{
+			showStrategies: true,
+			expectedHeaders: []string{
 				"Region: us-east-1",
-				"Deployment Strategies:",
-				"AppConfig.AllAtOnce",
-				"AppConfig.Linear",
-				"Quick deployment",
-				"Linear deployment",
-				"Deployment Duration: 30 minutes",
-				"Final Bake Time: 10 minutes",
-				"Growth Factor: 20.0%",
-				"Growth Factor: 100.0%",
-				"Growth Type: LINEAR",
-				"Applications:",
-				"app1",
-				"app2",
-				"Configuration Profiles:",
-				"profile1",
-				"profile2",
-				"profile3",
-				"Environments:",
-				"dev",
-				"prod",
-				"staging",
+				"Deployment Strategies",
+				"Application: app1 (ID: app-id-1)",
+			},
+			expectedTableHas: []string{
+				"AppConfig.Linear", "strategy-2", "Linear deployment", "30m", "10m", "20.0%", "LINEAR",
+				"profile1", "prof-id-1",
+				"dev", "env-id-1",
 			},
 		},
 		{
-			name: "empty applications",
+			name: "showStrategies false skips strategies header",
+			tree: &ResourcesTree{
+				Region: "us-east-1",
+				DeploymentStrategies: []DeploymentStrategy{
+					{Name: "AppConfig.AllAtOnce", ID: "strategy-1"},
+				},
+				Applications: []Application{
+					{
+						Name:         "app1",
+						ID:           "app-id-1",
+						Profiles:     []ConfigurationProfile{{Name: "profile1", ID: "prof-id-1"}},
+						Environments: []Environment{{Name: "dev", ID: "env-id-1"}},
+					},
+				},
+			},
+			showStrategies: false,
+			expectedHeaders: []string{
+				"Region: us-east-1",
+				"Application: app1 (ID: app-id-1)",
+			},
+			expectedTableHas: []string{"profile1", "dev"},
+			denyHeaders:      []string{"Deployment Strategies"},
+		},
+		{
+			name: "no applications surfaces info message",
 			tree: &ResourcesTree{
 				Region:               "us-west-2",
 				Applications:         []Application{},
 				DeploymentStrategies: []DeploymentStrategy{},
 			},
-			expectedContains: []string{
+			showStrategies: true,
+			expectedHeaders: []string{
 				"Region: us-west-2",
-				"Deployment Strategies:",
-				"No deployment strategies found",
-				"No applications found",
+				"Deployment Strategies",
+				"Applications",
 			},
+			expectedInfo: []string{"No deployment strategies found.", "No applications found."},
 		},
 		{
-			name: "application with no profiles or environments",
+			name: "application with no profiles or environments surfaces info messages",
 			tree: &ResourcesTree{
 				Region:               "eu-west-1",
 				DeploymentStrategies: []DeploymentStrategy{},
@@ -283,13 +228,11 @@ func TestFormatHumanReadable(t *testing.T) {
 					},
 				},
 			},
-			expectedContains: []string{
-				"Region: eu-west-1",
-				"Deployment Strategies:",
-				"empty-app",
-				"No configuration profiles",
-				"No environments",
+			showStrategies: false,
+			expectedHeaders: []string{
+				"Application: empty-app (ID: app-empty)",
 			},
+			expectedInfo: []string{"No configuration profiles.", "No environments."},
 		},
 	}
 
@@ -297,129 +240,51 @@ func TestFormatHumanReadable(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var buf bytes.Buffer
-			err := FormatHumanReadable(tt.tree, &buf, true, false)
-			if err != nil {
-				t.Errorf("unexpected error: %v", err)
+			r := &reporterTesting.MockReporter{}
+			RenderHumanReadable(r, tt.tree, tt.showStrategies)
+
+			for _, h := range tt.expectedHeaders {
+				if !r.HasMessage("header: " + h) {
+					t.Errorf("expected Header(%q); messages=%v", h, r.Messages)
+				}
+			}
+			for _, h := range tt.denyHeaders {
+				if r.HasMessage("header: " + h) {
+					t.Errorf("did not expect Header(%q); messages=%v", h, r.Messages)
+				}
 			}
 
-			output := buf.String()
-			for _, expected := range tt.expectedContains {
-				if !strings.Contains(output, expected) {
-					t.Errorf("expected output to contain %q, got:\n%s", expected, output)
+			tableContent := flattenTables(r.Tables)
+			for _, want := range tt.expectedTableHas {
+				if !strings.Contains(tableContent, want) {
+					t.Errorf("expected table cells to contain %q; got %q", want, tableContent)
 				}
+			}
+
+			for _, info := range tt.expectedInfo {
+				if !r.HasMessage("info: " + info) {
+					t.Errorf("expected Info(%q); messages=%v", info, r.Messages)
+				}
+			}
+
+			// Stdout must remain empty in human-readable mode (Data only used
+			// for JSON output).
+			if len(r.Stdout) != 0 {
+				t.Errorf("expected empty stdout; got %q", r.Stdout)
 			}
 		})
 	}
 }
 
-func TestFormatHumanReadable_TTYStillContainsRawText(t *testing.T) {
-	t.Parallel()
-
-	tree := &ResourcesTree{
-		Region: "us-east-1",
-		Applications: []Application{
-			{
-				Name:         "app1",
-				ID:           "app-id-1",
-				Profiles:     []ConfigurationProfile{{Name: "profile1", ID: "prof-id-1"}},
-				Environments: []Environment{{Name: "dev", ID: "env-id-1"}},
-			},
-		},
-	}
-
-	var buf bytes.Buffer
-	if err := FormatHumanReadable(tree, &buf, false, true); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	output := buf.String()
-	for _, want := range []string{"us-east-1", "app1", "app-id-1", "profile1", "dev"} {
-		if !strings.Contains(output, want) {
-			t.Errorf("TTY output missing %q; got:\n%s", want, output)
+func flattenTables(tables []reporterTesting.TableCall) string {
+	var b strings.Builder
+	for _, tbl := range tables {
+		for _, row := range tbl.Rows {
+			for _, cell := range row {
+				b.WriteString(cell)
+				b.WriteByte('|')
+			}
 		}
 	}
-}
-
-func TestFormatHumanReadable_WithoutStrategies(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name             string
-		tree             *ResourcesTree
-		expectedContains []string
-		notExpected      []string
-	}{
-		{
-			name: "showStrategies false excludes deployment strategies section",
-			tree: &ResourcesTree{
-				Region: "us-east-1",
-				DeploymentStrategies: []DeploymentStrategy{
-					{
-						Name:                        "AppConfig.AllAtOnce",
-						ID:                          "strategy-1",
-						Description:                 "Quick deployment",
-						DeploymentDurationInMinutes: 0,
-						FinalBakeTimeInMinutes:      0,
-						GrowthFactor:                100,
-						GrowthType:                  "LINEAR",
-					},
-				},
-				Applications: []Application{
-					{
-						Name: "app1",
-						ID:   "app-id-1",
-						Profiles: []ConfigurationProfile{
-							{Name: "profile1", ID: "prof-id-1"},
-						},
-						Environments: []Environment{
-							{Name: "dev", ID: "env-id-1"},
-						},
-					},
-				},
-			},
-			expectedContains: []string{
-				"Region: us-east-1",
-				"Applications:",
-				"app1",
-				"Configuration Profiles:",
-				"profile1",
-				"Environments:",
-				"dev",
-			},
-			notExpected: []string{
-				"Deployment Strategies:",
-				"AppConfig.AllAtOnce",
-				"Quick deployment",
-				"Growth Factor:",
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			var buf bytes.Buffer
-			err := FormatHumanReadable(tt.tree, &buf, false, false) // showStrategies = false, tty = false
-			if err != nil {
-				t.Errorf("unexpected error: %v", err)
-			}
-
-			output := buf.String()
-
-			// Check expected content is present
-			for _, expected := range tt.expectedContains {
-				if !strings.Contains(output, expected) {
-					t.Errorf("expected output to contain %q, got:\n%s", expected, output)
-				}
-			}
-
-			// Check deployment strategies content is NOT present
-			for _, notExpected := range tt.notExpected {
-				if strings.Contains(output, notExpected) {
-					t.Errorf("expected output NOT to contain %q, got:\n%s", notExpected, output)
-				}
-			}
-		})
-	}
+	return b.String()
 }

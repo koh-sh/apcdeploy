@@ -61,7 +61,7 @@ Dev tools (Go toolchain, golangci-lint, gofumpt, tparse, octocov, goreleaser, te
 ./apcdeploy context  # Output llms.md for AI assistants
 
 # Silent mode (suppress verbose output)
-./apcdeploy ls-resources --region us-east-1 --silent
+./apcdeploy ls-resources --region us-east-1 --json --silent  # silent without --json yields no stdout
 ./apcdeploy diff -c apcdeploy.yml --silent
 ./apcdeploy status -c apcdeploy.yml --silent
 ```
@@ -96,7 +96,7 @@ All commands follow the pattern: `cmd/<command>.go` → `internal/<command>/exec
    - `executor.go`: Main execution logic using Factory pattern for testability
    - `options.go`: Command-specific options struct
    - `workflow.go` (init, edit commands): Handles multi-step workflow including interactive prompts and resource resolution
-   - Executors accept a `reporter.ProgressReporter` for user feedback
+   - Executors accept a `reporter.Reporter` for user feedback
 
 ### Core Packages
 
@@ -140,7 +140,7 @@ Configuration file management:
 
 The single output abstraction used by every command. See [Output Contract](.claude/rules/output-contract.md) for the full contract.
 
-- `Reporter`: Interface with `Step`, `Success`, `Info`, `Warn`, `Error`, `Header`, `Box`, `Table`, `Spin`, `Data`, `Diff`
+- `Reporter`: Interface with `Step`, `Success`, `Info`, `Warn`, `Error`, `Header`, `Box`, `Table`, `Spin`, `Progress`, `Data`, `Diff`
 - `internal/cli/reporter.go`: TTY-aware console implementation using lipgloss styles + bubbles spinner frames
 - `internal/cli/silent_reporter.go`: Silent variant that suppresses everything except `Error` / `Data` / `Diff`
 - `internal/cli/style.go`: Centralized lipgloss styles (the only place ANSI/color is defined)
@@ -178,7 +178,7 @@ Resource listing functionality for discovering AppConfig resources:
 
 - `executor.go`: Orchestrates the resource listing workflow using Factory pattern
 - `lister.go`: Core logic for fetching AppConfig resources (applications, profiles, environments, deployment strategies)
-- `formatter.go`: Formats output in human-readable or JSON format
+- `formatter.go`: `FormatJSON` returns the JSON payload; `RenderHumanReadable` emits the human view through Reporter primitives (`Header` / `Table` / `Info`)
 - `types.go`: Defines data structures (`ResourcesTree`, `Application`, `ConfigurationProfile`, `Environment`, `DeploymentStrategy`)
 - `options.go`: Command-specific options struct (`Region`, `JSON`, `ShowStrategies`, `Silent`)
 - Factory pattern enables dependency injection for testing (custom `ClientFactory`)
@@ -265,15 +265,14 @@ Key characteristics:
    - Fetch all environments
    - Sort profiles and environments by name
 5. Sort applications by name for consistent output
-6. Format output:
-   - Human-readable format: Hierarchical text view with optional deployment strategies section
-   - JSON format: Structured JSON with all resource details
-7. Output to stdout
+6. Emit output:
+   - Human-readable mode: Reporter primitives (`Header` per region/app, `Table` for strategies/profiles/environments) on stderr — suppressed under `--silent`
+   - JSON mode: Encoded payload written to stdout via `Reporter.Data` (always shown, even under `--silent`)
 
 Key characteristics:
 - No configuration file required (operates independently)
 - Read-only operation (no AWS resource modifications)
-- Supports silent mode for script-friendly output
+- Use `--json` for script consumption; the human-readable view is for terminals only and is suppressed entirely under `--silent`
 - Deployment strategies fetched but hidden by default (use `--show-strategies` to display)
 - All resources sorted alphabetically for consistent output
 
@@ -362,7 +361,7 @@ Every command produces output through `internal/reporter`. The full contract —
 
 Quick reference:
 
-- stdout = machine-readable payload (one per command, e.g. `get` body, `diff` body, `ls-resources` tree, `status --silent` state).
+- stdout = machine-readable payload (one per command, e.g. `get` body, `diff` body, `ls-resources --json` payload, `status --silent` state).
 - stderr = human-readable progress, structure, errors.
 - `--silent` (`-s`) suppresses everything except `Error`, `Data`, `Diff`. Executors MUST NOT branch on `opts.Silent`.
 

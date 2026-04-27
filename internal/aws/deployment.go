@@ -103,8 +103,9 @@ func (c *Client) StopDeployment(
 	return nil
 }
 
-// extractRollbackReason extracts the rollback reason from deployment event log
-func extractRollbackReason(eventLog []types.DeploymentEvent) string {
+// ExtractRollbackReason returns the most recent non-empty rollback description
+// from a deployment event log, or "" if none is present.
+func ExtractRollbackReason(eventLog []types.DeploymentEvent) string {
 	// Look for rollback events in reverse order (most recent first)
 	for i := len(eventLog) - 1; i >= 0; i-- {
 		event := eventLog[i]
@@ -177,7 +178,7 @@ func (c *Client) waitForDeploymentWithCondition(
 
 		case types.DeploymentStateRolledBack:
 			// Handle rollback state
-			reason := extractRollbackReason(output.EventLog)
+			reason := ExtractRollbackReason(output.EventLog)
 			if reason != "" {
 				return false, fmt.Errorf("deployment was rolled back: %s", reason)
 			}

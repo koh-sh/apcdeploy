@@ -1002,3 +1002,65 @@ func TestStopDeployment(t *testing.T) {
 		})
 	}
 }
+
+func TestExtractRollbackReason(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		eventLog []types.DeploymentEvent
+		want     string
+	}{
+		{
+			name: "rollback with CloudWatch alarm",
+			eventLog: []types.DeploymentEvent{
+				{EventType: types.DeploymentEventTypeRollbackStarted, Description: new("Rollback initiated by CloudWatch Alarm")},
+			},
+			want: "Rollback initiated by CloudWatch Alarm",
+		},
+		{
+			name: "rollback completed event",
+			eventLog: []types.DeploymentEvent{
+				{EventType: types.DeploymentEventTypeRollbackCompleted, Description: new("Rollback completed successfully")},
+			},
+			want: "Rollback completed successfully",
+		},
+		{
+			name: "no rollback events",
+			eventLog: []types.DeploymentEvent{
+				{EventType: types.DeploymentEventTypeDeploymentStarted, Description: new("Deployment started")},
+			},
+			want: "",
+		},
+		{
+			name:     "empty event log",
+			eventLog: []types.DeploymentEvent{},
+			want:     "",
+		},
+		{
+			name: "rollback event without description",
+			eventLog: []types.DeploymentEvent{
+				{EventType: types.DeploymentEventTypeRollbackStarted, Description: nil},
+			},
+			want: "",
+		},
+		{
+			name: "multiple events, get most recent rollback",
+			eventLog: []types.DeploymentEvent{
+				{EventType: types.DeploymentEventTypeDeploymentStarted, Description: new("Deployment started")},
+				{EventType: types.DeploymentEventTypeRollbackStarted, Description: new("First rollback")},
+				{EventType: types.DeploymentEventTypeRollbackStarted, Description: new("Second rollback")},
+			},
+			want: "Second rollback",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := ExtractRollbackReason(tt.eventLog); got != tt.want {
+				t.Errorf("ExtractRollbackReason() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

@@ -148,6 +148,38 @@ func TestDisplay(t *testing.T) {
 	}
 }
 
+func TestDisplay_NilDeployment(t *testing.T) {
+	var stderrBuf bytes.Buffer
+	withWarningSink(t, &stderrBuf)
+
+	r := &mockreporter.MockReporter{}
+	display(
+		r,
+		&Result{HasChanges: true, UnifiedDiff: "+a\n", FileName: "data.json"},
+		&config.Config{Application: "app", Environment: "env"},
+		&aws.ResolvedResources{Profile: &aws.ProfileInfo{Name: "prof"}},
+		nil,
+	)
+
+	// "(none)" must appear as the Remote Version cell when no prior deployment.
+	var found bool
+	for _, table := range r.Tables {
+		for _, row := range table.Rows {
+			if len(row) >= 2 && row[0] == "Remote Version" && row[1] == "(none)" {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Errorf("expected metadata table to contain Remote Version=(none); tables=%+v", r.Tables)
+	}
+
+	// No in-progress notice when deployment is nil.
+	if got := stderrBuf.String(); strings.Contains(got, "is currently") {
+		t.Errorf("did not expect in-progress notice for nil deployment; got %q", got)
+	}
+}
+
 func Test_countChanges(t *testing.T) {
 	t.Parallel()
 

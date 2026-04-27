@@ -78,7 +78,7 @@ func DeploymentStatus(r reporter.Reporter, deployment *aws.DeploymentDetails, cf
 
 	if deployment.State == types.DeploymentStateRolledBack {
 		r.Warn("Deployment was rolled back")
-		if reason := getRollbackReason(deployment.EventLog); reason != "" {
+		if reason := aws.ExtractRollbackReason(deployment.EventLog); reason != "" {
 			r.Info("Reason: " + reason)
 		}
 	}
@@ -126,18 +126,4 @@ func formatCurrentPhase(deployment *aws.DeploymentDetails) string {
 	default:
 		return "Starting deployment"
 	}
-}
-
-// getRollbackReason extracts the rollback reason from the deployment event log.
-func getRollbackReason(eventLog []types.DeploymentEvent) string {
-	for i := len(eventLog) - 1; i >= 0; i-- {
-		event := eventLog[i]
-		if event.EventType == types.DeploymentEventTypeRollbackStarted ||
-			event.EventType == types.DeploymentEventTypeRollbackCompleted {
-			if event.Description != nil && *event.Description != "" {
-				return *event.Description
-			}
-		}
-	}
-	return ""
 }
