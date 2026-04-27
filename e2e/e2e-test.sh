@@ -28,10 +28,11 @@ cd "$WORKDIR"
 echo "Basic workflow: ls-resources -> init -> diff -> run -> status -> get -> pull -> update -> run"
 title "========== S1: Workflow =========="
 echo "Test ls-resources command"
-$APCDEPLOY ls-resources --region "$REGION" --silent | grep -q "$APP"
+# `--silent` without `--json` produces no stdout payload; pair with `--json` for grepping/jq.
+$APCDEPLOY ls-resources --region "$REGION" --json --silent | jq -e --arg app "$APP" '.applications | map(.name) | index($app) != null' > /dev/null
 $APCDEPLOY ls-resources --region "$REGION" --json --silent | jq -e ".region == \"$REGION\"" > /dev/null
 $APCDEPLOY ls-resources --region "$REGION" --json --silent | jq -e '.applications | length > 0' > /dev/null
-$APCDEPLOY ls-resources --region "$REGION" --show-strategies --silent | grep -q "AppConfig.AllAtOnce"
+$APCDEPLOY ls-resources --region "$REGION" --show-strategies --json --silent | jq -e '.deployment_strategies | map(.name) | index("AppConfig.AllAtOnce") != null' > /dev/null
 $APCDEPLOY init --silent --app "$APP" --profile json-freeform --env dev --region "$REGION" --force
 use_strategy
 echo '{"v":"1"}' > data.json
@@ -171,8 +172,10 @@ echo "Edge cases: no deployment history, invalid timeout, missing required flags
 title "========== E5: Edge Cases =========="
 $APCDEPLOY init --silent --app "$APP" --profile error-test --env staging --region "$REGION" --force
 use_strategy
-$APCDEPLOY diff --silent 2>&1 | grep -q "No deployment" || echo "⚠️  Deployment may exist"
-$APCDEPLOY status --silent 2>&1 | grep -q "No deploy" || echo "⚠️  Deployment may exist"
+# Run without `--silent` because the "no deployment" notice is a Reporter.Warn
+# which silent mode suppresses by contract.
+$APCDEPLOY diff 2>&1 | grep -q "No deployment" || echo "⚠️  Deployment may exist"
+$APCDEPLOY status 2>&1 | grep -q "No deploy" || echo "⚠️  Deployment may exist"
 
 # pull and edit must exit 2 (not 1) so scripts can distinguish "no prior deployment" from real errors.
 rc=0; $APCDEPLOY pull --silent || rc=$?; [ "$rc" -eq 2 ]
