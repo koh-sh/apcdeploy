@@ -67,7 +67,7 @@ func TestRunCommandFlags(t *testing.T) {
 		{
 			name:         "timeout flag has default",
 			flagName:     "timeout",
-			defaultValue: "600",
+			defaultValue: "1800",
 		},
 	}
 
