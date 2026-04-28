@@ -250,7 +250,7 @@ Options:
 
 - `--wait-deploy`: Wait for deployment phase to complete (until baking starts)
 - `--wait-bake`: Wait for complete deployment including baking phase
-- `--timeout`: Timeout in seconds for deployment wait (default: 600)
+- `--timeout`: Timeout in seconds for deployment wait (default: 1800)
 - `--force`: Deploy even if content hasn't changed
 
 Note: `--wait-deploy` and `--wait-bake` are mutually exclusive.
@@ -278,7 +278,7 @@ Options:
 - `--deployment-strategy`: Deployment strategy name (defaults to the strategy of the latest deployment)
 - `--wait-deploy`: Wait for deployment phase to complete (until baking starts)
 - `--wait-bake`: Wait for complete deployment including baking phase
-- `--timeout`: Timeout in seconds for deployment wait (default: 600)
+- `--timeout`: Timeout in seconds for deployment wait (default: 1800)
 
 **Note:** This command does not use `apcdeploy.yml`.
 

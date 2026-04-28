@@ -9,8 +9,12 @@ import (
 )
 
 const (
-	// DefaultDeploymentTimeout is the default timeout for deployments in seconds
-	DefaultDeploymentTimeout = 600
+	// DefaultDeploymentTimeout is the default timeout for deployments in seconds.
+	// Set to 30 minutes to safely cover AppConfig.AllAtOnce (10 min bake) and
+	// AppConfig.Canary10Percent20Minutes (20 min deploy + 10 min bake) under
+	// --wait-bake. Strategies with longer total durations (e.g.
+	// AppConfig.Linear20PercentEvery6Minutes) require an explicit --timeout.
+	DefaultDeploymentTimeout = 1800
 )
 
 var (

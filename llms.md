@@ -572,7 +572,7 @@ apcdeploy run -c apcdeploy.yml --wait-bake --timeout 900
 - `--wait-deploy`: Wait for deployment phase to complete (until baking starts)
 - `--wait-bake`: Wait for complete deployment including baking phase
 - `--force`: Deploy even when content is unchanged
-- `--timeout <seconds>`: Timeout in seconds for deployment wait (default: 600)
+- `--timeout <seconds>`: Timeout in seconds for deployment wait (default: 1800)
 
 **Important**: `--wait-deploy` and `--wait-bake` are mutually exclusive and cannot be used together.
 
@@ -629,7 +629,7 @@ apcdeploy run -c apcdeploy.yml --force
 
 # Only when waiting is needed in specific situations
 apcdeploy run -c apcdeploy.yml --wait-deploy
-apcdeploy run -c apcdeploy.yml --wait-bake --timeout 1800
+apcdeploy run -c apcdeploy.yml --wait-bake --timeout 3900
 ```
 
 ### diff command
@@ -1110,7 +1110,7 @@ apcdeploy edit --region us-west-2 --app my-app --profile my-profile --env produc
 apcdeploy edit --deployment-strategy AppConfig.Linear
 
 # Wait for baking to complete
-apcdeploy edit --wait-bake --timeout 1800
+apcdeploy edit --wait-bake --timeout 3900
 ```
 
 #### Flags
@@ -1122,7 +1122,7 @@ apcdeploy edit --wait-bake --timeout 1800
 - `--deployment-strategy <name>`: Deployment strategy name. Defaults to the strategy of the latest deployment
 - `--wait-deploy`: Wait for deployment phase to complete (until baking starts)
 - `--wait-bake`: Wait for complete deployment including baking phase
-- `--timeout <seconds>`: Timeout in seconds for deployment wait (default: 600)
+- `--timeout <seconds>`: Timeout in seconds for deployment wait (default: 1800)
 
 **Important**: `--wait-deploy` and `--wait-bake` are mutually exclusive.
 
@@ -1346,14 +1346,14 @@ apcdeploy run -c apcdeploy.yml --force
 **Error Example:**
 
 ```txt
-Error: deployment timeout after 600 seconds
+Error: deployment timeout after 1800 seconds
 ```
 
 **Solution:**
 
 ```bash
-# Extend timeout
-apcdeploy run -c apcdeploy.yml --wait-bake --timeout 1800
+# Extend timeout (e.g. AppConfig.Linear20PercentEvery6Minutes needs ~60 min)
+apcdeploy run -c apcdeploy.yml --wait-bake --timeout 3900
 
 # Or deploy without waiting and check status separately
 apcdeploy run -c apcdeploy.yml
