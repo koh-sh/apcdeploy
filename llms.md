@@ -596,6 +596,8 @@ apcdeploy run -c apcdeploy.yml --wait-bake --timeout 900
 | `--wait-deploy` | Deployment phase only | When entering baking state | Cases where you need to synchronously wait for deployment phase completion |
 | `--wait-bake` | Complete deployment | When deployment becomes COMPLETE | Cases where you need to synchronously wait for full deployment completion |
 
+When using `--wait-bake`, the deploy phase is shown as a progress bar (AppConfig reports a real rollout %) and the bake phase is shown as a spinner (bake is just a monitoring window, not a quantified rollout). Both phases display a `(~N min left)` countdown derived from the locally observed elapsed time vs the strategy's `DeploymentDurationInMinutes` / `FinalBakeTimeInMinutes`. The total wait is bounded by `--timeout` (shared across both phases).
+
 #### Idempotency
 
 - **Auto-skip feature**: If local file content is identical to deployed version, deployment is automatically skipped

@@ -286,35 +286,50 @@ region: us-east-1
 	}
 }
 
-// TestExecutorFullWorkflowWithWait tests deployment with wait options
+// TestExecutorFullWorkflowWithWait tests deployment with wait options.
+// For --wait-bake we assert that the deploy phase gets a progress bar and
+// the bake phase gets a spinner, since deploy is a quantified rollout
+// (AWS-reported %) and bake is just a monitoring wait.
 func TestExecutorFullWorkflowWithWait(t *testing.T) {
 	tests := []struct {
-		name       string
-		waitDeploy bool
-		waitBake   bool
-		mockStates []types.DeploymentState
-		wantMsg    string
+		name             string
+		waitDeploy       bool
+		waitBake         bool
+		mockStates       []types.DeploymentState
+		wantMsg          string
+		wantProgressBars int
+		wantSpinners     int
+		wantBakeSpinner  bool
 	}{
 		{
-			name:       "wait for bake: immediate completion",
-			waitDeploy: false,
-			waitBake:   true,
-			mockStates: []types.DeploymentState{types.DeploymentStateComplete},
-			wantMsg:    "Deployment completed successfully",
+			name:             "wait for bake: immediate completion",
+			waitDeploy:       false,
+			waitBake:         true,
+			mockStates:       []types.DeploymentState{types.DeploymentStateComplete},
+			wantMsg:          "Deployment completed successfully",
+			wantProgressBars: 1,
+			wantSpinners:     1,
+			wantBakeSpinner:  true,
 		},
 		{
-			name:       "wait for bake: completion after polling",
-			waitDeploy: false,
-			waitBake:   true,
-			mockStates: []types.DeploymentState{types.DeploymentStateDeploying, types.DeploymentStateBaking, types.DeploymentStateComplete},
-			wantMsg:    "Deployment completed successfully",
+			name:             "wait for bake: completion after polling",
+			waitDeploy:       false,
+			waitBake:         true,
+			mockStates:       []types.DeploymentState{types.DeploymentStateDeploying, types.DeploymentStateBaking, types.DeploymentStateComplete},
+			wantMsg:          "Deployment completed successfully",
+			wantProgressBars: 1,
+			wantSpinners:     1,
+			wantBakeSpinner:  true,
 		},
 		{
-			name:       "wait for deploy: stops at baking",
-			waitDeploy: true,
-			waitBake:   false,
-			mockStates: []types.DeploymentState{types.DeploymentStateDeploying, types.DeploymentStateBaking},
-			wantMsg:    "Deployment phase completed (now baking)",
+			name:             "wait for deploy: stops at baking",
+			waitDeploy:       true,
+			waitBake:         false,
+			mockStates:       []types.DeploymentState{types.DeploymentStateDeploying, types.DeploymentStateBaking},
+			wantMsg:          "Deployment phase completed (now baking)",
+			wantProgressBars: 1,
+			wantSpinners:     0,
+			wantBakeSpinner:  false,
 		},
 	}
 
@@ -422,6 +437,21 @@ region: us-east-1
 
 			if !hasExpectedMsg {
 				t.Errorf("expected message containing %q, got messages: %v", tt.wantMsg, reporter.Messages)
+			}
+
+			if got := len(reporter.ProgressCalls); got != tt.wantProgressBars {
+				t.Errorf("progress bar count = %d, want %d (calls: %+v)", got, tt.wantProgressBars, reporter.ProgressCalls)
+			}
+			if len(reporter.ProgressCalls) > 0 && reporter.ProgressCalls[0].StartMessage != "Deploying..." {
+				t.Errorf("first progress bar start = %q, want %q", reporter.ProgressCalls[0].StartMessage, "Deploying...")
+			}
+			if got := len(reporter.SpinnerCalls); got != tt.wantSpinners {
+				t.Errorf("spinner count = %d, want %d (calls: %+v)", got, tt.wantSpinners, reporter.SpinnerCalls)
+			}
+			if tt.wantBakeSpinner {
+				if len(reporter.SpinnerCalls) == 0 || reporter.SpinnerCalls[0].StartMessage != "Baking..." {
+					t.Errorf("bake spinner start = %+v, want StartMessage=%q", reporter.SpinnerCalls, "Baking...")
+				}
 			}
 		})
 	}

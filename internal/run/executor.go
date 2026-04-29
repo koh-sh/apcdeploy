@@ -3,6 +3,7 @@ package run
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/config"
@@ -151,20 +152,40 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	case opts.WaitDeploy:
 		// Wait for deploy phase only (until BAKING starts)
 		pb := e.reporter.Progress("Deploying...")
-		if err := deployer.WaitForDeploymentPhase(ctx, resolved, deploymentNumber, false, opts.Timeout, MakeDeploymentTick(pb)); err != nil {
+		if err := deployer.WaitForDeploymentPhase(ctx, resolved, deploymentNumber, false, opts.Timeout, MakeDeployTick(pb, "Baking...")); err != nil {
 			pb.Stop()
 			return fmt.Errorf("deployment failed: %w", err)
 		}
 		pb.Done("Deployment phase completed (now baking)")
 
 	case opts.WaitBake:
-		// Wait for complete deployment (deploy + bake)
+		// Two-phase wait. The deploy phase uses a progress bar (AppConfig
+		// reports a real rollout %) and the bake phase uses a spinner with a
+		// "(~N min left)" countdown (no quantified progress is being made —
+		// it's just a monitoring window).
+		//
+		// waitCtx caps total wait at opts.Timeout. The per-phase timeout
+		// passed below is the remaining budget against that deadline so the
+		// inner Wait* timeout reflects "how long this phase may still take",
+		// not the original full budget. This keeps the timed-out error
+		// message ("bake phase timed out after X") meaningful.
+		deadline := time.Now().Add(time.Duration(opts.Timeout) * time.Second)
+		waitCtx, cancel := context.WithDeadline(ctx, deadline)
+		defer cancel()
+
 		pb := e.reporter.Progress("Deploying...")
-		if err := deployer.WaitForDeploymentPhase(ctx, resolved, deploymentNumber, true, opts.Timeout, MakeDeploymentTick(pb)); err != nil {
+		if err := deployer.WaitForDeploymentPhase(waitCtx, resolved, deploymentNumber, false, remainingSeconds(deadline), MakeDeployTick(pb, "Deploying...")); err != nil {
 			pb.Stop()
 			return fmt.Errorf("deployment failed: %w", err)
 		}
-		pb.Done("Deployment completed successfully")
+		pb.Done("Deployment phase completed (now baking)")
+
+		bakeSpin := e.reporter.Spin("Baking...")
+		if err := deployer.WaitForBakingComplete(waitCtx, resolved, deploymentNumber, remainingSeconds(deadline), MakeBakeTick(bakeSpin)); err != nil {
+			bakeSpin.Stop()
+			return fmt.Errorf("deployment failed: %w", err)
+		}
+		bakeSpin.Done("Deployment completed successfully")
 
 	default:
 		// No wait requested
@@ -172,4 +193,17 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	}
 
 	return nil
+}
+
+// remainingSeconds returns the seconds remaining until deadline, clamped at
+// 1 to avoid passing 0/negative values to wait functions that interpret 0
+// as "no timeout". The actual wait is bounded by the shared waitCtx
+// deadline regardless, so the floor only matters when this helper is
+// called after the budget is already exhausted.
+func remainingSeconds(deadline time.Time) int {
+	remaining := int(time.Until(deadline).Seconds())
+	if remaining < 1 {
+		return 1
+	}
+	return remaining
 }
