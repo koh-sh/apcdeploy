@@ -190,12 +190,12 @@ func TestExecutorFullWorkflowWithMock(t *testing.T) {
 		t.Errorf("data file was not created: %s", dataPath)
 	}
 
-	// Verify all expected messages were reported
+	// init no longer emits a generic "Initializing apcdeploy configuration"
+	// banner; each phase reports its own progress via spinners + Success.
 	expectedMessages := []string{
-		"Initializing apcdeploy configuration",
 		"Resolving AWS resources",
 		"Fetching",
-		"Generating configuration file",
+		"Generated ",
 		"Initialization complete",
 	}
 

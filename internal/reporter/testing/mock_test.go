@@ -167,6 +167,78 @@ func TestMockReporter_ProgressLifecycle(t *testing.T) {
 	})
 }
 
+func TestMockReporter_ChecklistLifecycle(t *testing.T) {
+	t.Parallel()
+
+	t.Run("records all transitions and Close", func(t *testing.T) {
+		t.Parallel()
+		m := &MockReporter{}
+		chk := m.Checklist([]string{"alpha", "beta", "gamma"})
+
+		chk.Start(0)
+		chk.Done(0, "alpha-done")
+		chk.Skip(1, "beta-skipped")
+		chk.Fail(2, "gamma-failed")
+		chk.Close()
+
+		if len(m.ChecklistCalls) != 1 {
+			t.Fatalf("expected 1 checklist call; got %d", len(m.ChecklistCalls))
+		}
+		got := m.ChecklistCalls[0]
+		if !got.Closed {
+			t.Error("expected Closed=true after Close()")
+		}
+		wantLabels := []string{"alpha", "beta", "gamma"}
+		for i, l := range wantLabels {
+			if got.Items[i] != l {
+				t.Errorf("Items[%d] = %q, want %q", i, got.Items[i], l)
+			}
+		}
+		// Start, Done(0), Skip(1), Fail(2) — 4 transitions in order.
+		if len(got.Transitions) != 4 {
+			t.Fatalf("expected 4 transitions; got %d (%+v)", len(got.Transitions), got.Transitions)
+		}
+		want := []ChecklistTransition{
+			{Index: 0, Outcome: "start", Message: ""},
+			{Index: 0, Outcome: "done", Message: "alpha-done"},
+			{Index: 1, Outcome: "skip", Message: "beta-skipped"},
+			{Index: 2, Outcome: "fail", Message: "gamma-failed"},
+		}
+		for i, w := range want {
+			if got.Transitions[i] != w {
+				t.Errorf("Transitions[%d] = %+v, want %+v", i, got.Transitions[i], w)
+			}
+		}
+	})
+
+	t.Run("double Close is no-op", func(t *testing.T) {
+		t.Parallel()
+		m := &MockReporter{}
+		chk := m.Checklist([]string{"x"})
+		chk.Close()
+		closeMessages := len(m.Messages)
+		chk.Close()
+		if len(m.Messages) != closeMessages {
+			t.Errorf("second Close must not append a message; got %v", m.Messages)
+		}
+	})
+
+	t.Run("transitions after Close are silent", func(t *testing.T) {
+		t.Parallel()
+		m := &MockReporter{}
+		chk := m.Checklist([]string{"x"})
+		chk.Close()
+		chk.Start(0)
+		chk.Done(0, "ignored")
+		chk.Fail(0, "ignored")
+		chk.Skip(0, "ignored")
+		// Only "checklist:" + "checklist-close" should be present.
+		if len(m.ChecklistCalls[0].Transitions) != 0 {
+			t.Errorf("post-Close transitions must be ignored; got %+v", m.ChecklistCalls[0].Transitions)
+		}
+	})
+}
+
 func TestMockReporter_HasMessage(t *testing.T) {
 	t.Parallel()
 

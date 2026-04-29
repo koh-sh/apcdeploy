@@ -34,103 +34,119 @@ func NewExecutorWithFactory(rep reporter.Reporter, factory func(context.Context,
 
 // Execute performs the complete deployment workflow
 func (e *Executor) Execute(ctx context.Context, opts *Options) error {
-	// Validate timeout
 	if opts.Timeout < 0 {
 		return fmt.Errorf("timeout must be a non-negative value")
 	}
-
-	// Validate wait flags: both cannot be specified together
 	if opts.WaitDeploy && opts.WaitBake {
 		return fmt.Errorf("--wait-deploy and --wait-bake cannot be used together")
 	}
 
-	// Step 1: Load configuration
-	e.reporter.Step("Loading configuration...")
 	cfg, dataContent, err := loadConfiguration(opts.ConfigFile)
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
-	e.reporter.Success("Configuration loaded")
 
-	// Step 2: Create deployer
 	deployer, err := e.deployerFactory(ctx, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to create deployer: %w", err)
 	}
 
-	// Step 3: Resolve resources
-	e.reporter.Step("Resolving AWS resources...")
+	// Build the checklist plan additively so the conditional "detect changes"
+	// phase doesn't require remapping indices afterward. idxChanges stays -1
+	// when --force skips the AWS round-trip; the only path that touches
+	// idxChanges is gated by !opts.Force, so the sentinel never reaches the
+	// checklist.
+	var labels []string
+	add := func(name string) int {
+		labels = append(labels, name)
+		return len(labels) - 1
+	}
+
+	idxResolve := add("Resolving AWS resources")
+	idxOngoing := add("Checking for ongoing deployments")
+	idxChanges := -1
+	if !opts.Force {
+		idxChanges = add("Detecting changes")
+	}
+	idxVersion := add("Creating configuration version")
+	idxDeploy := add("Starting deployment")
+
+	chk := e.reporter.Checklist(labels)
+	defer chk.Close()
+
+	chk.Start(idxResolve)
 	resolved, err := deployer.ResolveResources(ctx)
 	if err != nil {
+		chk.Fail(idxResolve, "")
 		return fmt.Errorf("failed to resolve resources: %w", err)
 	}
-	e.reporter.Success(fmt.Sprintf("Resolved resources: App=%s, Profile=%s, Env=%s, Strategy=%s",
-		resolved.ApplicationID,
-		resolved.Profile.ID,
-		resolved.EnvironmentID,
-		resolved.DeploymentStrategyID,
-	))
+	chk.Done(idxResolve, fmt.Sprintf("Resolved resources: App=%s, Profile=%s, Env=%s, Strategy=%s",
+		resolved.ApplicationID, resolved.Profile.ID, resolved.EnvironmentID, resolved.DeploymentStrategyID))
 
-	// Step 4: Check for ongoing deployments
-	e.reporter.Step("Checking for ongoing deployments...")
+	chk.Start(idxOngoing)
 	hasOngoingDeployment, _, err := deployer.CheckOngoingDeployment(ctx, resolved)
 	if err != nil {
+		chk.Fail(idxOngoing, "")
 		return fmt.Errorf("failed to check ongoing deployments: %w", err)
 	}
 	if hasOngoingDeployment {
+		chk.Fail(idxOngoing, "")
 		return fmt.Errorf("deployment already in progress")
 	}
-	e.reporter.Success("No ongoing deployments")
+	chk.Done(idxOngoing, "No ongoing deployments")
 
-	// Step 5: Determine content type
 	contentType, err := deployer.DetermineContentType(resolved.Profile.Type, cfg.DataFile)
 	if err != nil {
 		return fmt.Errorf("failed to determine content type: %w", err)
 	}
 
-	// Step 6: Validate local data
-	e.reporter.Step("Validating configuration data...")
+	// Local validation runs without a checklist row: it's instant and
+	// failures surface as the returned error, which root.go renders.
 	if err := deployer.ValidateLocalData(dataContent, contentType); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
 	}
-	e.reporter.Success("Configuration data validated")
 
-	// Step 6.5: Check for differences (unless --force is specified)
 	if !opts.Force {
-		e.reporter.Step("Checking for configuration changes...")
+		chk.Start(idxChanges)
 		hasChanges, err := deployer.HasConfigurationChanges(ctx, resolved, dataContent, cfg.DataFile, contentType)
 		if err != nil {
+			chk.Fail(idxChanges, "")
 			return fmt.Errorf("failed to check for changes: %w", err)
 		}
-
 		if !hasChanges {
-			e.reporter.Success("No changes detected - skipping deployment")
+			chk.Skip(idxChanges, "No changes detected — skipping deployment")
 			return nil
 		}
-		e.reporter.Success("Changes detected - proceeding with deployment")
+		chk.Done(idxChanges, "Detected changes")
 	}
 
-	// Step 7: Create hosted configuration version
-	e.reporter.Step("Creating configuration version...")
+	chk.Start(idxVersion)
 	versionNumber, err := deployer.CreateVersion(ctx, resolved, dataContent, contentType)
 	if err != nil {
-		// Check if this is a validation error and provide user-friendly message
+		chk.Fail(idxVersion, "")
 		if aws.IsValidationError(err) {
 			return fmt.Errorf("%s", aws.FormatValidationError(err))
 		}
 		return fmt.Errorf("failed to create configuration version: %w", err)
 	}
-	e.reporter.Success(fmt.Sprintf("Created configuration version %d", versionNumber))
+	chk.Done(idxVersion, fmt.Sprintf("Created configuration version %d", versionNumber))
 
-	// Step 8: Start deployment
-	e.reporter.Step("Starting deployment...")
+	chk.Start(idxDeploy)
 	deploymentNumber, err := deployer.StartDeployment(ctx, resolved, versionNumber)
 	if err != nil {
+		chk.Fail(idxDeploy, "")
 		return fmt.Errorf("failed to start deployment: %w", err)
 	}
-	e.reporter.Success(fmt.Sprintf("Deployment #%d started", deploymentNumber))
+	chk.Done(idxDeploy, fmt.Sprintf("Started deployment #%d", deploymentNumber))
 
-	// Step 9: Wait for deployment if requested
+	// Supersede the deferred Close above: the wait phase's progress bar
+	// manages its own cursor and would tangle with the checklist's animation
+	// goroutine if both ran concurrently. Close is idempotent, so the deferred
+	// call later becomes a no-op on the success path. The defer remains useful
+	// for the error returns above, where it cleans up before cmd/root.go
+	// renders the error line.
+	chk.Close()
+
 	switch {
 	case opts.WaitDeploy:
 		// Wait for deploy phase only (until BAKING starts)

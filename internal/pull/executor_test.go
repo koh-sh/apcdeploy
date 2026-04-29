@@ -178,12 +178,12 @@ region: us-east-1
 		t.Errorf("expected data file to contain new value, got: %s", string(updatedData))
 	}
 
-	// Verify all expected messages were reported
+	// Pull now reports progress via a 2-item Checklist (load + update). Each
+	// item should fire exactly one Done transition in the happy path.
 	expectedMessages := []string{
-		"Loading configuration",
-		"Resolving resources",
-		"Fetching latest deployed configuration",
-		"Updating data file",
+		"checklist: Loading deployment data,Updating data file",
+		"Loaded deployment data",
+		"Updated ",
 	}
 
 	for _, expected := range expectedMessages {
@@ -656,16 +656,17 @@ region: us-east-1
 		t.Error("expected data file to NOT be modified when no changes exist")
 	}
 
-	// Verify "no changes" message was reported
-	foundNoChanges := false
+	// The no-change branch finalizes the update phase via Skip with the
+	// "Local file matches deployment #N" message.
+	foundSkip := false
 	for _, msg := range reporter.Messages {
-		if strings.Contains(msg, "No changes") || strings.Contains(msg, "already up to date") {
-			foundNoChanges = true
+		if strings.Contains(msg, "checklist-skip") && strings.Contains(msg, "Local file matches deployment") {
+			foundSkip = true
 			break
 		}
 	}
-	if !foundNoChanges {
-		t.Errorf("expected 'no changes' message in reporter output, got: %v", reporter.Messages)
+	if !foundSkip {
+		t.Errorf("expected checklist-skip with 'Local file matches deployment' message; got: %v", reporter.Messages)
 	}
 }
 

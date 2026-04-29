@@ -40,28 +40,21 @@ func NewExecutorWithFactory(rep reporter.Reporter, factory ClientFactory) *Execu
 // in normal mode the tree is rendered through Reporter.Header / Reporter.Table
 // (stderr, suppressed under --silent).
 func (e *Executor) Execute(ctx context.Context, opts *Options) error {
-	// Step 1: Create AWS client (with or without explicit region)
-	e.reporter.Step("Creating AWS client...")
 	client, err := e.clientFactory(ctx, opts.Region)
 	if err != nil {
 		return fmt.Errorf("failed to create AWS client: %w", err)
 	}
-	e.reporter.Success("AWS client created")
-
-	// Get the actual region used (either provided or SDK default)
 	region := client.Region
-	e.reporter.Step(fmt.Sprintf("Using region: %s", region))
 
-	// Step 2: List resources
-	e.reporter.Step("Fetching AppConfig resources...")
+	sp := e.reporter.Spin(fmt.Sprintf("Fetching AppConfig resources (%s)...", region))
 	lister := New(client, region)
 	tree, err := lister.ListResources(ctx)
 	if err != nil {
+		sp.Stop()
 		return fmt.Errorf("failed to list resources: %w", err)
 	}
-	e.reporter.Success(fmt.Sprintf("Found %d application(s)", len(tree.Applications)))
+	sp.Done(fmt.Sprintf("Found %d application(s) in %s", len(tree.Applications), region))
 
-	// Step 3: Format and emit results
 	if opts.JSON {
 		payload, err := FormatJSON(tree, opts.ShowStrategies)
 		if err != nil {

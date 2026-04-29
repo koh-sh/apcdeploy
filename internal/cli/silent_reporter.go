@@ -47,6 +47,12 @@ func (r *SilentReporter) Spin(string) reporter.Spinner {
 	return &silentSpinner{r: r}
 }
 
+// Checklist returns a no-op checklist. Done/Skip are silent; only Fail
+// forwards to Error so that fatal failures still surface in scripts.
+func (r *SilentReporter) Checklist(items []string) reporter.Checklist {
+	return newSilentChecklist(r, items)
+}
+
 // Progress returns a no-op progress bar. Done is silent; Fail forwards to
 // Error so that fatal failures still surface in scripts.
 func (r *SilentReporter) Progress(string) reporter.ProgressBar {
@@ -82,6 +88,13 @@ func (s *silentSpinner) Fail(msg string) {
 	}
 	s.finished = true
 	s.r.Error(msg)
+}
+
+func (s *silentSpinner) Stop() {
+	if s.finished {
+		return
+	}
+	s.finished = true
 }
 
 type silentProgressBar struct {

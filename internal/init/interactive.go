@@ -49,25 +49,22 @@ func (s *InteractiveSelector) promptAndReport(promptMsg string, options []string
 
 // SelectRegion prompts user to select a region or returns provided region
 func (s *InteractiveSelector) SelectRegion(ctx context.Context, accountClient awsInternal.AccountAPI, providedRegion string) (string, error) {
-	// Skip prompt if region is provided
 	if providedRegion != "" {
 		return providedRegion, nil
 	}
 
-	s.reporter.Step("Fetching available regions...")
-
-	// List enabled regions
+	sp := s.reporter.Spin("Fetching available regions...")
 	regions, err := awsInternal.ListEnabledRegions(ctx, accountClient)
 	if err != nil {
+		sp.Stop()
 		return "", fmt.Errorf("failed to list regions: %w", err)
 	}
-
-	// Check for empty list
 	if len(regions) == 0 {
+		sp.Stop()
 		return "", errors.New("no enabled regions found in your AWS account")
 	}
+	sp.Done(fmt.Sprintf("Found %d region(s)", len(regions)))
 
-	// Prompt user to select
 	return s.promptAndReport(
 		"Select AWS region:",
 		regions,
@@ -77,20 +74,17 @@ func (s *InteractiveSelector) SelectRegion(ctx context.Context, accountClient aw
 
 // SelectApplication prompts user to select an application or returns provided app
 func (s *InteractiveSelector) SelectApplication(ctx context.Context, client *awsInternal.Client, providedApp string) (string, error) {
-	// Skip prompt if app is provided
 	if providedApp != "" {
 		return providedApp, nil
 	}
 
-	s.reporter.Step("Fetching applications...")
-
-	// List applications
+	sp := s.reporter.Spin("Fetching applications...")
 	applications, err := client.ListAllApplications(ctx)
 	if err != nil {
+		sp.Stop()
 		return "", fmt.Errorf("failed to list applications: %w", err)
 	}
 
-	// Extract and sort names
 	apps := make([]string, 0, len(applications))
 	for _, item := range applications {
 		if item.Name != nil {
@@ -99,12 +93,12 @@ func (s *InteractiveSelector) SelectApplication(ctx context.Context, client *aws
 	}
 
 	if len(apps) == 0 {
+		sp.Stop()
 		return "", errors.New("no applications found. Please create an application in AppConfig first")
 	}
-
 	sort.Strings(apps)
+	sp.Done(fmt.Sprintf("Found %d application(s)", len(apps)))
 
-	// Prompt user to select
 	return s.promptAndReport(
 		"Select application:",
 		apps,
@@ -114,20 +108,17 @@ func (s *InteractiveSelector) SelectApplication(ctx context.Context, client *aws
 
 // SelectConfigurationProfile prompts user to select a profile or returns provided profile
 func (s *InteractiveSelector) SelectConfigurationProfile(ctx context.Context, client *awsInternal.Client, appID string, providedProfile string) (string, error) {
-	// Skip prompt if profile is provided
 	if providedProfile != "" {
 		return providedProfile, nil
 	}
 
-	s.reporter.Step("Fetching configuration profiles...")
-
-	// List profiles
+	sp := s.reporter.Spin("Fetching configuration profiles...")
 	configProfiles, err := client.ListAllConfigurationProfiles(ctx, appID)
 	if err != nil {
+		sp.Stop()
 		return "", fmt.Errorf("failed to list configuration profiles: %w", err)
 	}
 
-	// Extract and sort names
 	profiles := make([]string, 0, len(configProfiles))
 	for _, item := range configProfiles {
 		if item.Name != nil {
@@ -136,12 +127,12 @@ func (s *InteractiveSelector) SelectConfigurationProfile(ctx context.Context, cl
 	}
 
 	if len(profiles) == 0 {
+		sp.Stop()
 		return "", errors.New("no configuration profiles found. Please create a configuration profile in AppConfig first")
 	}
-
 	sort.Strings(profiles)
+	sp.Done(fmt.Sprintf("Found %d configuration profile(s)", len(profiles)))
 
-	// Prompt user to select
 	return s.promptAndReport(
 		"Select configuration profile:",
 		profiles,
@@ -151,20 +142,17 @@ func (s *InteractiveSelector) SelectConfigurationProfile(ctx context.Context, cl
 
 // SelectEnvironment prompts user to select an environment or returns provided env
 func (s *InteractiveSelector) SelectEnvironment(ctx context.Context, client *awsInternal.Client, appID string, providedEnv string) (string, error) {
-	// Skip prompt if env is provided
 	if providedEnv != "" {
 		return providedEnv, nil
 	}
 
-	s.reporter.Step("Fetching environments...")
-
-	// List environments
+	sp := s.reporter.Spin("Fetching environments...")
 	environments, err := client.ListAllEnvironments(ctx, appID)
 	if err != nil {
+		sp.Stop()
 		return "", fmt.Errorf("failed to list environments: %w", err)
 	}
 
-	// Extract and sort names
 	envs := make([]string, 0, len(environments))
 	for _, item := range environments {
 		if item.Name != nil {
@@ -173,12 +161,12 @@ func (s *InteractiveSelector) SelectEnvironment(ctx context.Context, client *aws
 	}
 
 	if len(envs) == 0 {
+		sp.Stop()
 		return "", errors.New("no environments found. Please create an environment in AppConfig first")
 	}
-
 	sort.Strings(envs)
+	sp.Done(fmt.Sprintf("Found %d environment(s)", len(envs)))
 
-	// Prompt user to select
 	return s.promptAndReport(
 		"Select environment:",
 		envs,

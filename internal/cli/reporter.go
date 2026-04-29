@@ -124,6 +124,17 @@ func (r *Reporter) Spin(msg string) reporter.Spinner {
 	return newSpinner(r, msg)
 }
 
+// Checklist starts a multi-item progress block. In TTY mode the block updates
+// in place; in non-TTY mode each completed item is emitted as a single
+// Success/Error/Info line on Done/Fail/Skip. The caller MUST eventually
+// invoke Close on the returned Checklist.
+func (r *Reporter) Checklist(items []string) reporter.Checklist {
+	if r.errTTY {
+		return newTTYChecklist(r.errW, items)
+	}
+	return newNonTTYChecklist(r, items)
+}
+
 // Progress starts a percentage-based progress bar. The caller streams updates
 // through ProgressBar.Update and MUST eventually invoke either Done or Fail.
 func (r *Reporter) Progress(msg string) reporter.ProgressBar {

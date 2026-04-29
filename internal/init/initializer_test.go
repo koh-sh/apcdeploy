@@ -194,15 +194,17 @@ func TestInitializer_FetchConfigVersion(t *testing.T) {
 				if result.DeployedConfig != nil {
 					t.Error("expected DeployedConfig to be nil")
 				}
-				hasWarning := false
+				// "No deployment" is now reported inline as the spinner's
+				// Done message, not as a separate Warn line.
+				hasNoticeInDone := false
 				for _, msg := range reporter.Messages {
-					if len(msg) > 5 && msg[:5] == "warn:" {
-						hasWarning = true
+					if strings.Contains(msg, "spin-done") && strings.Contains(msg, "No prior deployment") {
+						hasNoticeInDone = true
 						break
 					}
 				}
-				if !hasWarning {
-					t.Error("expected warning message")
+				if !hasNoticeInDone {
+					t.Errorf("expected spin-done with 'No prior deployment'; got: %v", reporter.Messages)
 				}
 			},
 		},
@@ -274,15 +276,17 @@ func TestInitializer_FetchDeploymentStrategy(t *testing.T) {
 			},
 			wantStrategy: "MyCustomStrategy",
 			checkMessages: func(t *testing.T, reporter *reportertest.MockReporter) {
-				hasSuccess := false
+				// Strategy resolution now reports its result via the
+				// spinner's Done message rather than a free-standing Success.
+				hasSpinDone := false
 				for _, msg := range reporter.Messages {
-					if len(msg) > 8 && msg[:8] == "success:" {
-						hasSuccess = true
+					if strings.HasPrefix(msg, "spin-done:") {
+						hasSpinDone = true
 						break
 					}
 				}
-				if !hasSuccess {
-					t.Error("expected success message")
+				if !hasSpinDone {
+					t.Errorf("expected spin-done message; got: %v", reporter.Messages)
 				}
 			},
 		},
@@ -319,15 +323,17 @@ func TestInitializer_FetchDeploymentStrategy(t *testing.T) {
 			},
 			wantStrategy: "AppConfig.AllAtOnce",
 			checkMessages: func(t *testing.T, reporter *reportertest.MockReporter) {
-				hasWarning := false
+				// "No previous deployments — using default" is now the
+				// spinner Done message; the legacy Warn line is gone.
+				hasNoticeInDone := false
 				for _, msg := range reporter.Messages {
-					if len(msg) > 5 && msg[:5] == "warn:" {
-						hasWarning = true
+					if strings.Contains(msg, "spin-done") && strings.Contains(msg, "default") {
+						hasNoticeInDone = true
 						break
 					}
 				}
-				if !hasWarning {
-					t.Error("expected warning message")
+				if !hasNoticeInDone {
+					t.Errorf("expected spin-done with 'default'; got: %v", reporter.Messages)
 				}
 			},
 		},
@@ -513,15 +519,17 @@ func TestInitializer_Run(t *testing.T) {
 				if result.DataFile != "data.json" {
 					t.Errorf("expected DataFile 'data.json', got %q", result.DataFile)
 				}
-				hasProgress := false
+				// Phases now report progress through spinners (spin: + spin-done:)
+				// instead of standalone Step lines.
+				hasSpin := false
 				for _, msg := range reporter.Messages {
-					if len(msg) > 5 && msg[:5] == "step:" {
-						hasProgress = true
+					if strings.HasPrefix(msg, "spin:") {
+						hasSpin = true
 						break
 					}
 				}
-				if !hasProgress {
-					t.Error("expected progress messages")
+				if !hasSpin {
+					t.Errorf("expected spinner progress messages; got: %v", reporter.Messages)
 				}
 			},
 		},
@@ -659,15 +667,16 @@ func TestInitializer_Run(t *testing.T) {
 				if result.DeployedConfig != nil {
 					t.Error("expected DeployedConfig to be nil")
 				}
-				hasWarning := false
+				// "No prior deployment" is now the spinner Done message.
+				hasNoticeInDone := false
 				for _, msg := range reporter.Messages {
-					if len(msg) > 5 && msg[:5] == "warn:" {
-						hasWarning = true
+					if strings.Contains(msg, "spin-done") && strings.Contains(msg, "No prior deployment") {
+						hasNoticeInDone = true
 						break
 					}
 				}
-				if !hasWarning {
-					t.Error("expected warning message about no deployment")
+				if !hasNoticeInDone {
+					t.Errorf("expected spin-done with 'No prior deployment'; got: %v", reporter.Messages)
 				}
 			},
 		},

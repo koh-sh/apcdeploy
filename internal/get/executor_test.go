@@ -57,13 +57,11 @@ func TestExecutorLoadConfigurationError(t *testing.T) {
 		t.Errorf("expected 'failed to load configuration' error, got: %v", err)
 	}
 
-	// Verify reporter was called for progress
-	if len(reporter.Messages) == 0 {
-		t.Error("expected reporter to have received messages")
-	}
-
-	if !strings.Contains(reporter.Messages[0], "Loading configuration") {
-		t.Errorf("expected first message to be about loading configuration, got: %v", reporter.Messages[0])
+	// Config loading is an instant operation: per the output contract it does
+	// not produce any reporter output on failure — the returned error is the
+	// signal. The reporter should be untouched.
+	if len(reporter.Messages) != 0 {
+		t.Errorf("expected no reporter messages for config-load failure, got: %v", reporter.Messages)
 	}
 }
 
@@ -179,13 +177,13 @@ region: us-east-1
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Verify all expected messages were reported
+	// Config-load is now an instant operation with no reporter output. The
+	// remaining phases use spinners that emit Step+Done in non-TTY mode.
 	expectedMessages := []string{
-		"Loading configuration",
-		"Configuration loaded",
 		"Resolving AWS resources",
 		"Resolved resources",
 		"Fetching latest configuration",
+		"Fetched configuration",
 	}
 
 	for _, expected := range expectedMessages {
