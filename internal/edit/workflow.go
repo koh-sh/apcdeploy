@@ -109,16 +109,18 @@ func (w *workflow) resolveTargets(ctx context.Context, opts *Options) (*resolved
 		return nil, err
 	}
 
-	w.reporter.Step("Resolving AWS resources...")
+	sp := w.reporter.Spin("Resolving AWS resources...")
 	profile, err := resolver.ResolveConfigurationProfile(ctx, appID, selectedProfile)
 	if err != nil {
+		sp.Stop()
 		return nil, fmt.Errorf("failed to resolve configuration profile: %w", err)
 	}
 	envID, err := resolver.ResolveEnvironment(ctx, appID, selectedEnv)
 	if err != nil {
+		sp.Stop()
 		return nil, fmt.Errorf("failed to resolve environment: %w", err)
 	}
-	w.reporter.Success(fmt.Sprintf("Resolved resources: App=%s, Profile=%s, Env=%s", appID, profile.ID, envID))
+	sp.Done(fmt.Sprintf("Resolved resources: App=%s, Profile=%s, Env=%s", appID, profile.ID, envID))
 
 	return &resolvedTargets{AppID: appID, EnvID: envID, Profile: profile}, nil
 }
@@ -126,29 +128,33 @@ func (w *workflow) resolveTargets(ctx context.Context, opts *Options) (*resolved
 // prepareDeployment fetches the latest deployment, determines the strategy to
 // use, and aborts if another deployment is already in progress.
 //
-// The ongoing-deployment check runs before announcing "Found deployment ..."
+// The ongoing-deployment check runs before announcing "Loaded deployment ..."
 // so users hitting that abort path don't see a misleading success message
 // immediately followed by an error.
 func (w *workflow) prepareDeployment(ctx context.Context, t *resolvedTargets, opts *Options) (*awsInternal.DeployedConfigInfo, string, error) {
-	w.reporter.Step("Checking for ongoing deployments...")
+	sp := w.reporter.Spin("Checking for ongoing deployments...")
 	ongoing, _, err := w.awsClient.CheckOngoingDeployment(ctx, t.AppID, t.EnvID)
 	if err != nil {
+		sp.Stop()
 		return nil, "", fmt.Errorf("failed to check ongoing deployments: %w", err)
 	}
 	if ongoing {
+		sp.Stop()
 		return nil, "", fmt.Errorf("deployment already in progress")
 	}
-	w.reporter.Success("No ongoing deployments")
+	sp.Done("No ongoing deployments")
 
-	w.reporter.Step("Fetching latest deployed configuration...")
+	sp = w.reporter.Spin("Fetching latest deployed configuration...")
 	deployed, err := awsInternal.GetLatestDeployedConfiguration(ctx, w.awsClient, t.AppID, t.EnvID, t.Profile.ID)
 	if err != nil {
+		sp.Stop()
 		return nil, "", fmt.Errorf("failed to get latest deployed configuration: %w", err)
 	}
 	if deployed == nil {
+		sp.Stop()
 		return nil, "", fmt.Errorf("%w: run 'apcdeploy run' to create the first deployment", awsInternal.ErrNoDeployment)
 	}
-	w.reporter.Success(fmt.Sprintf("Found deployment #%d (version %d)", deployed.DeploymentNumber, deployed.VersionNumber))
+	sp.Done(fmt.Sprintf("Loaded deployment #%d (version %d)", deployed.DeploymentNumber, deployed.VersionNumber))
 
 	resolver := awsInternal.NewResolver(w.awsClient)
 	strategyID, err := resolveStrategyID(ctx, resolver, opts.DeploymentStrategy, deployed.DeploymentStrategyID)
@@ -163,43 +169,50 @@ func (w *workflow) prepareDeployment(ctx context.Context, t *resolvedTargets, op
 // configuration version when content changed, and starts the deployment.
 func (w *workflow) editAndDeploy(ctx context.Context, t *resolvedTargets, deployed *awsInternal.DeployedConfigInfo, strategyID string, opts *Options) error {
 	ext := config.ExtensionForContentType(deployed.ContentType)
+
+	// The editor takes over the terminal, so it must NOT be wrapped in a
+	// spinner — the spinner's animation goroutine would conflict with the
+	// editor's own cursor handling. A plain Step line is the right signal
+	// that we're handing off to the editor.
 	w.reporter.Step(fmt.Sprintf("Opening editor (%s)...", editorCommand()))
 	_, edited, err := editBuffer(deployed.Content, ext)
 	if err != nil {
 		return fmt.Errorf("failed to edit configuration: %w", err)
 	}
 
-	w.reporter.Step("Validating configuration data...")
+	// Validation is instant — no spinner. Failure surfaces via the returned
+	// error, which root.go renders.
 	if err := config.ValidateData(edited, deployed.ContentType); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
 	}
-	w.reporter.Success("Configuration data validated")
 
 	changed, err := config.HasContentChanged(deployed.Content, edited, ext, t.Profile.Type)
 	if err != nil {
 		return fmt.Errorf("failed to compare configuration: %w", err)
 	}
 	if !changed {
-		w.reporter.Success("No changes detected - skipping deployment")
+		w.reporter.Info("No changes detected — skipping deployment")
 		return nil
 	}
 
-	w.reporter.Step("Creating configuration version...")
+	sp := w.reporter.Spin("Creating configuration version...")
 	versionNumber, err := w.awsClient.CreateHostedConfigurationVersion(ctx, t.AppID, t.Profile.ID, edited, deployed.ContentType, "")
 	if err != nil {
+		sp.Stop()
 		if awsInternal.IsValidationError(err) {
 			return fmt.Errorf("%s", awsInternal.FormatValidationError(err))
 		}
 		return fmt.Errorf("failed to create configuration version: %w", err)
 	}
-	w.reporter.Success(fmt.Sprintf("Created configuration version %d", versionNumber))
+	sp.Done(fmt.Sprintf("Created configuration version %d", versionNumber))
 
-	w.reporter.Step("Starting deployment...")
+	sp = w.reporter.Spin("Starting deployment...")
 	deploymentNumber, err := w.awsClient.StartDeployment(ctx, t.AppID, t.EnvID, t.Profile.ID, strategyID, versionNumber, "")
 	if err != nil {
+		sp.Stop()
 		return fmt.Errorf("failed to start deployment: %w", err)
 	}
-	w.reporter.Success(fmt.Sprintf("Deployment #%d started", deploymentNumber))
+	sp.Done(fmt.Sprintf("Started deployment #%d", deploymentNumber))
 
 	return w.waitIfRequested(ctx, t.AppID, t.EnvID, deploymentNumber, opts)
 }

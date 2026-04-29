@@ -150,17 +150,18 @@ region: us-east-1
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Verify warning about no deployment
-	hasWarning := false
+	// "No prior deployment" is now reported as the spinner's Done message
+	// rather than a separate Warn line.
+	hasNotice := false
 	for _, msg := range reporter.Messages {
-		if strings.Contains(msg, "No deployment found") {
-			hasWarning = true
+		if strings.Contains(msg, "No prior deployment") {
+			hasNotice = true
 			break
 		}
 	}
 
-	if !hasWarning {
-		t.Error("expected warning about no deployment")
+	if !hasNotice {
+		t.Errorf("expected 'No prior deployment' notice; got: %v", reporter.Messages)
 	}
 }
 

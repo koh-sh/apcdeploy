@@ -42,35 +42,26 @@ func NewExecutorWithFactory(rep reporter.Reporter, prom prompt.Prompter, factory
 
 // Execute performs the complete configuration retrieval workflow
 func (e *Executor) Execute(ctx context.Context, opts *Options) error {
-	// Step 1: Load configuration
-	e.reporter.Step("Loading configuration...")
 	cfg, err := config.LoadConfig(opts.ConfigFile)
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
-	e.reporter.Success("Configuration loaded")
 
-	// Step 2: Create getter
 	getter, err := e.getterFactory(ctx, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to create getter: %w", err)
 	}
 
-	// Step 3: Resolve resources
-	e.reporter.Step("Resolving AWS resources...")
+	sp := e.reporter.Spin("Resolving AWS resources...")
 	resolved, err := getter.ResolveResources(ctx)
 	if err != nil {
+		sp.Stop()
 		return fmt.Errorf("failed to resolve resources: %w", err)
 	}
-	e.reporter.Success(fmt.Sprintf("Resolved resources: App=%s, Profile=%s, Env=%s",
-		resolved.ApplicationID,
-		resolved.Profile.ID,
-		resolved.EnvironmentID,
-	))
+	sp.Done(fmt.Sprintf("Resolved resources: App=%s, Profile=%s, Env=%s",
+		resolved.ApplicationID, resolved.Profile.ID, resolved.EnvironmentID))
 
-	// Step 4: Prompt for confirmation unless skipped
 	if !opts.SkipConfirmation {
-		// Check TTY availability before interactive prompt
 		if err := e.prompter.CheckTTY(); err != nil {
 			return fmt.Errorf("%w: use --yes to skip confirmation", err)
 		}
@@ -81,23 +72,21 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 			return fmt.Errorf("failed to get user confirmation: %w", err)
 		}
 
-		// Accept Y, y, Yes, yes
 		normalized := strings.ToLower(strings.TrimSpace(response))
 		if normalized != "y" && normalized != "yes" {
 			return ErrUserDeclined
 		}
 	}
 
-	// Step 5: Get latest configuration
-	e.reporter.Step("Fetching latest configuration...")
+	sp = e.reporter.Spin("Fetching latest configuration...")
 	configData, err := getter.GetConfiguration(ctx, resolved)
 	if err != nil {
+		sp.Stop()
 		return fmt.Errorf("failed to get configuration for profile '%s' in environment '%s': %w",
 			cfg.ConfigurationProfile, cfg.Environment, err)
 	}
-	e.reporter.Success("Configuration retrieved successfully")
+	sp.Done("Fetched configuration")
 
-	// Step 6: Output configuration to stdout
 	e.reporter.Data(configData)
 
 	return nil

@@ -105,6 +105,25 @@ func TestSilentReporter_SpinFailEmitsError(t *testing.T) {
 	}
 }
 
+func TestSilentReporter_SpinStopIsSilent(t *testing.T) {
+	t.Parallel()
+
+	r, _, errBuf := newTestSilentReporter()
+	sp := r.Spin("starting")
+	sp.Stop()
+	if errBuf.Len() != 0 {
+		t.Errorf("silent Spinner.Stop must be silent; got %q", errBuf.String())
+	}
+
+	// Done/Fail after Stop must be no-ops so scripts don't see a stray
+	// Error line via Spinner.Fail.
+	sp.Done("late")
+	sp.Fail("late")
+	if errBuf.Len() != 0 {
+		t.Errorf("Done/Fail after Stop must be no-ops; got %q", errBuf.String())
+	}
+}
+
 func TestSilentReporter_ProgressDoneIsSilent(t *testing.T) {
 	t.Parallel()
 

@@ -143,7 +143,7 @@ func TestWorkflowHappyPath(t *testing.T) {
 	}
 
 	assertContainsMessage(t, rep.Messages, "Created configuration version 4")
-	assertContainsMessage(t, rep.Messages, "Deployment #8 started")
+	assertContainsMessage(t, rep.Messages, "Started deployment #8")
 }
 
 func TestWorkflowErrorsWhenNoDeployment(t *testing.T) {

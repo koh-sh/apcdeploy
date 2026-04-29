@@ -35,93 +35,74 @@ func NewExecutorWithFactory(rep reporter.Reporter, factory func(context.Context,
 
 // Execute performs the complete pull workflow
 func (e *Executor) Execute(ctx context.Context, opts *Options) error {
-	// Step 1: Load configuration
-	e.reporter.Step("Loading configuration...")
 	cfg, err := config.LoadConfig(opts.ConfigFile)
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
-	e.reporter.Success("Configuration loaded")
 
-	// Step 2: Initialize AWS client
 	awsClient, err := e.clientFactory(ctx, cfg.Region)
 	if err != nil {
 		return fmt.Errorf("failed to initialize AWS client: %w", err)
 	}
 
-	// Step 3: Resolve resources
-	e.reporter.Step("Resolving resources...")
+	const (
+		phaseLoad   = 0
+		phaseUpdate = 1
+	)
+	chk := e.reporter.Checklist([]string{
+		"Loading deployment data",
+		"Updating data file",
+	})
+	defer chk.Close()
+
+	chk.Start(phaseLoad)
 	resolver := aws.NewResolver(awsClient)
-	// Deployment strategy not needed for pull operation
 	resources, err := resolver.ResolveAll(ctx, cfg.Application, cfg.ConfigurationProfile, cfg.Environment, "")
 	if err != nil {
+		chk.Fail(phaseLoad, "")
 		return fmt.Errorf("failed to resolve resources: %w", err)
 	}
-	e.reporter.Success(fmt.Sprintf("Resolved resources: App=%s, Profile=%s, Env=%s",
-		resources.ApplicationID,
-		resources.Profile.ID,
-		resources.EnvironmentID,
-	))
 
-	// Step 4: Get latest deployed configuration
-	e.reporter.Step("Fetching latest deployed configuration...")
 	deployedConfig, err := aws.GetLatestDeployedConfiguration(ctx, awsClient, resources.ApplicationID, resources.EnvironmentID, resources.Profile.ID)
 	if err != nil {
+		chk.Fail(phaseLoad, "")
 		return fmt.Errorf("failed to get latest deployed configuration: %w", err)
 	}
-
-	// Handle case when no deployment exists
 	if deployedConfig == nil {
+		chk.Fail(phaseLoad, "")
 		return fmt.Errorf("%w: run 'apcdeploy run' to create the first deployment", aws.ErrNoDeployment)
 	}
+	chk.Done(phaseLoad, fmt.Sprintf("Loaded deployment data (deployment #%d, version %d)",
+		deployedConfig.DeploymentNumber, deployedConfig.VersionNumber))
 
-	e.reporter.Success(fmt.Sprintf("Found deployment #%d (version %d)",
-		deployedConfig.DeploymentNumber,
-		deployedConfig.VersionNumber,
-	))
-
-	// Step 5: Check for changes between local and remote
-	e.reporter.Step("Checking for changes...")
-
-	// Determine the full path to the data file
+	chk.Start(phaseUpdate)
 	dataFilePath := cfg.DataFile
 	if !filepath.IsAbs(dataFilePath) {
-		configDir := filepath.Dir(opts.ConfigFile)
-		dataFilePath = filepath.Join(configDir, cfg.DataFile)
+		dataFilePath = filepath.Join(filepath.Dir(opts.ConfigFile), cfg.DataFile)
 	}
 
-	// Load current local data file
-	localData, err := config.LoadDataFile(dataFilePath)
-	if err != nil {
-		// If file doesn't exist or can't be read, proceed with update
-		e.reporter.Warn(fmt.Sprintf("Could not read local data file: %v", err))
-	} else {
-		// Compare local and remote content after normalization
+	// Compare against the existing local file (if any) so a no-op pull skips
+	// the write — pull is idempotent and should not touch mtimes when nothing
+	// changed. A read error is treated as "file missing" and falls through to
+	// the write path.
+	if localData, readErr := config.LoadDataFile(dataFilePath); readErr == nil {
 		ext := filepath.Ext(dataFilePath)
 		hasChanges, err := config.HasContentChanged(localData, deployedConfig.Content, ext, resources.Profile.Type)
 		if err != nil {
+			chk.Fail(phaseUpdate, "")
 			return fmt.Errorf("failed to check for changes: %w", err)
 		}
-
 		if !hasChanges {
-			e.reporter.Success("No changes detected - local data file is already up to date")
-			e.reporter.Success(fmt.Sprintf("Local file matches deployment #%d", deployedConfig.DeploymentNumber))
+			chk.Skip(phaseUpdate, fmt.Sprintf("Local file matches deployment #%d", deployedConfig.DeploymentNumber))
 			return nil
 		}
-
-		e.reporter.Success("Changes detected")
 	}
 
-	// Step 6: Update data file
-	e.reporter.Step("Updating data file...")
-
-	// Write data file (force=true to overwrite existing file)
 	if err := config.WriteDataFile(deployedConfig.Content, deployedConfig.ContentType, dataFilePath, resources.Profile.Type, true); err != nil {
+		chk.Fail(phaseUpdate, "")
 		return fmt.Errorf("failed to write data file: %w", err)
 	}
-
-	e.reporter.Success(fmt.Sprintf("Data file updated: %s", dataFilePath))
-	e.reporter.Success(fmt.Sprintf("Successfully pulled configuration from deployment #%d", deployedConfig.DeploymentNumber))
+	chk.Done(phaseUpdate, fmt.Sprintf("Updated %s", dataFilePath))
 
 	return nil
 }

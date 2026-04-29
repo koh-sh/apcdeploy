@@ -6,12 +6,18 @@ import (
 
 // Symbols used as line prefixes by the Reporter. The contract limits visual
 // glyphs to this set — see .claude/rules/output-contract.md.
+//
+// symPending and symSkip are reserved for the multi-item Checklist primitive
+// (pending row and skipped row respectively); the rest are emitted by their
+// corresponding Reporter kinds.
 const (
 	symStep    = "⏳"
 	symSuccess = "✓"
 	symInfo    = "ℹ"
 	symWarn    = "⚠"
 	symError   = "✗"
+	symPending = "○"
+	symSkip    = "→"
 )
 
 // styles holds the lipgloss styles used by the Reporter. Centralizing them

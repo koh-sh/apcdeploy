@@ -37,11 +37,16 @@ $APCDEPLOY init --silent --app "$APP" --profile json-freeform --env dev --region
 use_strategy
 echo '{"v":"1"}' > data.json
 echo "Test verbose output (without --silent) to verify detailed logging works"
-$APCDEPLOY diff 2>&1 | grep -q "Resolving resources"
-$APCDEPLOY diff 2>&1 | grep -q "Fetching latest deployment"
+# diff folds resolve + fetch-deployment + fetch-config into a single spinner.
+# In non-TTY mode the spinner emits only its Done line, which differs by
+# whether a prior deployment exists ("Loaded deployment data ..." vs "No prior
+# deployment ..."). The test only cares that *some* progress reaches stderr
+# (the spinner is the user-visible signal that work is happening), so we
+# match either message.
+$APCDEPLOY diff 2>&1 | grep -qE "(Loaded deployment data|No prior deployment)"
 $APCDEPLOY diff | grep -q "v"
 echo "Test silent mode suppresses verbose output"
-if $APCDEPLOY diff --silent 2>&1 | grep -q "Resolving resources"; then
+if $APCDEPLOY diff --silent 2>&1 | grep -qE "(Loaded deployment data|No prior deployment)"; then
     echo "ERROR: Silent mode should not show progress messages"
     exit 1
 fi
@@ -172,9 +177,10 @@ echo "Edge cases: no deployment history, invalid timeout, missing required flags
 title "========== E5: Edge Cases =========="
 $APCDEPLOY init --silent --app "$APP" --profile error-test --env staging --region "$REGION" --force
 use_strategy
-# Run without `--silent` because the "no deployment" notice is a Reporter.Warn
-# which silent mode suppresses by contract.
-$APCDEPLOY diff 2>&1 | grep -q "No deployment" || echo "⚠️  Deployment may exist"
+# Run without `--silent` because the "no deployment" notice is now the spinner
+# Done message wrapping the deployment fetch — silent mode suppresses spinner
+# output (only Error / Data / Diff survive).
+$APCDEPLOY diff 2>&1 | grep -q "No prior deployment" || echo "⚠️  Deployment may exist"
 $APCDEPLOY status 2>&1 | grep -q "No deploy" || echo "⚠️  Deployment may exist"
 
 # pull and edit must exit 2 (not 1) so scripts can distinguish "no prior deployment" from real errors.

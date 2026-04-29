@@ -10,8 +10,9 @@ import (
 )
 
 // spinner is the concrete reporter.Spinner implementation. In TTY mode it
-// animates bubbles/spinner frames on a goroutine; in non-TTY mode it degrades
-// to a single Step-style line written when the spinner is constructed.
+// animates bubbles/spinner frames on a goroutine; in non-TTY mode it stays
+// silent until Done/Fail emits a single completion line, so logs only carry
+// terminal states (no "starting X..." narration).
 type spinner struct {
 	w        io.Writer
 	tty      bool
@@ -23,7 +24,8 @@ type spinner struct {
 }
 
 // newSpinner constructs a spinner. In TTY mode it kicks off the animation
-// goroutine immediately; in non-TTY mode it writes a single Step line.
+// goroutine immediately; in non-TTY mode it produces no output until the
+// caller invokes Done or Fail.
 func newSpinner(r *Reporter, msg string) *spinner {
 	s := &spinner{
 		w:    r.errW,
@@ -33,8 +35,7 @@ func newSpinner(r *Reporter, msg string) *spinner {
 		r:    r,
 	}
 	if !s.tty {
-		// Non-TTY: emit a Step line and let Done/Fail emit Success/Error.
-		r.Step(msg)
+		// Non-TTY: stay silent; Done/Fail will emit the completion line.
 		close(s.done)
 		return s
 	}
@@ -87,6 +88,15 @@ func (s *spinner) Fail(msg string) {
 	}
 	s.terminate()
 	s.r.Error(msg)
+}
+
+// Stop terminates the spinner without emitting any line. Used when the
+// caller will propagate the error to cmd/root.go for display.
+func (s *spinner) Stop() {
+	if !s.markFinished() {
+		return
+	}
+	s.terminate()
 }
 
 func (s *spinner) markFinished() bool {

@@ -36,47 +36,45 @@ func NewExecutorWithFactory(rep reporter.Reporter, factory func(context.Context,
 
 // Execute performs the status check workflow
 func (e *Executor) Execute(ctx context.Context, opts *Options) error {
-	// Step 1: Load configuration
 	cfg, err := config.LoadConfig(opts.ConfigFile)
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
-	// Step 2: Initialize AWS client
 	awsClient, err := e.clientFactory(ctx, cfg.Region)
 	if err != nil {
 		return fmt.Errorf("failed to initialize AWS client: %w", err)
 	}
 
-	// Step 3: Resolve resources
-	e.reporter.Step("Resolving resources...")
+	// Resolve + fetch are folded into a single user-facing phase: from the
+	// caller's perspective this is "look up the deployment" — they don't
+	// distinguish ID resolution from the GetDeployment call.
+	spinMsg := "Fetching latest deployment..."
+	if opts.DeploymentID != "" {
+		spinMsg = fmt.Sprintf("Fetching deployment #%s...", opts.DeploymentID)
+	}
+	sp := e.reporter.Spin(spinMsg)
+
 	resolver := aws.NewResolver(awsClient)
 	resources, err := resolver.ResolveAll(ctx, cfg.Application, cfg.ConfigurationProfile, cfg.Environment, cfg.DeploymentStrategy)
 	if err != nil {
+		sp.Stop()
 		return fmt.Errorf("failed to resolve resources: %w", err)
 	}
 
-	// Step 4: Get deployment information
 	var deploymentInfo *aws.DeploymentDetails
 	if opts.DeploymentID != "" {
-		// Get specific deployment
-		e.reporter.Step(fmt.Sprintf("Fetching deployment #%s...", opts.DeploymentID))
 		deploymentInfo, err = e.getDeploymentByID(ctx, awsClient, resources, opts.DeploymentID)
-		if err != nil {
-			return fmt.Errorf("failed to get deployment: %w", err)
-		}
 	} else {
-		// Get latest deployment
-		e.reporter.Step("Fetching latest deployment...")
 		deploymentInfo, err = e.getLatestDeployment(ctx, awsClient, resources)
-		if err != nil {
-			return fmt.Errorf("failed to get latest deployment: %w", err)
-		}
+	}
+	if err != nil {
+		sp.Stop()
+		return fmt.Errorf("failed to get deployment: %w", err)
 	}
 
-	// Step 5: Display status
 	if deploymentInfo == nil {
-		e.reporter.Warn("No deployments found")
+		sp.Done("No deployments found")
 		e.reporter.Box("Next steps", []string{
 			"No deployments have been created yet for this configuration.",
 			"",
@@ -86,6 +84,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 		return nil
 	}
 
+	sp.Done(fmt.Sprintf("Fetched deployment #%d (%s)", deploymentInfo.DeploymentNumber, deploymentInfo.State))
 	display.DeploymentStatus(e.reporter, deploymentInfo, cfg, resources)
 	return nil
 }

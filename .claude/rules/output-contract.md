@@ -36,13 +36,23 @@ silent-mode behavior, and visual treatment.
 | `Header(title)` | stderr | suppressed | bold + rule line | Section heading (e.g. "Configuration Diff") |
 | `Box(title, lines)` | stderr | suppressed | bordered card | Multi-line panel (e.g. init's "Next steps") |
 | `Table(headers, rows)` | stderr | suppressed | lipgloss table | Structured key/value or row data |
-| `Spin(msg) Spinner` | stderr | suppressed; non-TTY: `Step` once | animated frames | Live indicator wrapping a long call |
+| `Spin(msg) Spinner` | stderr | suppressed; non-TTY: silent until `Done`/`Fail` emits the completion line | animated frames | Single-phase live indicator wrapping a long call |
+| `Checklist(items) Checklist` | stderr | suppressed; non-TTY: silent except completion line per `Done`/`Fail`/`Skip` | live block of `○ ⠋ ✓ ✗ →` items | Multi-phase progress where every phase is known up-front |
 | `Progress(msg) ProgressBar` | stderr | suppressed; non-TTY: `Step` at thresholds | live bar with `[####  ] 50%` | Percentage progress for long operations (deployment monitoring) |
 | `Data(p []byte)` | **stdout** | **always shown** | none | Machine-readable payload |
 | `Diff(p []byte)` | **stdout** | **always shown** | colorized when TTY | Unified diff payload |
 
 `Spinner` is `interface { Done(msg string); Fail(msg string) }`. `Done` emits a
 `Success`-equivalent line; `Fail` emits an `Error`-equivalent line on stderr.
+
+`Checklist` is `interface { Start(idx int); Done(idx int, msg string); Fail(idx
+int, msg string); Skip(idx int, msg string); Close() }`. Items are referenced
+by their zero-based index in the labels slice. `Start` flips an item to the
+animated state, `Done`/`Fail`/`Skip` finalize it (with `msg` overriding the
+original label when non-empty), and `Close` releases the rendering goroutine
+(callers MUST invoke it exactly once — defer it). Use `Checklist` instead of a
+sequence of `Spin` calls when the work has a known, multi-phase plan; use
+`Spin` for one-off long calls.
 
 `ProgressBar` is `interface { Update(percent float64, msg string); Done(msg
 string); Fail(msg string); Stop() }`. `Update` advances the bar (`percent` is
@@ -69,7 +79,7 @@ Reporter kind — they live in `internal/prompt`. The contract for confirmations
 silent variant. Rules:
 
 - Silent mode suppresses Step / Success / Info / Warn / Header / Box / Table /
-  Spin / Progress entirely.
+  Spin / Checklist / Progress entirely.
 - Silent mode preserves Error (always to stderr) and Data / Diff (always to
   stdout) so scripts still receive errors and payloads.
 - Silent mode does NOT change confirmation behavior — the user still must pass
@@ -82,8 +92,12 @@ silent variant. Rules:
 
 When stderr is not a TTY (CI, pipes, redirects), the Reporter degrades:
 
-- `Spin` collapses to a single `Step` line; `Spinner.Done`/`Fail` emit a
-  matching `Success`/`Error` line.
+- `Spin` stays silent until the caller invokes `Done`/`Fail`, which emit a
+  single `Success`/`Error` line. The starting message is dropped so logs only
+  record terminal states.
+- `Checklist` likewise stays silent until each item's `Done`/`Fail`/`Skip`
+  fires; those emit a `Success`/`Error`/`Info` line respectively. There is no
+  pre-printed pending list and no per-item Start announcement.
 - `Progress` collapses to coarse `Step` lines emitted only when crossing 25 /
   50 / 75 / 100 % thresholds; `ProgressBar.Done`/`Fail` emit the same
   `Success`/`Error` lines as the TTY path.
@@ -96,8 +110,10 @@ When stderr is not a TTY (CI, pipes, redirects), the Reporter degrades:
 
 - All color comes from `lipgloss` styles defined in `internal/cli/style.go`.
 - `lipgloss` honors `NO_COLOR`; setting it disables color globally.
-- Symbols (`⏳ ✓ ℹ ⚠ ✗`) MUST be the only emoji-like glyphs used. No other
-  emoji in CLI output.
+- Symbols (`⏳ ✓ ℹ ⚠ ✗ ○ →`) MUST be the only emoji-like glyphs used. `○` and
+  `→` are reserved for `Checklist` (pending and skip respectively); the rest
+  are used as line prefixes by their corresponding kinds. No other emoji in
+  CLI output.
 
 ## Documented exceptions
 
@@ -134,7 +150,12 @@ without adding a similar entry here.
 
 1. Decide what (if anything) goes to stdout — that is your `Data` or `Diff` payload.
 2. Pick Reporter kinds for everything else. A typical command issues:
-   `Step` → `Success` for each phase, optional `Header` + `Table` for a final
-   summary, `Box` for next-step guidance.
+   - One `Spin` for a single AWS round-trip, OR a `Checklist` for a known
+     multi-phase plan (defer `Close()` immediately).
+   - Optional `Header` + `Table` for a final summary; `Box` for next-step
+     guidance.
+   - Do not emit a `Step` for instant operations (file reads, validation,
+     content-type detection). Failures will surface via the returned error;
+     the absence of an error is the success signal.
 3. Wire the command to `cli.GetReporter(silent)` in `cmd/<name>.go`.
 4. Do not branch on `opts.Silent` inside the executor.

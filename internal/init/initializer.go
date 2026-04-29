@@ -26,31 +26,27 @@ func New(awsClient *awsInternal.Client, rep reporter.Reporter) *Initializer {
 
 // Run executes the initialization process
 func (i *Initializer) Run(ctx context.Context, opts *Options) (*Result, error) {
-	i.reporter.Step("Initializing apcdeploy configuration...")
+	// The "Initializing apcdeploy configuration" banner is intentionally not
+	// emitted: the user already knows they ran `apcdeploy init`. Each phase
+	// reports its own progress.
 
-	// Resolve AWS resources
 	result, err := i.resolveResources(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	// Fetch configuration version
 	if err := i.fetchConfigVersion(ctx, result); err != nil {
 		return nil, err
 	}
 
-	// Fetch latest deployment strategy
 	i.fetchDeploymentStrategy(ctx, result)
 
-	// Determine data file name
 	i.determineDataFileName(opts, result)
 
-	// Generate files
 	if err := i.generateFiles(opts, result); err != nil {
 		return nil, err
 	}
 
-	// Show next steps (the Reporter handles silent mode for us).
 	i.showNextSteps()
 
 	return result, nil
@@ -58,21 +54,18 @@ func (i *Initializer) Run(ctx context.Context, opts *Options) (*Result, error) {
 
 // resolveResources resolves AWS resources (Application, Profile, Environment)
 func (i *Initializer) resolveResources(ctx context.Context, opts *Options) (*Result, error) {
-	i.reporter.Step("Resolving AWS resources...")
-
+	sp := i.reporter.Spin("Resolving AWS resources...")
 	resolver := awsInternal.NewResolver(i.awsClient)
-
-	// Resolve resources (deployment strategy not needed at this stage)
 	resolved, err := resolver.ResolveAll(ctx, opts.Application, opts.Profile, opts.Environment, "")
 	if err != nil {
+		sp.Stop()
 		return nil, err
 	}
-
-	// Report success
-	i.reporter.Success(fmt.Sprintf("Application: %s (ID: %s)", opts.Application, resolved.ApplicationID))
-	i.reporter.Success(fmt.Sprintf("Configuration Profile: %s (ID: %s)", opts.Profile, resolved.Profile.ID))
-	i.reporter.Success(fmt.Sprintf("Environment: %s (ID: %s)", opts.Environment, resolved.EnvironmentID))
-	i.reporter.Success(fmt.Sprintf("Profile Type: %s", resolved.Profile.Type))
+	// Single-line summary replaces the prior 4-line stack of Success calls.
+	// The detailed IDs are not surfaced because the user just selected these
+	// resources by name and rarely needs to see their AWS IDs.
+	sp.Done(fmt.Sprintf("Resolved resources: App=%s, Profile=%s, Env=%s, Type=%s",
+		opts.Application, opts.Profile, opts.Environment, resolved.Profile.Type))
 
 	return &Result{
 		AppID:       resolved.ApplicationID,
@@ -88,64 +81,58 @@ func (i *Initializer) resolveResources(ctx context.Context, opts *Options) (*Res
 
 // fetchConfigVersion fetches the latest deployed configuration version
 func (i *Initializer) fetchConfigVersion(ctx context.Context, result *Result) error {
-	i.reporter.Step("Fetching latest deployed configuration...")
-
-	// Get latest deployed configuration
+	sp := i.reporter.Spin("Fetching latest deployed configuration...")
 	deployedConfig, err := awsInternal.GetLatestDeployedConfiguration(ctx, i.awsClient, result.AppID, result.EnvID, result.ProfileID)
 	if err != nil {
+		sp.Stop()
 		return fmt.Errorf("failed to get latest deployed configuration: %w", err)
 	}
 
-	// If no deployment exists, we'll create config without data file
 	if deployedConfig == nil {
-		i.reporter.Warn("No deployment found - config file will be created without data")
+		// "No deployment" is reported as the spinner's Done message rather
+		// than a separate Warn so the absence of a prior deployment shows up
+		// inline with the fetch phase.
+		sp.Done("No prior deployment — config file will be created without data")
 		result.DeployedConfig = nil
 		return nil
 	}
 
-	i.reporter.Success(fmt.Sprintf("Found deployment #%d (version %d, ContentType: %s)",
+	sp.Done(fmt.Sprintf("Loaded deployed configuration (deployment #%d, version %d, %s)",
 		deployedConfig.DeploymentNumber,
 		deployedConfig.VersionNumber,
 		deployedConfig.ContentType))
 
 	result.DeployedConfig = deployedConfig
-
 	return nil
 }
 
 // fetchDeploymentStrategy fetches the deployment strategy from the latest deployment
 func (i *Initializer) fetchDeploymentStrategy(ctx context.Context, result *Result) {
-	i.reporter.Step("Fetching latest deployment strategy...")
+	sp := i.reporter.Spin("Fetching latest deployment strategy...")
 
-	// Try to get the latest deployment
 	latestDeployment, err := awsInternal.GetLatestDeployment(ctx, i.awsClient, result.AppID, result.EnvID, result.ProfileID)
 	if err != nil || latestDeployment == nil {
-		// If no deployment found or error, use default strategy
-		i.reporter.Warn("No previous deployments found - using default deployment strategy")
 		result.DeploymentStrategy = config.DefaultDeploymentStrategy
+		sp.Done(fmt.Sprintf("Using default deployment strategy: %s", config.DefaultDeploymentStrategy))
 		return
 	}
 
-	// Get deployment details to retrieve the strategy
 	deploymentDetails, err := awsInternal.GetDeploymentDetails(ctx, i.awsClient, result.AppID, result.EnvID, latestDeployment.DeploymentNumber)
 	if err != nil {
-		i.reporter.Warn("Could not retrieve deployment strategy - using default")
 		result.DeploymentStrategy = config.DefaultDeploymentStrategy
+		sp.Done(fmt.Sprintf("Could not retrieve previous strategy — using default: %s", config.DefaultDeploymentStrategy))
 		return
 	}
 
-	// Resolve the deployment strategy ID to its name
 	resolver := awsInternal.NewResolver(i.awsClient)
 	strategyName, err := resolver.ResolveDeploymentStrategyIDToName(ctx, deploymentDetails.DeploymentStrategyID)
 	if err != nil {
-		// If we can't resolve, use the ID as is (fallback)
-		i.reporter.Warn(fmt.Sprintf("Could not resolve deployment strategy name: %v", err))
+		// Fall back to the raw ID; the user can rename it in apcdeploy.yml.
 		result.DeploymentStrategy = deploymentDetails.DeploymentStrategyID
 	} else {
 		result.DeploymentStrategy = strategyName
 	}
-
-	i.reporter.Success(fmt.Sprintf("Using deployment strategy from latest deployment: %s", result.DeploymentStrategy))
+	sp.Done(fmt.Sprintf("Using deployment strategy from latest deployment: %s", result.DeploymentStrategy))
 }
 
 // determineDataFileName determines the appropriate data file name
@@ -162,26 +149,19 @@ func (i *Initializer) determineDataFileName(opts *Options, result *Result) {
 
 // generateFiles generates the configuration and data files
 func (i *Initializer) generateFiles(opts *Options, result *Result) error {
-	// Generate apcdeploy.yml
-	i.reporter.Step(fmt.Sprintf("Generating configuration file: %s", result.ConfigFile))
-
-	// Use the resolved region from AWS client (which may have been auto-resolved by SDK)
+	// File writes are instant local operations — no spinner needed; a single
+	// Success line per file is the user-facing signal that the file landed.
 	if err := config.GenerateConfigFile(result.AppName, result.ProfileName, result.EnvName, result.DataFile, i.awsClient.Region, result.DeploymentStrategy, result.ConfigFile, opts.Force); err != nil {
 		return fmt.Errorf("failed to generate config file: %w", err)
 	}
+	i.reporter.Success(fmt.Sprintf("Generated %s", result.ConfigFile))
 
-	i.reporter.Success(fmt.Sprintf("Created: %s", result.ConfigFile))
-
-	// Write data file if deployed config exists
 	if result.DeployedConfig != nil {
 		dataFilePath := filepath.Join(filepath.Dir(result.ConfigFile), result.DataFile)
-		i.reporter.Step(fmt.Sprintf("Writing configuration data: %s", dataFilePath))
-
 		if err := config.WriteDataFile(result.DeployedConfig.Content, result.DeployedConfig.ContentType, dataFilePath, result.ProfileType, opts.Force); err != nil {
 			return fmt.Errorf("failed to write data file: %w", err)
 		}
-
-		i.reporter.Success(fmt.Sprintf("Created: %s", dataFilePath))
+		i.reporter.Success(fmt.Sprintf("Wrote %s", dataFilePath))
 	}
 
 	return nil

@@ -131,13 +131,11 @@ func TestExecutorLoadConfigurationError(t *testing.T) {
 		t.Errorf("expected 'failed to load configuration' error, got: %v", err)
 	}
 
-	// Verify reporter was called for progress
-	if len(reporter.Messages) == 0 {
-		t.Error("expected reporter to have received messages")
-	}
-
-	if !strings.Contains(reporter.Messages[0], "Loading configuration") {
-		t.Errorf("expected first message to be about loading configuration, got: %v", reporter.Messages[0])
+	// Config loading is an instant operation: per the output contract it does
+	// not produce any reporter output on failure — the returned error is the
+	// signal. The reporter should be untouched.
+	if len(reporter.Messages) != 0 {
+		t.Errorf("expected no reporter messages for config-load failure, got: %v", reporter.Messages)
 	}
 }
 
@@ -262,20 +260,15 @@ region: us-east-1
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Verify all expected messages were reported
+	// Run now reports phases through a single Checklist (resolve / ongoing /
+	// detect changes / create version / start deployment) plus a final Warn
+	// when no --wait flag is set.
 	expectedMessages := []string{
-		"Loading configuration",
-		"Configuration loaded",
-		"Resolving AWS resources",
+		"checklist: Resolving AWS resources,Checking for ongoing deployments",
 		"Resolved resources",
-		"Checking for ongoing deployments",
 		"No ongoing deployments",
-		"Validating configuration data",
-		"Configuration data validated",
-		"Creating configuration version",
 		"Created configuration version 1",
-		"Starting deployment",
-		"Deployment #1 started",
+		"Started deployment #1",
 		"Deployment #1 is in progress",
 	}
 
@@ -551,16 +544,19 @@ region: us-east-1
 		t.Error("StartDeployment should not have been called when there are no changes")
 	}
 
-	// Verify success message about no changes
+	// The no-change branch finalizes the changes phase via Skip with the
+	// "No changes detected — skipping deployment" message. Asserting on the
+	// checklist-skip outcome (not just any line containing the text) catches
+	// regressions where the early-exit gets reported as success or warn.
 	found := false
 	for _, msg := range reporter.Messages {
-		if strings.Contains(msg, "No changes detected") || strings.Contains(msg, "no diff") {
+		if strings.Contains(msg, "checklist-skip") && strings.Contains(msg, "No changes detected") {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Errorf("expected message about no changes, got messages: %v", reporter.Messages)
+		t.Errorf("expected checklist-skip with 'No changes detected'; got messages: %v", reporter.Messages)
 	}
 }
 
@@ -681,16 +677,18 @@ region: us-east-1
 		t.Error("StartDeployment should have been called with --force flag")
 	}
 
-	// Verify deployment started message
+	// Verify deployment started message — the new wording is
+	// "Started deployment #N" (subject-first, matching the checklist's
+	// imperative-action labels).
 	found := false
 	for _, msg := range reporter.Messages {
-		if strings.Contains(msg, "Deployment #2 started") {
+		if strings.Contains(msg, "Started deployment #2") {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Errorf("expected deployment started message, got messages: %v", reporter.Messages)
+		t.Errorf("expected 'Started deployment #2' message, got: %v", reporter.Messages)
 	}
 }
 

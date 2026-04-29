@@ -105,6 +105,28 @@ func TestReporter_SpinTTYFail(t *testing.T) {
 	}
 }
 
+func TestReporter_SpinTTYStopIsSilentAndIdempotent(t *testing.T) {
+	t.Parallel()
+
+	r, _, errBuf := newTTYReporter()
+	sp := r.Spin("loading")
+	sp.Stop()
+
+	got := errBuf.String()
+	// Stop should clear the spinner line and emit no completion line. Any
+	// frames already drawn are erased by the terminate path's "\r\033[K".
+	if strings.Contains(got, "loaded") || strings.Contains(got, "failed") {
+		t.Errorf("Stop must not emit a completion line; got %q", got)
+	}
+
+	// Subsequent terminations must be no-ops.
+	sp.Done("late")
+	sp.Fail("late")
+	if strings.Contains(errBuf.String(), "late") {
+		t.Errorf("Done/Fail after Stop must be no-ops; got %q", errBuf.String())
+	}
+}
+
 func TestVisibleWidth(t *testing.T) {
 	t.Parallel()
 

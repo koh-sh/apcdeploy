@@ -149,16 +149,18 @@ region: us-east-1
 		t.Errorf("expected no error for no deployments case, got: %v", err)
 	}
 
-	// Check that warning was reported
-	foundWarning := false
+	// "No deployments" is now reported as the spinner's Done message rather
+	// than a separate Warn line, so the user sees the result inline with the
+	// fetch-deployment phase.
+	foundCompletion := false
 	for _, msg := range reporter.Messages {
-		if strings.Contains(msg, "warn") && strings.Contains(msg, "No deployments found") {
-			foundWarning = true
+		if strings.Contains(msg, "spin-done") && strings.Contains(msg, "No deployments found") {
+			foundCompletion = true
 			break
 		}
 	}
-	if !foundWarning {
-		t.Error("expected warning message about no deployments")
+	if !foundCompletion {
+		t.Errorf("expected spinner Done with 'No deployments found'; got: %v", reporter.Messages)
 	}
 }
 

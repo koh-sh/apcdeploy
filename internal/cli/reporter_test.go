@@ -95,7 +95,7 @@ func TestReporter_StdoutKinds(t *testing.T) {
 	}
 }
 
-func TestReporter_SpinNonTTY_DoneEmitsSuccess(t *testing.T) {
+func TestReporter_SpinNonTTY_DoneEmitsOnlyCompletion(t *testing.T) {
 	t.Parallel()
 
 	r, _, errBuf := newTestReporter()
@@ -103,8 +103,10 @@ func TestReporter_SpinNonTTY_DoneEmitsSuccess(t *testing.T) {
 	sp.Done("loaded")
 
 	got := errBuf.String()
-	if !strings.Contains(got, "loading") {
-		t.Errorf("Spin should emit a Step line in non-TTY mode; got %q", got)
+	// In non-TTY mode the start message must be silent so logs only carry
+	// terminal states; only the Done message should appear.
+	if strings.Contains(got, "loading") {
+		t.Errorf("Spin should not emit the start message in non-TTY mode; got %q", got)
 	}
 	if !strings.Contains(got, "loaded") {
 		t.Errorf("Spinner.Done should emit a Success line; got %q", got)
@@ -121,6 +123,26 @@ func TestReporter_SpinNonTTY_FailEmitsError(t *testing.T) {
 	got := errBuf.String()
 	if !strings.Contains(got, "oops") {
 		t.Errorf("Spinner.Fail should emit an Error line; got %q", got)
+	}
+}
+
+func TestReporter_SpinNonTTY_StopIsSilentAndIdempotent(t *testing.T) {
+	t.Parallel()
+
+	r, _, errBuf := newTestReporter()
+	sp := r.Spin("loading")
+	sp.Stop()
+
+	if errBuf.Len() != 0 {
+		t.Errorf("Spinner.Stop must be silent; got %q", errBuf.String())
+	}
+
+	// Done/Fail after Stop must be no-ops so executors that propagate the
+	// error to cmd/root.go don't accidentally double-emit.
+	sp.Done("late done")
+	sp.Fail("late fail")
+	if errBuf.Len() != 0 {
+		t.Errorf("Done/Fail after Stop must be no-ops; got %q", errBuf.String())
 	}
 }
 

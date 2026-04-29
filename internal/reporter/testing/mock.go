@@ -28,6 +28,24 @@ type MockReporter struct {
 	// ProgressCalls records each progress-bar lifecycle: the start message,
 	// every Update call, and the terminating Done/Fail message.
 	ProgressCalls []ProgressCall
+
+	// ChecklistCalls records each checklist lifecycle: the initial item
+	// labels and every state transition.
+	ChecklistCalls []ChecklistCall
+}
+
+// ChecklistCall captures the lifecycle of a single Checklist invocation.
+type ChecklistCall struct {
+	Items       []string
+	Transitions []ChecklistTransition
+	Closed      bool
+}
+
+// ChecklistTransition records one Start/Done/Fail/Skip call on a checklist.
+type ChecklistTransition struct {
+	Index   int
+	Outcome string // "start", "done", "fail", "skip"
+	Message string
 }
 
 // ProgressCall captures the lifecycle of a single progress bar.
@@ -107,6 +125,15 @@ func (m *MockReporter) Progress(msg string) reporter.ProgressBar {
 	return &mockProgressBar{m: m, idx: idx}
 }
 
+func (m *MockReporter) Checklist(items []string) reporter.Checklist {
+	idx := len(m.ChecklistCalls)
+	m.ChecklistCalls = append(m.ChecklistCalls, ChecklistCall{
+		Items: append([]string(nil), items...),
+	})
+	m.Messages = append(m.Messages, "checklist: "+strings.Join(items, ","))
+	return &mockChecklist{m: m, idx: idx}
+}
+
 func (m *MockReporter) Data(p []byte) {
 	m.Stdout = append(m.Stdout, p...)
 	m.Messages = append(m.Messages, "data: "+string(p))
@@ -135,6 +162,7 @@ func (m *MockReporter) Clear() {
 	m.Boxes = nil
 	m.SpinnerCalls = nil
 	m.ProgressCalls = nil
+	m.ChecklistCalls = nil
 }
 
 type mockSpinner struct {
@@ -161,6 +189,15 @@ func (s *mockSpinner) Fail(msg string) {
 	s.m.SpinnerCalls[s.idx].Outcome = "fail"
 	s.m.SpinnerCalls[s.idx].EndMessage = msg
 	s.m.Messages = append(s.m.Messages, "spin-fail: "+msg)
+}
+
+func (s *mockSpinner) Stop() {
+	if s.finished {
+		return
+	}
+	s.finished = true
+	s.m.SpinnerCalls[s.idx].Outcome = "stop"
+	s.m.Messages = append(s.m.Messages, "spin-stop")
 }
 
 type mockProgressBar struct {
@@ -206,4 +243,38 @@ func (p *mockProgressBar) Stop() {
 	p.finished = true
 	p.m.ProgressCalls[p.idx].Outcome = "stop"
 	p.m.Messages = append(p.m.Messages, "progress-stop")
+}
+
+type mockChecklist struct {
+	m      *MockReporter
+	idx    int
+	closed bool
+}
+
+func (c *mockChecklist) Start(idx int)            { c.record(idx, "start", "") }
+func (c *mockChecklist) Done(idx int, msg string) { c.record(idx, "done", msg) }
+func (c *mockChecklist) Fail(idx int, msg string) { c.record(idx, "fail", msg) }
+func (c *mockChecklist) Skip(idx int, msg string) { c.record(idx, "skip", msg) }
+
+func (c *mockChecklist) Close() {
+	if c.closed {
+		return
+	}
+	c.closed = true
+	c.m.ChecklistCalls[c.idx].Closed = true
+	c.m.Messages = append(c.m.Messages, "checklist-close")
+}
+
+func (c *mockChecklist) record(idx int, outcome, msg string) {
+	if c.closed {
+		return
+	}
+	c.m.ChecklistCalls[c.idx].Transitions = append(c.m.ChecklistCalls[c.idx].Transitions,
+		ChecklistTransition{Index: idx, Outcome: outcome, Message: msg})
+	tag := "checklist-" + outcome
+	if msg != "" {
+		c.m.Messages = append(c.m.Messages, tag+": "+msg)
+	} else {
+		c.m.Messages = append(c.m.Messages, tag)
+	}
 }
