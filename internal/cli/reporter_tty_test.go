@@ -92,6 +92,47 @@ func TestReporter_SpinTTYAnimatesAndCleansUp(t *testing.T) {
 	}
 }
 
+// TestReporter_SpinTTYUpdateChangesLabel asserts that Update mid-flight
+// causes the next animation frame to render the new label, exercising the
+// mu-protected msg field used by countdown labels (e.g. "Baking... (~5
+// min left)").
+func TestReporter_SpinTTYUpdateChangesLabel(t *testing.T) {
+	t.Parallel()
+
+	r, _, errBuf := newTTYReporter()
+	sp := r.Spin("loading")
+	// Let the spinner render the original label.
+	time.Sleep(150 * time.Millisecond)
+	sp.Update("loading: step 2")
+	// Let it render the new label at least once.
+	time.Sleep(150 * time.Millisecond)
+	sp.Done("loaded")
+
+	got := errBuf.String()
+	if !strings.Contains(got, "loading: step 2") {
+		t.Errorf("expected updated label to be rendered; got %q", got)
+	}
+	if !strings.Contains(got, "loaded") {
+		t.Errorf("expected Done() to print success line; got %q", got)
+	}
+}
+
+// TestReporter_SpinTTYUpdateAfterDoneIsNoOp guards against label
+// corruption when Update races against Done. The mu-protected finished
+// flag ensures Update is silently ignored after termination.
+func TestReporter_SpinTTYUpdateAfterDoneIsNoOp(t *testing.T) {
+	t.Parallel()
+
+	r, _, errBuf := newTTYReporter()
+	sp := r.Spin("loading")
+	sp.Done("loaded")
+	sp.Update("should be ignored")
+
+	if strings.Contains(errBuf.String(), "should be ignored") {
+		t.Errorf("Update after Done must not appear in output; got %q", errBuf.String())
+	}
+}
+
 func TestReporter_SpinTTYFail(t *testing.T) {
 	t.Parallel()
 

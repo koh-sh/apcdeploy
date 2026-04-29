@@ -476,6 +476,23 @@ func TestWaitIfRequested(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		assertContainsMessage(t, rep.Messages, "Deployment completed successfully")
+
+		// --wait-bake must split into a deploy progress bar (real rollout
+		// %) and a bake spinner (monitoring wait, no quantified progress)
+		// so the user gets feedback during the bake window without being
+		// misled into thinking deployment work is still happening.
+		if got := len(rep.ProgressCalls); got != 1 {
+			t.Fatalf("expected 1 progress bar (deploy), got %d: %+v", got, rep.ProgressCalls)
+		}
+		if rep.ProgressCalls[0].StartMessage != "Deploying..." {
+			t.Errorf("deploy progress bar start = %q, want %q", rep.ProgressCalls[0].StartMessage, "Deploying...")
+		}
+		if got := len(rep.SpinnerCalls); got != 1 {
+			t.Fatalf("expected 1 spinner (bake), got %d: %+v", got, rep.SpinnerCalls)
+		}
+		if rep.SpinnerCalls[0].StartMessage != "Baking..." {
+			t.Errorf("bake spinner start = %q, want %q", rep.SpinnerCalls[0].StartMessage, "Baking...")
+		}
 	})
 
 	t.Run("wait-deploy propagates error", func(t *testing.T) {

@@ -3,6 +3,7 @@ package run
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -135,23 +136,76 @@ func (d *Deployer) WaitForDeploymentPhase(ctx context.Context, resolved *aws.Res
 	return d.awsClient.WaitForDeploymentPhase(ctx, resolved.ApplicationID, resolved.EnvironmentID, deploymentNumber, waitForBaking, timeout, onTick)
 }
 
-// MakeDeploymentTick returns an aws.DeploymentTickFunc that drives a progress
-// bar from deployment polling. While DEPLOYING the bar reflects
-// PercentageComplete; once BAKING starts the percentage pins at 100% and the
-// label is swapped to "Baking..." so the bar reads naturally during the bake
-// phase.
+// WaitForBakingComplete waits for an already-baking deployment to reach
+// COMPLETE. onTick is invoked on each polling tick with bake progress; nil is
+// allowed.
+func (d *Deployer) WaitForBakingComplete(ctx context.Context, resolved *aws.ResolvedResources, deploymentNumber int32, timeoutSeconds int, onTick aws.BakeTickFunc) error {
+	timeout := time.Duration(timeoutSeconds) * time.Second
+	return d.awsClient.WaitForBakingComplete(ctx, resolved.ApplicationID, resolved.EnvironmentID, deploymentNumber, timeout, onTick)
+}
+
+// MakeDeployTick returns an aws.DeploymentTickFunc that drives a deploy
+// progress bar. While DEPLOYING the bar reflects AppConfig's
+// PercentageComplete; once BAKING (or COMPLETE) is observed the percentage
+// pins at 100% and the label switches to bakingLabel.
+//
+// bakingLabel encodes how the deploy bar terminates relative to the
+// surrounding wait orchestration:
+//   - "Baking..."     when this bar is the only progress UI (--wait-deploy):
+//     the wait loop exits as soon as BAKING is observed, so
+//     the user briefly sees the bar pinned at 100% with the
+//     bake label before pb.Done() prints the success line.
+//   - "Deploying..."  when a separate spinner takes over for bake
+//     (--wait-bake): the deploy bar is finalized and a
+//     dedicated bake spinner is started after pb.Done().
+//
+// The "(~N min left)" suffix is wall-clock based (totalDuration minus
+// locally tracked elapsed time) so non-linear growth strategies
+// (EXPONENTIAL) report honest remaining time. The bar percentage is left as
+// AppConfig's PercentageComplete so the rollout-progress reading is not
+// fabricated.
 //
 // Currently shared between `run` and `edit` only. If a third caller appears,
 // move this to a neutral location (e.g. internal/aws or a new internal
 // package) so feature packages stop reaching across to `run` for the helper.
-func MakeDeploymentTick(pb reporter.ProgressBar) aws.DeploymentTickFunc {
-	return func(state types.DeploymentState, percent float64) {
-		if state == types.DeploymentStateBaking {
-			pb.Update(100, "Baking...")
+func MakeDeployTick(pb reporter.ProgressBar, bakingLabel string) aws.DeploymentTickFunc {
+	waitStart := time.Now()
+	return func(state types.DeploymentState, percent float64, totalDuration time.Duration) {
+		if state == types.DeploymentStateBaking || state == types.DeploymentStateComplete {
+			pb.Update(100, bakingLabel)
 			return
 		}
-		pb.Update(percent, "Deploying...")
+		elapsed := time.Since(waitStart)
+		pb.Update(percent, "Deploying..."+remainingFromElapsedSuffix(elapsed, totalDuration))
 	}
+}
+
+// MakeBakeTick returns an aws.BakeTickFunc that updates a Spinner's
+// label with the current "(~N min left)" countdown each tick. Bake is a
+// monitoring wait rather than a quantified rollout, so the UX is a spinner
+// (no bar): the % "filling" of a progress bar would falsely suggest that
+// rollout work is still happening, when in fact the deployment is just
+// waiting out FinalBakeTimeInMinutes.
+func MakeBakeTick(s reporter.Spinner) aws.BakeTickFunc {
+	return func(elapsed, total time.Duration) {
+		s.Update("Baking..." + remainingFromElapsedSuffix(elapsed, total))
+	}
+}
+
+// remainingFromElapsedSuffix renders a "(~N min left)" suffix from total
+// minus locally observed elapsed time. Falls back to "(<1 min left)" when
+// total is zero (e.g. AppConfig.AllAtOnce), when elapsed has already run
+// past total, or when the remaining is below one minute. The function
+// always returns a non-empty string so the bar always carries a time hint,
+// and the threshold is on the duration itself (not math.Ceil) so 30 s and
+// 59 s render honestly as "<1 min left" instead of being rounded up to
+// "~1 min left".
+func remainingFromElapsedSuffix(elapsed, total time.Duration) string {
+	remaining := total - elapsed
+	if total <= 0 || remaining < time.Minute {
+		return " (<1 min left)"
+	}
+	return fmt.Sprintf(" (~%d min left)", int(math.Ceil(remaining.Minutes())))
 }
 
 // HasConfigurationChanges checks if the local configuration differs from the deployed version

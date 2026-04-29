@@ -103,6 +103,18 @@ func (c *Client) StopDeployment(
 	return nil
 }
 
+// rolledBackError formats the error returned when a deployment has reached
+// the ROLLED_BACK state. It pulls the most recent rollback description from
+// the event log when available, falling back to a generic message otherwise.
+// Shared by waitForDeploymentWithCondition and WaitForBakingComplete so the
+// rollback message is consistent across phases.
+func rolledBackError(eventLog []types.DeploymentEvent) error {
+	if reason := ExtractRollbackReason(eventLog); reason != "" {
+		return fmt.Errorf("deployment was rolled back: %s", reason)
+	}
+	return fmt.Errorf("deployment was rolled back")
+}
+
 // ExtractRollbackReason returns the most recent non-empty rollback description
 // from a deployment event log, or "" if none is present.
 func ExtractRollbackReason(eventLog []types.DeploymentEvent) string {
@@ -121,9 +133,12 @@ func ExtractRollbackReason(eventLog []types.DeploymentEvent) string {
 }
 
 // DeploymentTickFunc is invoked on each polling tick of a deployment wait
-// loop, with the current state and percentage-complete reported by AWS.
-// Callers use it to drive live progress UI; nil is allowed.
-type DeploymentTickFunc func(state types.DeploymentState, percent float64)
+// loop, with the current state, percentage-complete reported by AWS, and the
+// configured deployment duration (DeploymentDurationInMinutes converted to a
+// time.Duration). totalDuration is zero when the deployment strategy reports
+// no deploy phase (e.g. AppConfig.AllAtOnce). Callers use it to drive live
+// progress UI and surface remaining-time estimates; nil is allowed.
+type DeploymentTickFunc func(state types.DeploymentState, percent float64, totalDuration time.Duration)
 
 // waitForDeploymentWithCondition is a generic wait function that polls deployment status
 // until the provided checkComplete function returns true or an error occurs
@@ -163,7 +178,8 @@ func (c *Client) waitForDeploymentWithCondition(
 			if output.PercentageComplete != nil {
 				pct = float64(*output.PercentageComplete)
 			}
-			onTick(output.State, pct)
+			totalDuration := time.Duration(output.DeploymentDurationInMinutes) * time.Minute
+			onTick(output.State, pct, totalDuration)
 		}
 
 		// Check deployment state
@@ -177,12 +193,7 @@ func (c *Client) waitForDeploymentWithCondition(
 			return false, nil
 
 		case types.DeploymentStateRolledBack:
-			// Handle rollback state
-			reason := ExtractRollbackReason(output.EventLog)
-			if reason != "" {
-				return false, fmt.Errorf("deployment was rolled back: %s", reason)
-			}
-			return false, fmt.Errorf("deployment was rolled back")
+			return false, rolledBackError(output.EventLog)
 
 		case types.DeploymentStateDeploying:
 			// Still deploying
@@ -243,6 +254,100 @@ func (c *Client) WaitForDeploymentPhase(
 		},
 		onTick,
 	)
+}
+
+// BakeTickFunc is invoked on each polling tick of WaitForBakingComplete with
+// the elapsed time since the wait started locally and the configured bake
+// duration (FinalBakeTimeInMinutes). When total is zero the deployment has
+// no bake window. Callers use it to drive live UI (typically a spinner with
+// a "(~N min left)" countdown label); nil is allowed.
+//
+// Bake is fundamentally a wait, not a quantified rollout — AppConfig does
+// not surface a bake-phase percentage. Callers that want a "% done" feeling
+// can derive elapsed/total themselves, but the canonical UX is a spinner
+// (no bar) since nothing is being deployed during bake.
+type BakeTickFunc func(elapsed, total time.Duration)
+
+// WaitForBakingComplete waits for an in-bake deployment to reach COMPLETE.
+// onTick is invoked on each polling tick with (elapsed, total), where
+// elapsed is the duration since this function was called locally and total
+// is the deployment's FinalBakeTimeInMinutes. AppConfig does not surface a
+// bake-phase percentage of its own, so callers that want a "% done" feeling
+// must derive it from elapsed/total themselves.
+//
+// When the bake duration is zero, onTick is still invoked once on COMPLETE
+// with (0, 0) so the caller can finalize its UI uniformly.
+//
+// The deployment is expected to already be in BAKING (or COMPLETE) state.
+// DEPLOYING or other states are treated as unexpected and yield an error.
+func (c *Client) WaitForBakingComplete(
+	ctx context.Context,
+	applicationID, environmentID string,
+	deploymentNumber int32,
+	timeout time.Duration,
+	onTick BakeTickFunc,
+) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	pollingInterval := c.PollingInterval
+	if pollingInterval == 0 {
+		pollingInterval = 5 * time.Second
+	}
+	ticker := time.NewTicker(pollingInterval)
+	defer ticker.Stop()
+
+	bakeStart := time.Now()
+
+	checkDeployment := func() (bool, error) {
+		input := &appconfig.GetDeploymentInput{
+			ApplicationId:    aws.String(applicationID),
+			EnvironmentId:    aws.String(environmentID),
+			DeploymentNumber: &deploymentNumber,
+		}
+
+		output, err := c.appConfig.GetDeployment(ctx, input)
+		if err != nil {
+			return false, wrapAWSError(err, "failed to get deployment status")
+		}
+
+		bakeDuration := time.Duration(output.FinalBakeTimeInMinutes) * time.Minute
+
+		switch output.State {
+		case types.DeploymentStateComplete:
+			if onTick != nil {
+				onTick(bakeDuration, bakeDuration)
+			}
+			return true, nil
+
+		case types.DeploymentStateBaking:
+			if onTick != nil {
+				onTick(time.Since(bakeStart), bakeDuration)
+			}
+			return false, nil
+
+		case types.DeploymentStateRolledBack:
+			return false, rolledBackError(output.EventLog)
+
+		default:
+			return false, fmt.Errorf("unexpected deployment state during bake wait: %s", output.State)
+		}
+	}
+
+	if complete, err := checkDeployment(); err != nil || complete {
+		return err
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("bake phase timed out after %v", timeout)
+		case <-ticker.C:
+			if complete, err := checkDeployment(); err != nil || complete {
+				return err
+			}
+		}
+	}
 }
 
 // DeploymentInfo contains information about a deployment

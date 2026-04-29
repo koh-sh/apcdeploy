@@ -239,20 +239,53 @@ func (w *workflow) waitIfRequested(ctx context.Context, appID, envID string, dep
 	switch {
 	case opts.WaitDeploy:
 		pb := w.reporter.Progress("Deploying...")
-		if err := w.awsClient.WaitForDeploymentPhase(ctx, appID, envID, deploymentNumber, false, timeout, run.MakeDeploymentTick(pb)); err != nil {
+		if err := w.awsClient.WaitForDeploymentPhase(ctx, appID, envID, deploymentNumber, false, timeout, run.MakeDeployTick(pb, "Baking...")); err != nil {
 			pb.Stop()
 			return fmt.Errorf("deployment failed: %w", err)
 		}
 		pb.Done("Deployment phase completed (now baking)")
 	case opts.WaitBake:
+		// Two-phase wait. The deploy phase uses a progress bar (AppConfig
+		// reports a real rollout %) and the bake phase uses a spinner with
+		// a "(~N min left)" countdown (no quantified progress is being made
+		// during bake — it's a monitoring window).
+		//
+		// waitCtx caps total wait at opts.Timeout. The per-phase timeout
+		// passed below is the remaining budget against that deadline so the
+		// inner Wait* timeout reflects "how long this phase may still take",
+		// not the original full budget.
+		deadline := time.Now().Add(timeout)
+		waitCtx, cancel := context.WithDeadline(ctx, deadline)
+		defer cancel()
+
 		pb := w.reporter.Progress("Deploying...")
-		if err := w.awsClient.WaitForDeploymentPhase(ctx, appID, envID, deploymentNumber, true, timeout, run.MakeDeploymentTick(pb)); err != nil {
+		if err := w.awsClient.WaitForDeploymentPhase(waitCtx, appID, envID, deploymentNumber, false, remainingDuration(deadline), run.MakeDeployTick(pb, "Deploying...")); err != nil {
 			pb.Stop()
 			return fmt.Errorf("deployment failed: %w", err)
 		}
-		pb.Done("Deployment completed successfully")
+		pb.Done("Deployment phase completed (now baking)")
+
+		bakeSpin := w.reporter.Spin("Baking...")
+		if err := w.awsClient.WaitForBakingComplete(waitCtx, appID, envID, deploymentNumber, remainingDuration(deadline), run.MakeBakeTick(bakeSpin)); err != nil {
+			bakeSpin.Stop()
+			return fmt.Errorf("deployment failed: %w", err)
+		}
+		bakeSpin.Done("Deployment completed successfully")
 	default:
 		w.reporter.Warn(fmt.Sprintf("Deployment #%d is in progress. Use 'apcdeploy status' to check the status.", deploymentNumber))
 	}
 	return nil
+}
+
+// remainingDuration returns the time until deadline, clamped at 1s to
+// avoid passing 0/negative values to wait functions that interpret 0 as
+// "no timeout". The actual wait is bounded by the shared waitCtx deadline
+// regardless, so the floor only matters when this helper is called after
+// the budget is already exhausted.
+func remainingDuration(deadline time.Time) time.Duration {
+	remaining := time.Until(deadline)
+	if remaining < time.Second {
+		return time.Second
+	}
+	return remaining
 }

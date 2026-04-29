@@ -65,6 +65,12 @@ type Reporter interface {
 // Spinner is the handle returned by Reporter.Spin. Callers MUST call exactly
 // one of Done, Fail, or Stop to terminate the spinner.
 type Spinner interface {
+	// Update replaces the spinner's animated label without changing its
+	// running state. In TTY mode the next animation frame renders the new
+	// message in place. In non-TTY mode Update is silent (matching the
+	// "no narration mid-flight" rule for spinners). Update is safe to call
+	// from a different goroutine than the one running the animation.
+	Update(msg string)
 	// Done stops the spinner and reports a success line with the given message.
 	Done(msg string)
 	// Fail stops the spinner and reports an error line with the given message.

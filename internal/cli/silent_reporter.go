@@ -75,6 +75,8 @@ type silentSpinner struct {
 	finished bool
 }
 
+func (s *silentSpinner) Update(string) {}
+
 func (s *silentSpinner) Done(string) {
 	if s.finished {
 		return

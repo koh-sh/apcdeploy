@@ -396,13 +396,15 @@ Waits until the deployment phase completes (when the deployment enters BAKING st
 Waits for complete deployment including the baking phase:
 - Monitors the full deployment lifecycle: DEPLOYING → BAKING → COMPLETE
 - Returns only when deployment is fully complete
+- Deploy phase renders a progress bar (AppConfig reports a real rollout %); bake phase renders a spinner (no quantified progress — bake is a monitoring wait, not a deployment activity).
+- Both phases show a `(~N min left)` countdown derived from the locally observed elapsed time vs the strategy's `DeploymentDurationInMinutes` / `FinalBakeTimeInMinutes`.
 - Recommended for production deployments requiring full validation
 
 ```bash
 ./apcdeploy run -c apcdeploy.yml --wait-bake
 ```
 
-These flags are mutually exclusive and cannot be used together. Either flag can be combined with `--timeout` to specify maximum wait duration (default: 600 seconds).
+These flags are mutually exclusive and cannot be used together. Either flag can be combined with `--timeout` to specify the total maximum wait duration across both phases (default: 1800 seconds).
 
 ## Go Version and Tools
 

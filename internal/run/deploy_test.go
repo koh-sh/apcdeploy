@@ -878,23 +878,39 @@ func TestHasConfigurationChanges(t *testing.T) {
 	}
 }
 
-// TestMakeDeploymentTick verifies that the helper translates AppConfig
-// deployment states into progress-bar updates, including the BAKING-pins-to-100%
-// behavior that callers in run/edit rely on.
-func TestMakeDeploymentTick(t *testing.T) {
+// TestMakeDeployTick verifies the state-machine branches of the deploy
+// tick factory across both bakingLabel modes:
+//   - "Baking..."     (--wait-deploy: bar terminates with bake label)
+//   - "Deploying..."  (--wait-bake's deploy phase: bar terminates with
+//     deploy label, then a separate spinner takes over)
+//
+// All other states route to the "Deploying..." label with a wall-clock
+// remaining-time suffix. Tests fire the tick immediately after closure
+// construction so elapsed is effectively zero, making the suffix
+// deterministic.
+func TestMakeDeployTick(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
-		state       types.DeploymentState
-		percent     float64
-		wantPercent float64
-		wantMsg     string
+		name          string
+		bakingLabel   string
+		state         types.DeploymentState
+		percent       float64
+		totalDuration time.Duration
+		wantPercent   float64
+		wantMsg       string
 	}{
-		{"deploying mid", types.DeploymentStateDeploying, 42.5, 42.5, "Deploying..."},
-		{"deploying zero", types.DeploymentStateDeploying, 0, 0, "Deploying..."},
-		{"baking pins to 100", types.DeploymentStateBaking, 30, 100, "Baking..."},
-		{"complete falls through to deploying label", types.DeploymentStateComplete, 100, 100, "Deploying..."},
+		// --wait-deploy mode (bakingLabel = "Baking...")
+		{"wait-deploy: deploying mid no total", "Baking...", types.DeploymentStateDeploying, 42.5, 0, 42.5, "Deploying... (<1 min left)"},
+		{"wait-deploy: deploying with total", "Baking...", types.DeploymentStateDeploying, 30, 10 * time.Minute, 30, "Deploying... (~10 min left)"},
+		{"wait-deploy: baking pins to 100 with bake label", "Baking...", types.DeploymentStateBaking, 30, 10 * time.Minute, 100, "Baking..."},
+		{"wait-deploy: complete pins to 100 with bake label", "Baking...", types.DeploymentStateComplete, 100, 10 * time.Minute, 100, "Baking..."},
+
+		// --wait-bake's deploy phase (bakingLabel = "Deploying...")
+		{"wait-bake: deploying mid no total", "Deploying...", types.DeploymentStateDeploying, 42.5, 0, 42.5, "Deploying... (<1 min left)"},
+		{"wait-bake: deploying with total", "Deploying...", types.DeploymentStateDeploying, 25, 8 * time.Minute, 25, "Deploying... (~8 min left)"},
+		{"wait-bake: baking pins to 100 with deploy label", "Deploying...", types.DeploymentStateBaking, 30, 8 * time.Minute, 100, "Deploying..."},
+		{"wait-bake: complete pins to 100 with deploy label", "Deploying...", types.DeploymentStateComplete, 100, 8 * time.Minute, 100, "Deploying..."},
 	}
 
 	for _, tt := range tests {
@@ -902,8 +918,8 @@ func TestMakeDeploymentTick(t *testing.T) {
 			t.Parallel()
 			m := &reportertest.MockReporter{}
 			pb := m.Progress("init")
-			tick := MakeDeploymentTick(pb)
-			tick(tt.state, tt.percent)
+			tick := MakeDeployTick(pb, tt.bakingLabel)
+			tick(tt.state, tt.percent, tt.totalDuration)
 
 			if len(m.ProgressCalls) != 1 || len(m.ProgressCalls[0].Updates) != 1 {
 				t.Fatalf("expected exactly one update; got %+v", m.ProgressCalls)
@@ -911,6 +927,81 @@ func TestMakeDeploymentTick(t *testing.T) {
 			got := m.ProgressCalls[0].Updates[0]
 			if got.Percent != tt.wantPercent || got.Message != tt.wantMsg {
 				t.Errorf("update = %+v, want percent=%v msg=%q", got, tt.wantPercent, tt.wantMsg)
+			}
+		})
+	}
+}
+
+// TestRemainingFromElapsedSuffix exercises the time-boundary edge cases
+// (sub-minute, exact minute, overshoot, zero total) directly. The
+// MakeDeployTick / MakeBakeTick tests cover routing
+// only because elapsed is timing-dependent; this table-driven test
+// covers the formatting decisions independently.
+func TestRemainingFromElapsedSuffix(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		elapsed time.Duration
+		total   time.Duration
+		want    string
+	}{
+		{"zero total falls back to <1 min", 0, 0, " (<1 min left)"},
+		{"negative-looking total falls back to <1 min", 0, -5 * time.Minute, " (<1 min left)"},
+		{"start of window shows full duration", 0, 10 * time.Minute, " (~10 min left)"},
+		{"mid window rounds up partial minute", 3 * time.Minute, 10 * time.Minute, " (~7 min left)"},
+		{"exactly one minute remaining renders as 1 min", 9 * time.Minute, 10 * time.Minute, " (~1 min left)"},
+		{"non-integer remaining rounds up", 0, 2*time.Minute + 30*time.Second, " (~3 min left)"},
+		{"thirty seconds remaining clamps to <1 min", 9*time.Minute + 30*time.Second, 10 * time.Minute, " (<1 min left)"},
+		{"sub-second remaining clamps to <1 min", 9*time.Minute + 59*time.Second + 500*time.Millisecond, 10 * time.Minute, " (<1 min left)"},
+		{"elapsed equals total clamps to <1 min", 10 * time.Minute, 10 * time.Minute, " (<1 min left)"},
+		{"elapsed exceeds total clamps to <1 min", 12 * time.Minute, 10 * time.Minute, " (<1 min left)"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := remainingFromElapsedSuffix(tt.elapsed, tt.total); got != tt.want {
+				t.Errorf("remainingFromElapsedSuffix(%v, %v) = %q, want %q", tt.elapsed, tt.total, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestMakeBakeTick verifies that the bake-spinner tick updates the
+// underlying Spinner's label with a "(~N min left)" suffix derived from
+// elapsed/total.
+func TestMakeBakeTick(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		elapsed time.Duration
+		total   time.Duration
+		wantMsg string
+	}{
+		{"zero total falls back to <1 min", 0, 0, "Baking... (<1 min left)"},
+		{"early in bake shows full window", 0, 10 * time.Minute, "Baking... (~10 min left)"},
+		{"mid bake shows remaining", 5 * time.Minute, 10 * time.Minute, "Baking... (~5 min left)"},
+		{"sub-minute remaining clamps to <1 min", 9*time.Minute + 30*time.Second, 10 * time.Minute, "Baking... (<1 min left)"},
+		{"elapsed equals total clamps to <1 min", 10 * time.Minute, 10 * time.Minute, "Baking... (<1 min left)"},
+		{"elapsed exceeds total clamps to <1 min", 11 * time.Minute, 10 * time.Minute, "Baking... (<1 min left)"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			m := &reportertest.MockReporter{}
+			sp := m.Spin("init")
+			tick := MakeBakeTick(sp)
+			tick(tt.elapsed, tt.total)
+
+			if len(m.SpinnerCalls) != 1 || len(m.SpinnerCalls[0].Updates) != 1 {
+				t.Fatalf("expected exactly one update; got %+v", m.SpinnerCalls)
+			}
+			got := m.SpinnerCalls[0].Updates[0]
+			if got != tt.wantMsg {
+				t.Errorf("update = %q, want %q", got, tt.wantMsg)
 			}
 		})
 	}

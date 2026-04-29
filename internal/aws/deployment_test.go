@@ -1064,3 +1064,206 @@ func TestExtractRollbackReason(t *testing.T) {
 		})
 	}
 }
+
+// TestWaitForBakingComplete covers the bake-only wait helper used by run/edit
+// when --wait-bake is set. It verifies state-machine handling (BAKING →
+// COMPLETE / rollback / unexpected state / timeout) and that the bake tick
+// callback receives the configured FinalBakeTimeInMinutes as the total
+// duration, with elapsed advancing across ticks.
+func TestWaitForBakingComplete(t *testing.T) {
+	tests := []struct {
+		name           string
+		mockStates     []types.DeploymentState
+		mockEventLog   []types.DeploymentEvent
+		bakeMinutes    int32
+		timeout        time.Duration
+		wantErr        bool
+		wantErrMsg     string
+		wantTickCalled bool
+	}{
+		{
+			name:           "completes immediately",
+			mockStates:     []types.DeploymentState{types.DeploymentStateComplete},
+			bakeMinutes:    1,
+			timeout:        2 * time.Second,
+			wantTickCalled: true,
+		},
+		{
+			name:           "baking then complete",
+			mockStates:     []types.DeploymentState{types.DeploymentStateBaking, types.DeploymentStateComplete},
+			bakeMinutes:    1,
+			timeout:        2 * time.Second,
+			wantTickCalled: true,
+		},
+		{
+			name:           "zero bake duration still completes",
+			mockStates:     []types.DeploymentState{types.DeploymentStateBaking, types.DeploymentStateComplete},
+			bakeMinutes:    0,
+			timeout:        2 * time.Second,
+			wantTickCalled: true,
+		},
+		{
+			name:         "rolled back during bake surfaces reason",
+			mockStates:   []types.DeploymentState{types.DeploymentStateBaking, types.DeploymentStateRolledBack},
+			mockEventLog: []types.DeploymentEvent{{EventType: types.DeploymentEventTypeRollbackStarted, Description: new("alarm")}},
+			bakeMinutes:  1,
+			timeout:      2 * time.Second,
+			wantErr:      true,
+			wantErrMsg:   "deployment was rolled back: alarm",
+		},
+		{
+			name:        "rolled back without description",
+			mockStates:  []types.DeploymentState{types.DeploymentStateRolledBack},
+			bakeMinutes: 1,
+			timeout:     2 * time.Second,
+			wantErr:     true,
+			wantErrMsg:  "deployment was rolled back",
+		},
+		{
+			name:        "unexpected DEPLOYING state errors out",
+			mockStates:  []types.DeploymentState{types.DeploymentStateDeploying},
+			bakeMinutes: 1,
+			timeout:     2 * time.Second,
+			wantErr:     true,
+			wantErrMsg:  "unexpected deployment state during bake wait",
+		},
+		{
+			name:        "timeout while still baking",
+			mockStates:  []types.DeploymentState{types.DeploymentStateBaking, types.DeploymentStateBaking},
+			bakeMinutes: 1,
+			timeout:     500 * time.Millisecond,
+			wantErr:     true,
+			wantErrMsg:  "bake phase timed out",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			callCount := 0
+			mockClient := &mock.MockAppConfigClient{
+				GetDeploymentFunc: func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
+					var state types.DeploymentState
+					if callCount < len(tt.mockStates) {
+						state = tt.mockStates[callCount]
+					} else {
+						state = tt.mockStates[len(tt.mockStates)-1]
+					}
+					callCount++
+					return &appconfig.GetDeploymentOutput{
+						DeploymentNumber:       1,
+						State:                  state,
+						FinalBakeTimeInMinutes: tt.bakeMinutes,
+						EventLog:               tt.mockEventLog,
+					}, nil
+				},
+			}
+
+			client := &Client{
+				appConfig:       mockClient,
+				PollingInterval: 50 * time.Millisecond,
+			}
+
+			var lastElapsed time.Duration
+			var lastTotal time.Duration
+			var ticked bool
+			tick := func(elapsed, total time.Duration) {
+				lastElapsed = elapsed
+				lastTotal = total
+				ticked = true
+			}
+
+			err := client.WaitForBakingComplete(
+				context.Background(),
+				"app-123",
+				"env-123",
+				1,
+				tt.timeout,
+				tick,
+			)
+
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("WaitForBakingComplete() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantErrMsg != "" && err != nil {
+				if !strings.Contains(err.Error(), tt.wantErrMsg) {
+					t.Errorf("WaitForBakingComplete() error = %q, want contains %q", err.Error(), tt.wantErrMsg)
+				}
+			}
+			if tt.wantTickCalled && !ticked {
+				t.Errorf("expected tick to be invoked at least once")
+			}
+			if tt.wantTickCalled {
+				wantTotal := time.Duration(tt.bakeMinutes) * time.Minute
+				if lastTotal != wantTotal {
+					t.Errorf("final tick total = %v, want %v", lastTotal, wantTotal)
+				}
+				if lastElapsed < 0 {
+					t.Errorf("final tick elapsed = %v, want >= 0", lastElapsed)
+				}
+			}
+		})
+	}
+}
+
+// TestWaitForBakingComplete_TickElapsed verifies that elapsed time
+// monotonically increases across ticks while BAKING, and the final
+// COMPLETE tick reports the full bake duration so callers can render a
+// definitive "done" state.
+func TestWaitForBakingComplete_TickElapsed(t *testing.T) {
+	calls := 0
+	mockClient := &mock.MockAppConfigClient{
+		GetDeploymentFunc: func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
+			calls++
+			state := types.DeploymentStateBaking
+			if calls >= 3 {
+				state = types.DeploymentStateComplete
+			}
+			return &appconfig.GetDeploymentOutput{
+				DeploymentNumber:       1,
+				State:                  state,
+				FinalBakeTimeInMinutes: 60,
+			}, nil
+		},
+	}
+
+	client := &Client{
+		appConfig:       mockClient,
+		PollingInterval: 30 * time.Millisecond,
+	}
+
+	type tickRecord struct {
+		elapsed time.Duration
+		total   time.Duration
+	}
+	var ticks []tickRecord
+	err := client.WaitForBakingComplete(
+		context.Background(),
+		"app-123",
+		"env-123",
+		1,
+		2*time.Second,
+		func(elapsed, total time.Duration) {
+			ticks = append(ticks, tickRecord{elapsed: elapsed, total: total})
+		},
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(ticks) < 3 {
+		t.Fatalf("expected at least 3 ticks, got %d", len(ticks))
+	}
+	wantTotal := 60 * time.Minute
+	for i, tk := range ticks {
+		if tk.total != wantTotal {
+			t.Errorf("tick %d total = %v, want %v", i, tk.total, wantTotal)
+		}
+	}
+	for i := 1; i < len(ticks); i++ {
+		if ticks[i].elapsed < ticks[i-1].elapsed {
+			t.Errorf("tick %d elapsed = %v not monotonic with previous %v", i, ticks[i].elapsed, ticks[i-1].elapsed)
+		}
+	}
+	if ticks[len(ticks)-1].elapsed != wantTotal {
+		t.Errorf("final tick elapsed = %v, want %v (full bake duration)", ticks[len(ticks)-1].elapsed, wantTotal)
+	}
+}

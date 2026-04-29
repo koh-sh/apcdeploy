@@ -42,8 +42,12 @@ silent-mode behavior, and visual treatment.
 | `Data(p []byte)` | **stdout** | **always shown** | none | Machine-readable payload |
 | `Diff(p []byte)` | **stdout** | **always shown** | colorized when TTY | Unified diff payload |
 
-`Spinner` is `interface { Done(msg string); Fail(msg string) }`. `Done` emits a
-`Success`-equivalent line; `Fail` emits an `Error`-equivalent line on stderr.
+`Spinner` is `interface { Update(msg string); Done(msg string); Fail(msg
+string); Stop() }`. `Update` swaps the animated label without changing the
+running state — useful for countdown-style mid-flight labels (e.g. "Baking…
+(~5 min left)"); on non-TTY output it is silent. `Done` emits a
+`Success`-equivalent line; `Fail` emits an `Error`-equivalent line on stderr;
+`Stop` terminates silently.
 
 `Checklist` is `interface { Start(idx int); Done(idx int, msg string); Fail(idx
 int, msg string); Skip(idx int, msg string); Close() }`. Items are referenced
