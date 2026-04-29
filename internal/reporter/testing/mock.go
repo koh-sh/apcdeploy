@@ -75,10 +75,12 @@ type BoxCall struct {
 }
 
 // SpinnerCall captures the lifecycle of a single spinner: the message passed
-// to Spin, plus the terminating Done/Fail outcome and message.
+// to Spin, the sequence of Update labels mid-flight, plus the terminating
+// Done/Fail outcome and message.
 type SpinnerCall struct {
 	StartMessage string
-	Outcome      string // "done" or "fail"
+	Updates      []string
+	Outcome      string // "done", "fail", or "stop"
 	EndMessage   string
 }
 
@@ -169,6 +171,14 @@ type mockSpinner struct {
 	m        *MockReporter
 	idx      int
 	finished bool
+}
+
+func (s *mockSpinner) Update(msg string) {
+	if s.finished {
+		return
+	}
+	s.m.SpinnerCalls[s.idx].Updates = append(s.m.SpinnerCalls[s.idx].Updates, msg)
+	s.m.Messages = append(s.m.Messages, "spin-update: "+msg)
 }
 
 func (s *mockSpinner) Done(msg string) {

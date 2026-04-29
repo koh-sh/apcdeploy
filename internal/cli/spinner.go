@@ -13,12 +13,17 @@ import (
 // animates bubbles/spinner frames on a goroutine; in non-TTY mode it stays
 // silent until Done/Fail emits a single completion line, so logs only carry
 // terminal states (no "starting X..." narration).
+//
+// The animated label is held in msg under mu so callers can swap it
+// mid-flight via Update (e.g. countdown-style "(~N min left)" labels). The
+// animate goroutine reads msg on every frame.
 type spinner struct {
 	w        io.Writer
 	tty      bool
 	stop     chan struct{}
 	done     chan struct{}
 	mu       sync.Mutex
+	msg      string
 	finished bool
 	r        *Reporter
 }
@@ -32,6 +37,7 @@ func newSpinner(r *Reporter, msg string) *spinner {
 		tty:  r.errTTY,
 		stop: make(chan struct{}),
 		done: make(chan struct{}),
+		msg:  msg,
 		r:    r,
 	}
 	if !s.tty {
@@ -39,11 +45,23 @@ func newSpinner(r *Reporter, msg string) *spinner {
 		close(s.done)
 		return s
 	}
-	go s.animate(msg)
+	go s.animate()
 	return s
 }
 
-func (s *spinner) animate(msg string) {
+// Update swaps the animated label. In TTY mode the next frame renders the
+// new label; in non-TTY mode Update is a no-op so logs are not narrated
+// mid-flight.
+func (s *spinner) Update(msg string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.finished {
+		return
+	}
+	s.msg = msg
+}
+
+func (s *spinner) animate() {
 	defer close(s.done)
 	frames := bspinner.MiniDot.Frames
 	fps := bspinner.MiniDot.FPS
@@ -54,6 +72,9 @@ func (s *spinner) animate(msg string) {
 	defer ticker.Stop()
 	idx := 0
 	render := func() {
+		s.mu.Lock()
+		msg := s.msg
+		s.mu.Unlock()
 		frame := styles.step.Render(frames[idx%len(frames)])
 		// \r returns to line start; \033[K clears to end of line.
 		fmt.Fprintf(s.w, "\r\033[K%s %s", frame, msg)
