@@ -699,3 +699,72 @@ func TestWorkflowFeatureFlagsIgnoresMetadata(t *testing.T) {
 
 	assertContainsMessage(t, rep.Messages, "No changes detected")
 }
+
+// TestWorkflowForwardsDescription verifies that opts.Description reaches both
+// CreateHostedConfigurationVersion and StartDeployment when set, and that an
+// empty value leaves the field unset on both calls (so AppConfig keeps its
+// default behavior).
+func TestWorkflowForwardsDescription(t *testing.T) {
+	tests := []struct {
+		name        string
+		description string
+		wantNil     bool
+		wantValue   string
+	}{
+		{name: "empty omits field", description: "", wantNil: true},
+		{name: "explicit description forwarded", description: "hotfix: bump retry limit", wantValue: "hotfix: bump retry limit"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fakeEditorScript(t, `{"key":"updated"}`)
+
+			deployedContent := []byte(`{"key":"value"}`)
+			client := baseMockClient(deployedContent, "application/json")
+
+			var capturedVersionDesc, capturedDeploymentDesc *string
+			client.CreateHostedConfigurationVersionFunc = func(ctx context.Context, params *appconfig.CreateHostedConfigurationVersionInput, optFns ...func(*appconfig.Options)) (*appconfig.CreateHostedConfigurationVersionOutput, error) {
+				capturedVersionDesc = params.Description
+				return &appconfig.CreateHostedConfigurationVersionOutput{VersionNumber: 4}, nil
+			}
+			client.StartDeploymentFunc = func(ctx context.Context, params *appconfig.StartDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.StartDeploymentOutput, error) {
+				capturedDeploymentDesc = params.Description
+				return &appconfig.StartDeploymentOutput{DeploymentNumber: 8}, nil
+			}
+
+			awsClient := awsInternal.NewTestClient(client)
+			wf := newWorkflowWithClient(awsClient, &promptTesting.MockPrompter{}, &reporterTesting.MockReporter{})
+
+			opts := &Options{
+				Region:      "us-east-1",
+				Application: "test-app",
+				Profile:     "test-profile",
+				Environment: "test-env",
+				Timeout:     300,
+				Description: tt.description,
+			}
+
+			if err := wf.Run(context.Background(), opts); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			checkDesc := func(label string, got *string) {
+				if tt.wantNil {
+					if got != nil {
+						t.Errorf("%s: expected Description to be nil, got %q", label, *got)
+					}
+					return
+				}
+				if got == nil {
+					t.Errorf("%s: expected Description %q, got nil", label, tt.wantValue)
+					return
+				}
+				if *got != tt.wantValue {
+					t.Errorf("%s: Description = %q, want %q", label, *got, tt.wantValue)
+				}
+			}
+			checkDesc("CreateHostedConfigurationVersion", capturedVersionDesc)
+			checkDesc("StartDeployment", capturedDeploymentDesc)
+		})
+	}
+}

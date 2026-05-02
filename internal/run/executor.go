@@ -122,7 +122,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	}
 
 	chk.Start(idxVersion)
-	versionNumber, err := deployer.CreateVersion(ctx, resolved, dataContent, contentType)
+	versionNumber, err := deployer.CreateVersion(ctx, resolved, dataContent, contentType, opts.Description)
 	if err != nil {
 		chk.Fail(idxVersion, "")
 		if aws.IsValidationError(err) {
@@ -133,7 +133,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	chk.Done(idxVersion, fmt.Sprintf("Created configuration version %d", versionNumber))
 
 	chk.Start(idxDeploy)
-	deploymentNumber, err := deployer.StartDeployment(ctx, resolved, versionNumber)
+	deploymentNumber, err := deployer.StartDeployment(ctx, resolved, versionNumber, opts.Description)
 	if err != nil {
 		chk.Fail(idxDeploy, "")
 		return fmt.Errorf("failed to start deployment: %w", err)

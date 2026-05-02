@@ -84,7 +84,7 @@ All commands follow the pattern: `cmd/<command>.go` → `internal/<command>/exec
 **Exception**: The `context` command is a simple utility that only outputs embedded content (`llms.md`). It does not follow the standard command structure and has no corresponding `internal/context/` directory. The implementation is entirely contained in `cmd/context.go`, with the content embedded in `main.go` and passed via `cmd.SetLLMsContent()`.
 
 1. **cmd/**: Cobra command definitions and CLI flag parsing
-   - `root.go`: Root command with global flags (`--config`, `--silent`)
+   - `root.go`: Root command with global flags (`--config`, `--silent`); also hosts the `--description` shared helpers (`validateDescription` for the 1024-rune client-side limit and `resolveDescription` for the `defaultDescription` fallback) used by `run` and `edit`
    - Each command file (`init.go`, `run.go`, `diff.go`, `status.go`, `get.go`, `pull.go`, `rollback.go`, `ls_resources.go`, `edit.go`) handles CLI concerns only
    - `context.go`: Simple command that outputs embedded `llms.md` content for AI assistants (no internal package)
    - `init.go`: Supports interactive mode for resource selection; all flags are optional
@@ -166,7 +166,7 @@ Edit command implementation:
 - `executor.go`: Orchestrates the edit workflow using a `WorkflowFactory` for testability
 - `workflow.go`: Resolves the target resources (region/app/profile/env) via flags or interactive prompts, fetches the latest deployed configuration, launches the editor, validates, and deploys
 - `editor.go`: Launches `$EDITOR` (falls back to `vi`) against a temp file whose extension is derived from the content type; cleans up the temp file after use
-- `options.go`: Command-specific options struct (`Region`, `Application`, `Profile`, `Environment`, `DeploymentStrategy`, `WaitDeploy`, `WaitBake`, `Timeout`, `Silent`)
+- `options.go`: Command-specific options struct (`Region`, `Application`, `Profile`, `Environment`, `DeploymentStrategy`, `WaitDeploy`, `WaitBake`, `Timeout`, `Description`)
 - Reuses `init.InteractiveSelector` for interactive resource selection
 - No configuration file required; operates independently of `apcdeploy.yml`
 - Validation parity with `run`: same size limit and JSON/YAML syntax checks

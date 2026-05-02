@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"unicode/utf8"
 
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/cli"
@@ -87,4 +88,39 @@ func Execute() {
 // isSilent returns whether silent mode is enabled
 func isSilent() bool {
 	return silent
+}
+
+// maxDescriptionLength matches the AppConfig API limit on the Description
+// field of CreateHostedConfigurationVersion / StartDeployment. Validating
+// locally produces a clearer error than the AWS-side ValidationException.
+const maxDescriptionLength = 1024
+
+// defaultDescription is attached to AppConfig configuration versions and
+// deployments when the user did not pass --description. It marks the change
+// as originating from apcdeploy so it can be distinguished from manual edits
+// in the AppConfig console.
+const defaultDescription = "Deployed by apcdeploy"
+
+// validateDescription enforces the AppConfig 1024-char limit on --description
+// values before the AWS round-trip. AppConfig's limit is in Unicode characters,
+// not bytes, so multibyte input (e.g. Japanese) is counted by rune.
+// Empty values are allowed — the AWS wrappers omit the field entirely when
+// description is "".
+func validateDescription(s string) error {
+	n := utf8.RuneCountInString(s)
+	if n > maxDescriptionLength {
+		return fmt.Errorf("--description exceeds maximum length of %d characters (got %d)", maxDescriptionLength, n)
+	}
+	return nil
+}
+
+// resolveDescription returns the description to attach to the configuration
+// version / deployment. When the user did not pass --description, the default
+// marker is used. An explicit --description "" keeps the empty value (opt-out)
+// — Cobra's Changed() flag distinguishes "not set" from "set to empty".
+func resolveDescription(cmd *cobra.Command, value string) string {
+	if cmd.Flags().Changed("description") {
+		return value
+	}
+	return defaultDescription
 }

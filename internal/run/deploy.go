@@ -119,14 +119,17 @@ func (d *Deployer) CheckOngoingDeployment(ctx context.Context, resolved *aws.Res
 	return d.awsClient.CheckOngoingDeployment(ctx, resolved.ApplicationID, resolved.EnvironmentID)
 }
 
-// CreateVersion creates a new hosted configuration version
-func (d *Deployer) CreateVersion(ctx context.Context, resolved *aws.ResolvedResources, content []byte, contentType string) (int32, error) {
-	return d.awsClient.CreateHostedConfigurationVersion(ctx, resolved.ApplicationID, resolved.Profile.ID, content, contentType, "")
+// CreateVersion creates a new hosted configuration version. The description
+// (when non-empty) is forwarded to AppConfig and shown in the console / on
+// `apcdeploy status`.
+func (d *Deployer) CreateVersion(ctx context.Context, resolved *aws.ResolvedResources, content []byte, contentType, description string) (int32, error) {
+	return d.awsClient.CreateHostedConfigurationVersion(ctx, resolved.ApplicationID, resolved.Profile.ID, content, contentType, description)
 }
 
-// StartDeployment starts a deployment
-func (d *Deployer) StartDeployment(ctx context.Context, resolved *aws.ResolvedResources, versionNumber int32) (int32, error) {
-	return d.awsClient.StartDeployment(ctx, resolved.ApplicationID, resolved.EnvironmentID, resolved.Profile.ID, resolved.DeploymentStrategyID, versionNumber, "")
+// StartDeployment starts a deployment. The description (when non-empty) is
+// forwarded to AppConfig and shown in the console / on `apcdeploy status`.
+func (d *Deployer) StartDeployment(ctx context.Context, resolved *aws.ResolvedResources, versionNumber int32, description string) (int32, error) {
+	return d.awsClient.StartDeployment(ctx, resolved.ApplicationID, resolved.EnvironmentID, resolved.Profile.ID, resolved.DeploymentStrategyID, versionNumber, description)
 }
 
 // WaitForDeploymentPhase waits for a deployment to reach a specific phase.

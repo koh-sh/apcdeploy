@@ -565,6 +565,12 @@ apcdeploy run -c apcdeploy.yml --force
 
 # Specify timeout
 apcdeploy run -c apcdeploy.yml --wait-bake --timeout 900
+
+# Attach a description to the configuration version and deployment
+apcdeploy run -c apcdeploy.yml --description "hotfix: bump retry limit"
+
+# Tag with the current git commit
+apcdeploy run -c apcdeploy.yml --description "$(git log -1 --pretty='%h %s')"
 ```
 
 #### Flags
@@ -573,6 +579,7 @@ apcdeploy run -c apcdeploy.yml --wait-bake --timeout 900
 - `--wait-bake`: Wait for complete deployment including baking phase
 - `--force`: Deploy even when content is unchanged
 - `--timeout <seconds>`: Timeout in seconds for deployment wait (default: 1800)
+- `--description <text>`: Description attached to the configuration version and deployment. Visible in the AppConfig console and in `apcdeploy status` output. Defaults to `"Deployed by apcdeploy"` when the flag is omitted, so AppConfig deployments are distinguishable from manual console edits. Pass `--description ""` to clear the description entirely. Maximum 1024 characters (AppConfig API limit); rejected client-side when exceeded.
 
 **Important**: `--wait-deploy` and `--wait-bake` are mutually exclusive and cannot be used together.
 
@@ -1113,6 +1120,9 @@ apcdeploy edit --deployment-strategy AppConfig.Linear
 
 # Wait for baking to complete
 apcdeploy edit --wait-bake --timeout 3900
+
+# Attach a description for traceability
+apcdeploy edit --description "ticket-123: tweak retry limit"
 ```
 
 #### Flags
@@ -1125,6 +1135,7 @@ apcdeploy edit --wait-bake --timeout 3900
 - `--wait-deploy`: Wait for deployment phase to complete (until baking starts)
 - `--wait-bake`: Wait for complete deployment including baking phase
 - `--timeout <seconds>`: Timeout in seconds for deployment wait (default: 1800)
+- `--description <text>`: Description attached to the configuration version and deployment (max 1024 chars). Defaults to `"Deployed by apcdeploy"`; pass `--description ""` to clear it.
 
 **Important**: `--wait-deploy` and `--wait-bake` are mutually exclusive.
 

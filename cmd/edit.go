@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/koh-sh/apcdeploy/internal/cli"
 	"github.com/koh-sh/apcdeploy/internal/edit"
@@ -18,6 +19,7 @@ var (
 	editWaitDeploy         bool
 	editWaitBake           bool
 	editTimeout            int
+	editDescription        string
 )
 
 // EditCommand returns the edit command
@@ -50,12 +52,18 @@ JSON/YAML syntax checks).`,
 	cmd.Flags().BoolVar(&editWaitDeploy, "wait-deploy", false, "Wait for deployment phase to complete (until baking starts)")
 	cmd.Flags().BoolVar(&editWaitBake, "wait-bake", false, "Wait for complete deployment including baking phase")
 	cmd.Flags().IntVar(&editTimeout, "timeout", DefaultDeploymentTimeout, "Timeout in seconds for deployment")
+	cmd.Flags().StringVar(&editDescription, "description", "", fmt.Sprintf(`Description attached to the configuration version and deployment (max %d chars; defaults to %q, pass "" to clear)`, maxDescriptionLength, defaultDescription))
 
 	return cmd
 }
 
 func runEdit(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
+
+	if err := validateDescription(editDescription); err != nil {
+		return err
+	}
+	description := resolveDescription(cmd, editDescription)
 
 	opts := &edit.Options{
 		Region:             editRegion,
@@ -66,6 +74,7 @@ func runEdit(cmd *cobra.Command, args []string) error {
 		WaitDeploy:         editWaitDeploy,
 		WaitBake:           editWaitBake,
 		Timeout:            editTimeout,
+		Description:        description,
 	}
 
 	reporter := cli.GetReporter(isSilent())

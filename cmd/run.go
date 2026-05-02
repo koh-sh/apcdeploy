@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/koh-sh/apcdeploy/internal/cli"
 	"github.com/koh-sh/apcdeploy/internal/run"
@@ -18,10 +19,11 @@ const (
 )
 
 var (
-	runWaitDeploy bool
-	runWaitBake   bool
-	runTimeout    int
-	runForce      bool
+	runWaitDeploy  bool
+	runWaitBake    bool
+	runTimeout     int
+	runForce       bool
+	runDescription string
 )
 
 // RunCommand returns the run command
@@ -49,6 +51,7 @@ This command will:
 	cmd.Flags().BoolVar(&runWaitBake, "wait-bake", false, "Wait for complete deployment including baking phase")
 	cmd.Flags().IntVar(&runTimeout, "timeout", DefaultDeploymentTimeout, "Timeout in seconds for deployment")
 	cmd.Flags().BoolVar(&runForce, "force", false, "Force deployment even when there are no changes")
+	cmd.Flags().StringVar(&runDescription, "description", "", fmt.Sprintf(`Description attached to the configuration version and deployment (max %d chars; defaults to %q, pass "" to clear)`, maxDescriptionLength, defaultDescription))
 
 	return cmd
 }
@@ -56,19 +59,22 @@ This command will:
 func runRun(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
-	// Create options
+	if err := validateDescription(runDescription); err != nil {
+		return err
+	}
+	description := resolveDescription(cmd, runDescription)
+
 	opts := &run.Options{
-		ConfigFile: configFile,
-		WaitDeploy: runWaitDeploy,
-		WaitBake:   runWaitBake,
-		Timeout:    runTimeout,
-		Force:      runForce,
+		ConfigFile:  configFile,
+		WaitDeploy:  runWaitDeploy,
+		WaitBake:    runWaitBake,
+		Timeout:     runTimeout,
+		Force:       runForce,
+		Description: description,
 	}
 
-	// Create reporter
 	reporter := cli.GetReporter(isSilent())
 
-	// Run deployment
 	executor := run.NewExecutor(reporter)
 	return executor.Execute(ctx, opts)
 }
