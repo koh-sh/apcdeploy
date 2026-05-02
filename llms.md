@@ -568,9 +568,7 @@ apcdeploy run -c apcdeploy.yml --wait-bake --timeout 900
 
 # Attach a description to the configuration version and deployment
 apcdeploy run -c apcdeploy.yml --description "hotfix: bump retry limit"
-
-# Tag with the current git commit
-apcdeploy run -c apcdeploy.yml --description "$(git log -1 --pretty='%h %s')"
+apcdeploy run -c apcdeploy.yml --description "ticket-123: tweak feature flag"
 ```
 
 #### Flags
