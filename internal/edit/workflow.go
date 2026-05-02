@@ -196,7 +196,7 @@ func (w *workflow) editAndDeploy(ctx context.Context, t *resolvedTargets, deploy
 	}
 
 	sp := w.reporter.Spin("Creating configuration version...")
-	versionNumber, err := w.awsClient.CreateHostedConfigurationVersion(ctx, t.AppID, t.Profile.ID, edited, deployed.ContentType, "")
+	versionNumber, err := w.awsClient.CreateHostedConfigurationVersion(ctx, t.AppID, t.Profile.ID, edited, deployed.ContentType, opts.Description)
 	if err != nil {
 		sp.Stop()
 		if awsInternal.IsValidationError(err) {
@@ -207,7 +207,7 @@ func (w *workflow) editAndDeploy(ctx context.Context, t *resolvedTargets, deploy
 	sp.Done(fmt.Sprintf("Created configuration version %d", versionNumber))
 
 	sp = w.reporter.Spin("Starting deployment...")
-	deploymentNumber, err := w.awsClient.StartDeployment(ctx, t.AppID, t.EnvID, t.Profile.ID, strategyID, versionNumber, "")
+	deploymentNumber, err := w.awsClient.StartDeployment(ctx, t.AppID, t.EnvID, t.Profile.ID, strategyID, versionNumber, opts.Description)
 	if err != nil {
 		sp.Stop()
 		return fmt.Errorf("failed to start deployment: %w", err)

@@ -135,6 +135,28 @@ $APCDEPLOY get --silent --yes | jq -e '.e == "new"' > /dev/null
 EDITOR=$FAKE_EDITOR APCDEPLOY_EDIT_CONTENT='{"e":"new"}' $APCDEPLOY edit --region "$REGION" --app "$APP" --profile json-freeform --env dev 2>&1 | grep -q "No changes detected"
 if EDITOR=$FAKE_EDITOR APCDEPLOY_EDIT_CONTENT='not-json' $APCDEPLOY edit --region "$REGION" --app "$APP" --profile json-freeform --env dev --silent; then exit 1; fi
 
+echo "Description: default marker, explicit value, opt-out, length cap, edit"
+title "========== S8: Description =========="
+$APCDEPLOY init --silent --app "$APP" --profile json-freeform --env dev --region "$REGION" --force
+use_strategy
+echo '{"d":"1"}' > data.json
+$APCDEPLOY run --wait-bake --silent
+# status renders Description on stderr via Reporter.Table (tab-separated in
+# non-TTY mode) — grep stderr to verify the value is what we expect.
+$APCDEPLOY status 2>&1 | grep -qF "Deployed by apcdeploy"
+echo '{"d":"2"}' > data.json
+$APCDEPLOY run --wait-bake --silent --description "explicit run desc"
+$APCDEPLOY status 2>&1 | grep -qF "explicit run desc"
+echo '{"d":"3"}' > data.json
+$APCDEPLOY run --wait-bake --silent --description ""
+# Empty --description opts out of the default; no Description row should appear.
+if $APCDEPLOY status 2>&1 | grep -q "^Description"; then exit 1; fi
+# >1024 runes is rejected client-side before any AWS round-trip.
+LONG_DESC=$(printf 'a%.0s' {1..1025})
+if $APCDEPLOY run --silent --description "$LONG_DESC"; then exit 1; fi
+EDITOR=$FAKE_EDITOR APCDEPLOY_EDIT_CONTENT='{"d":"edited"}' $APCDEPLOY edit --region "$REGION" --app "$APP" --profile json-freeform --env dev --wait-bake --silent --description "explicit edit desc"
+$APCDEPLOY status 2>&1 | grep -qF "explicit edit desc"
+
 echo "Error handling: non-existent resources (app/profile/env)"
 title "========== E1: Resource Errors =========="
 if $APCDEPLOY init --silent --app xxx --profile test --env dev --region "$REGION"; then exit 1; fi

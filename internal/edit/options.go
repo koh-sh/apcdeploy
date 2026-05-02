@@ -10,4 +10,5 @@ type Options struct {
 	WaitDeploy         bool
 	WaitBake           bool
 	Timeout            int
+	Description        string
 }

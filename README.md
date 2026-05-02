@@ -252,6 +252,7 @@ Options:
 - `--wait-bake`: Wait for complete deployment including baking phase
 - `--timeout`: Timeout in seconds for deployment wait (default: 1800)
 - `--force`: Deploy even if content hasn't changed
+- `--description`: Description attached to the configuration version and deployment (max 1024 chars). Defaults to `"Deployed by apcdeploy"`; pass `--description ""` to clear it.
 
 Note: `--wait-deploy` and `--wait-bake` are mutually exclusive.
 
@@ -279,6 +280,7 @@ Options:
 - `--wait-deploy`: Wait for deployment phase to complete (until baking starts)
 - `--wait-bake`: Wait for complete deployment including baking phase
 - `--timeout`: Timeout in seconds for deployment wait (default: 1800)
+- `--description`: Description attached to the configuration version and deployment (max 1024 chars). Defaults to `"Deployed by apcdeploy"`; pass `--description ""` to clear it.
 
 **Note:** This command does not use `apcdeploy.yml`.
 

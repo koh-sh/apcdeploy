@@ -594,7 +594,7 @@ func TestCreateVersionWithMock(t *testing.T) {
 		},
 	}
 
-	versionNumber, err := deployer.CreateVersion(context.Background(), resolved, []byte(`{"key":"value"}`), "application/json")
+	versionNumber, err := deployer.CreateVersion(context.Background(), resolved, []byte(`{"key":"value"}`), "application/json", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -636,7 +636,7 @@ func TestStartDeploymentWithMock(t *testing.T) {
 		},
 	}
 
-	deploymentNumber, err := deployer.StartDeployment(context.Background(), resolved, 1)
+	deploymentNumber, err := deployer.StartDeployment(context.Background(), resolved, 1, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
