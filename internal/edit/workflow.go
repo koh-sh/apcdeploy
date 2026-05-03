@@ -62,31 +62,50 @@ func newWorkflowWithClient(awsClient *awsInternal.Client, prompter prompt.Prompt
 	}
 }
 
-// resolvedTargets holds the AWS IDs and profile metadata for the edit target.
+// resolvedTargets holds the AWS IDs and profile metadata for the edit target,
+// plus the human-readable names needed to build the canonical identifier.
 type resolvedTargets struct {
+	AppName string
 	AppID   string
+	EnvName string
 	EnvID   string
 	Profile *awsInternal.ProfileInfo
 }
 
-// Run executes the edit workflow. TTY availability is enforced upstream in
-// newWorkflow, which runs before any selector here would block on a prompt.
+// Identifier returns the canonical region/app/profile/env string used in the
+// Targets row. Profile.Name comes from the resolver lookup, not the
+// user-supplied flag, so it always matches the AWS-side display name.
+func (t *resolvedTargets) Identifier(region string) string {
+	return region + "/" + t.AppName + "/" + t.Profile.Name + "/" + t.EnvName
+}
+
+// Run executes the edit workflow.
+//
+// Output shape (docs/design/output.md §7.6):
+//   - resolve / fetch / ongoing-check are silent unless they fail
+//   - $EDITOR launches without a "launching $EDITOR" spinner (§7.6)
+//   - after the editor closes, a single Targets row carries the deployment
+//     lifecycle: creating-version → deploying → ✓ deployed/complete (...)
+//     or ⊘ skipped (no changes) when the edit was a no-op.
 func (w *workflow) Run(ctx context.Context, opts *Options) error {
 	targets, err := w.resolveTargets(ctx, opts)
 	if err != nil {
 		return err
 	}
 
-	deployed, strategyID, err := w.prepareDeployment(ctx, targets, opts)
+	deployed, strategyID, strategyName, err := w.prepareDeployment(ctx, targets, opts)
 	if err != nil {
 		return err
 	}
 
-	return w.editAndDeploy(ctx, targets, deployed, strategyID, opts)
+	return w.editAndDeploy(ctx, targets, deployed, strategyID, strategyName, opts)
 }
 
 // resolveTargets selects the application/profile/environment (interactively if
 // the corresponding option is empty) and resolves them to AWS IDs.
+//
+// No spinner here: List* APIs are fast and the interactive selection itself
+// already gives the user feedback that resolution is happening.
 func (w *workflow) resolveTargets(ctx context.Context, opts *Options) (*resolvedTargets, error) {
 	selectedApp, err := w.selector.SelectApplication(ctx, w.awsClient, opts.Application)
 	if err != nil {
@@ -109,172 +128,206 @@ func (w *workflow) resolveTargets(ctx context.Context, opts *Options) (*resolved
 		return nil, err
 	}
 
-	sp := w.reporter.Spin("Resolving AWS resources...")
 	profile, err := resolver.ResolveConfigurationProfile(ctx, appID, selectedProfile)
 	if err != nil {
-		sp.Stop()
 		return nil, fmt.Errorf("failed to resolve configuration profile: %w", err)
 	}
 	envID, err := resolver.ResolveEnvironment(ctx, appID, selectedEnv)
 	if err != nil {
-		sp.Stop()
 		return nil, fmt.Errorf("failed to resolve environment: %w", err)
 	}
-	sp.Done(fmt.Sprintf("Resolved resources: App=%s, Profile=%s, Env=%s", appID, profile.ID, envID))
 
-	return &resolvedTargets{AppID: appID, EnvID: envID, Profile: profile}, nil
+	return &resolvedTargets{
+		AppName: selectedApp,
+		AppID:   appID,
+		EnvName: selectedEnv,
+		EnvID:   envID,
+		Profile: profile,
+	}, nil
 }
 
 // prepareDeployment fetches the latest deployment, determines the strategy to
-// use, and aborts if another deployment is already in progress.
+// use (resolved to both ID and human-readable name), and aborts if another
+// deployment is already in progress.
 //
-// The ongoing-deployment check runs before announcing "Loaded deployment ..."
-// so users hitting that abort path don't see a misleading success message
-// immediately followed by an error.
-func (w *workflow) prepareDeployment(ctx context.Context, t *resolvedTargets, opts *Options) (*awsInternal.DeployedConfigInfo, string, error) {
-	sp := w.reporter.Spin("Checking for ongoing deployments...")
+// Errors here pre-empt the editor launch — the user wastes no keystrokes on
+// content that can't be deployed anyway.
+func (w *workflow) prepareDeployment(ctx context.Context, t *resolvedTargets, opts *Options) (*awsInternal.DeployedConfigInfo, string, string, error) {
 	ongoing, _, err := w.awsClient.CheckOngoingDeployment(ctx, t.AppID, t.EnvID)
 	if err != nil {
-		sp.Stop()
-		return nil, "", fmt.Errorf("failed to check ongoing deployments: %w", err)
+		return nil, "", "", fmt.Errorf("failed to check ongoing deployments: %w", err)
 	}
 	if ongoing {
-		sp.Stop()
-		return nil, "", fmt.Errorf("deployment already in progress")
+		return nil, "", "", fmt.Errorf("deployment already in progress")
 	}
-	sp.Done("No ongoing deployments")
 
-	sp = w.reporter.Spin("Fetching latest deployed configuration...")
 	deployed, err := awsInternal.GetLatestDeployedConfiguration(ctx, w.awsClient, t.AppID, t.EnvID, t.Profile.ID)
 	if err != nil {
-		sp.Stop()
-		return nil, "", fmt.Errorf("failed to get latest deployed configuration: %w", err)
+		return nil, "", "", fmt.Errorf("failed to get latest deployed configuration: %w", err)
 	}
 	if deployed == nil {
-		sp.Stop()
-		return nil, "", fmt.Errorf("%w: run 'apcdeploy run' to create the first deployment", awsInternal.ErrNoDeployment)
+		return nil, "", "", fmt.Errorf("%w: run 'apcdeploy run' to create the first deployment", awsInternal.ErrNoDeployment)
 	}
-	sp.Done(fmt.Sprintf("Loaded deployment #%d (version %d)", deployed.DeploymentNumber, deployed.VersionNumber))
 
 	resolver := awsInternal.NewResolver(w.awsClient)
-	strategyID, err := resolveStrategyID(ctx, resolver, opts.DeploymentStrategy, deployed.DeploymentStrategyID)
+	strategyID, strategyName, err := resolveStrategy(ctx, resolver, opts.DeploymentStrategy, deployed.DeploymentStrategyID)
 	if err != nil {
-		return nil, "", err
+		return nil, "", "", err
 	}
 
-	return deployed, strategyID, nil
+	return deployed, strategyID, strategyName, nil
 }
 
 // editAndDeploy launches the editor, validates the result, creates a new
 // configuration version when content changed, and starts the deployment.
-func (w *workflow) editAndDeploy(ctx context.Context, t *resolvedTargets, deployed *awsInternal.DeployedConfigInfo, strategyID string, opts *Options) error {
+func (w *workflow) editAndDeploy(ctx context.Context, t *resolvedTargets, deployed *awsInternal.DeployedConfigInfo, strategyID, strategyName string, opts *Options) error {
 	ext := config.ExtensionForContentType(deployed.ContentType)
 
-	// The editor takes over the terminal, so it must NOT be wrapped in a
-	// spinner — the spinner's animation goroutine would conflict with the
-	// editor's own cursor handling. A plain Step line is the right signal
-	// that we're handing off to the editor.
-	w.reporter.Step(fmt.Sprintf("Opening editor (%s)...", editorCommand()))
+	// No "launching $EDITOR" spinner per output.md §7.6 — short-lived
+	// spinners on instant operations create flicker, and the editor itself
+	// is the user-facing signal that a hand-off is happening.
 	_, edited, err := editBuffer(deployed.Content, ext)
 	if err != nil {
 		return fmt.Errorf("failed to edit configuration: %w", err)
 	}
 
-	// Validation is instant — no spinner. Failure surfaces via the returned
-	// error, which root.go renders.
 	if err := config.ValidateData(edited, deployed.ContentType); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
 	}
 
+	id := t.Identifier(w.awsClient.Region)
+	tg := w.reporter.Targets([]string{id})
+	defer tg.Close()
+
 	changed, err := config.HasContentChanged(deployed.Content, edited, ext, t.Profile.Type)
 	if err != nil {
+		tg.Fail(id, err)
 		return fmt.Errorf("failed to compare configuration: %w", err)
 	}
 	if !changed {
-		w.reporter.Info("No changes detected — skipping deployment")
+		tg.Skip(id, "skipped (no changes)")
 		return nil
 	}
 
-	sp := w.reporter.Spin("Creating configuration version...")
+	tg.SetPhase(id, "creating-version", "")
 	versionNumber, err := w.awsClient.CreateHostedConfigurationVersion(ctx, t.AppID, t.Profile.ID, edited, deployed.ContentType, opts.Description)
 	if err != nil {
-		sp.Stop()
+		tg.Fail(id, err)
 		if awsInternal.IsValidationError(err) {
 			return fmt.Errorf("%s", awsInternal.FormatValidationError(err))
 		}
 		return fmt.Errorf("failed to create configuration version: %w", err)
 	}
-	sp.Done(fmt.Sprintf("Created configuration version %d", versionNumber))
 
-	sp = w.reporter.Spin("Starting deployment...")
+	deployStart := time.Now()
+	tg.SetPhase(id, "deploying", "")
 	deploymentNumber, err := w.awsClient.StartDeployment(ctx, t.AppID, t.EnvID, t.Profile.ID, strategyID, versionNumber, opts.Description)
 	if err != nil {
-		sp.Stop()
+		tg.Fail(id, err)
 		return fmt.Errorf("failed to start deployment: %w", err)
 	}
-	sp.Done(fmt.Sprintf("Started deployment #%d", deploymentNumber))
 
-	return w.waitIfRequested(ctx, t.AppID, t.EnvID, deploymentNumber, opts)
+	return w.waitIfRequested(ctx, tg, id, t, deploymentNumber, versionNumber, strategyName, deployStart, opts)
 }
 
-// resolveStrategyID returns the deployment strategy ID to use.
-// If the user provided one via flag, resolve it; otherwise inherit the strategy
-// from the most recent deployment.
-func resolveStrategyID(ctx context.Context, resolver *awsInternal.Resolver, providedName, inheritedID string) (string, error) {
+// resolveStrategy returns the deployment strategy ID and a display name.
+//
+// When the user passed --deployment-strategy, both the resolved ID and the
+// supplied name are returned. When the strategy is inherited from the last
+// deployment, the inherited ID is returned for both fields — the human name
+// would require an extra ListDeploymentStrategies call which:
+//   - is unnecessary for execution (only the ID is used),
+//   - and would risk a stray AWS round-trip when the user has not actually
+//     changed strategies.
+// The Done summary therefore shows the strategy ID for the inherited case;
+// callers that want a human label should pass --deployment-strategy.
+func resolveStrategy(ctx context.Context, resolver *awsInternal.Resolver, providedName, inheritedID string) (string, string, error) {
 	if providedName != "" {
 		id, err := resolver.ResolveDeploymentStrategy(ctx, providedName)
 		if err != nil {
-			return "", fmt.Errorf("failed to resolve deployment strategy: %w", err)
+			return "", "", fmt.Errorf("failed to resolve deployment strategy: %w", err)
 		}
-		return id, nil
+		return id, providedName, nil
 	}
 	if inheritedID == "" {
-		return "", fmt.Errorf("could not determine deployment strategy from latest deployment; specify --deployment-strategy")
+		return "", "", fmt.Errorf("could not determine deployment strategy from latest deployment; specify --deployment-strategy")
 	}
-	return inheritedID, nil
+	return inheritedID, inheritedID, nil
 }
 
-func (w *workflow) waitIfRequested(ctx context.Context, appID, envID string, deploymentNumber int32, opts *Options) error {
+// waitIfRequested optionally blocks for the deploy or bake phase to complete,
+// driving the same Targets row through the deploying/baking sub-phases that
+// run uses. The done summary follows the output.md §3.3.2 format and
+// distinguishes the verb by wait mode (output.md §7.1.0).
+func (w *workflow) waitIfRequested(ctx context.Context, tg reporter.Targets, id string, t *resolvedTargets, deploymentNumber, versionNumber int32, strategyName string, deployStart time.Time, opts *Options) error {
 	timeout := time.Duration(opts.Timeout) * time.Second
 	switch {
 	case opts.WaitDeploy:
-		pb := w.reporter.Progress("Deploying...")
-		if err := w.awsClient.WaitForDeploymentPhase(ctx, appID, envID, deploymentNumber, false, timeout, run.MakeDeployTick(pb, "Baking...")); err != nil {
-			pb.Stop()
+		if err := w.awsClient.WaitForDeploymentPhase(ctx, t.AppID, t.EnvID, deploymentNumber, false, timeout, run.MakeTargetsDeployTick(tg, id)); err != nil {
+			tg.Fail(id, err)
 			return fmt.Errorf("deployment failed: %w", err)
 		}
-		pb.Done("Deployment phase completed (now baking)")
+		tg.Done(id, formatEditSummary("deployed", deployStart, versionNumber, strategyName, "baking started"))
 	case opts.WaitBake:
-		// Two-phase wait. The deploy phase uses a progress bar (AppConfig
-		// reports a real rollout %) and the bake phase uses a spinner with
-		// a "(~N min left)" countdown (no quantified progress is being made
-		// during bake — it's a monitoring window).
-		//
 		// waitCtx caps total wait at opts.Timeout. The per-phase timeout
 		// passed below is the remaining budget against that deadline so the
-		// inner Wait* timeout reflects "how long this phase may still take",
-		// not the original full budget.
+		// inner Wait* timeout reflects "how long this phase may still take".
 		deadline := time.Now().Add(timeout)
 		waitCtx, cancel := context.WithDeadline(ctx, deadline)
 		defer cancel()
 
-		pb := w.reporter.Progress("Deploying...")
-		if err := w.awsClient.WaitForDeploymentPhase(waitCtx, appID, envID, deploymentNumber, false, remainingDuration(deadline), run.MakeDeployTick(pb, "Deploying...")); err != nil {
-			pb.Stop()
+		if err := w.awsClient.WaitForDeploymentPhase(waitCtx, t.AppID, t.EnvID, deploymentNumber, false, remainingDuration(deadline), run.MakeTargetsDeployTick(tg, id)); err != nil {
+			tg.Fail(id, err)
 			return fmt.Errorf("deployment failed: %w", err)
 		}
-		pb.Done("Deployment phase completed (now baking)")
-
-		bakeSpin := w.reporter.Spin("Baking...")
-		if err := w.awsClient.WaitForBakingComplete(waitCtx, appID, envID, deploymentNumber, remainingDuration(deadline), run.MakeBakeTick(bakeSpin)); err != nil {
-			bakeSpin.Stop()
+		tg.SetPhase(id, "baking", "")
+		if err := w.awsClient.WaitForBakingComplete(waitCtx, t.AppID, t.EnvID, deploymentNumber, remainingDuration(deadline), run.MakeTargetsBakeTick(tg, id)); err != nil {
+			tg.Fail(id, err)
 			return fmt.Errorf("deployment failed: %w", err)
 		}
-		bakeSpin.Done("Deployment completed successfully")
+		tg.Done(id, formatEditSummary("complete", deployStart, versionNumber, strategyName, ""))
 	default:
-		w.reporter.Warn(fmt.Sprintf("Deployment #%d is in progress. Use 'apcdeploy status' to check the status.", deploymentNumber))
+		tg.Done(id, formatEditSummary("started", deployStart, versionNumber, strategyName, fmt.Sprintf("deployment #%d", deploymentNumber)))
 	}
 	return nil
+}
+
+// formatEditSummary mirrors run's summary format. Edit reuses the same shape
+// because the deploy lifecycle after the editor close is identical to a
+// `run` invocation.
+func formatEditSummary(verb string, start time.Time, version int32, strategy, addendum string) string {
+	out := verb
+	if !start.IsZero() && verb != "started" {
+		out += " (" + formatElapsed(time.Since(start)) + ")"
+	}
+	if version > 0 {
+		out += fmt.Sprintf(" — v%d", version)
+	}
+	if strategy != "" {
+		if version > 0 {
+			out += ", " + strategy
+		} else {
+			out += " — " + strategy
+		}
+	}
+	if addendum != "" {
+		out += ", " + addendum
+	}
+	return out
+}
+
+// formatElapsed renders a duration as compact "Ns" or "Nm Ns".
+func formatElapsed(d time.Duration) string {
+	d = d.Round(time.Second)
+	if d < time.Minute {
+		return fmt.Sprintf("%ds", int(d.Seconds()))
+	}
+	m := int(d.Minutes())
+	s := int(d.Seconds()) - m*60
+	if s == 0 {
+		return fmt.Sprintf("%dm", m)
+	}
+	return fmt.Sprintf("%dm %ds", m, s)
 }
 
 // remainingDuration returns the time until deadline, clamped at 1s to
