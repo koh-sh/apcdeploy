@@ -8,6 +8,7 @@ import (
 	"time"
 
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
+	"github.com/koh-sh/apcdeploy/internal/cli"
 	"github.com/koh-sh/apcdeploy/internal/config"
 	initPkg "github.com/koh-sh/apcdeploy/internal/init"
 	"github.com/koh-sh/apcdeploy/internal/prompt"
@@ -232,16 +233,15 @@ func (w *workflow) editAndDeploy(ctx context.Context, t *resolvedTargets, deploy
 
 // resolveStrategy returns the deployment strategy ID and a display name.
 //
-// When the user passed --deployment-strategy, both the resolved ID and the
+// When --deployment-strategy is supplied, both the resolved ID and the
 // supplied name are returned. When the strategy is inherited from the last
-// deployment, the inherited ID is returned for both fields — the human name
-// would require an extra ListDeploymentStrategies call which:
-//   - is unnecessary for execution (only the ID is used),
-//   - and would risk a stray AWS round-trip when the user has not actually
-//     changed strategies.
-//
-// The Done summary therefore shows the strategy ID for the inherited case;
-// callers that want a human label should pass --deployment-strategy.
+// deployment, the inherited ID is resolved back to a human-readable name
+// via ResolveDeploymentStrategyIDToName so the Done summary shows
+// "AppConfig.AllAtOnce" rather than an opaque ID. status executor performs
+// the same lookup for the same reason; the cost is one ListDeploymentStrategies
+// call. If the name lookup fails (transient error, permissions), we fall
+// back to the ID rather than aborting — losing the human label is
+// preferable to failing the entire edit.
 func resolveStrategy(ctx context.Context, resolver *awsInternal.Resolver, providedName, inheritedID string) (string, string, error) {
 	if providedName != "" {
 		id, err := resolver.ResolveDeploymentStrategy(ctx, providedName)
@@ -253,7 +253,11 @@ func resolveStrategy(ctx context.Context, resolver *awsInternal.Resolver, provid
 	if inheritedID == "" {
 		return "", "", fmt.Errorf("could not determine deployment strategy from latest deployment; specify --deployment-strategy")
 	}
-	return inheritedID, inheritedID, nil
+	name, err := resolver.ResolveDeploymentStrategyIDToName(ctx, inheritedID)
+	if err != nil {
+		name = inheritedID
+	}
+	return inheritedID, name, nil
 }
 
 // waitIfRequested optionally blocks for the deploy or bake phase to complete,
@@ -268,7 +272,7 @@ func (w *workflow) waitIfRequested(ctx context.Context, tg reporter.Targets, id 
 			tg.Fail(id, err)
 			return fmt.Errorf("deployment failed: %w", err)
 		}
-		tg.Done(id, formatEditSummary("deployed", deployStart, versionNumber, strategyName, "baking started"))
+		tg.Done(id, cli.FormatDeploymentSummary("deployed", deployStart, versionNumber, strategyName, "baking started"))
 	case opts.WaitBake:
 		// waitCtx caps total wait at opts.Timeout. The per-phase timeout
 		// passed below is the remaining budget against that deadline so the
@@ -286,49 +290,11 @@ func (w *workflow) waitIfRequested(ctx context.Context, tg reporter.Targets, id 
 			tg.Fail(id, err)
 			return fmt.Errorf("deployment failed: %w", err)
 		}
-		tg.Done(id, formatEditSummary("complete", deployStart, versionNumber, strategyName, ""))
+		tg.Done(id, cli.FormatDeploymentSummary("complete", deployStart, versionNumber, strategyName, ""))
 	default:
-		tg.Done(id, formatEditSummary("started", deployStart, versionNumber, strategyName, fmt.Sprintf("deployment #%d", deploymentNumber)))
+		tg.Done(id, cli.FormatDeploymentSummary("started", deployStart, versionNumber, strategyName, fmt.Sprintf("deployment #%d", deploymentNumber)))
 	}
 	return nil
-}
-
-// formatEditSummary mirrors run's summary format. Edit reuses the same shape
-// because the deploy lifecycle after the editor close is identical to a
-// `run` invocation.
-func formatEditSummary(verb string, start time.Time, version int32, strategy, addendum string) string {
-	out := verb
-	if !start.IsZero() && verb != "started" {
-		out += " (" + formatElapsed(time.Since(start)) + ")"
-	}
-	if version > 0 {
-		out += fmt.Sprintf(" — v%d", version)
-	}
-	if strategy != "" {
-		if version > 0 {
-			out += ", " + strategy
-		} else {
-			out += " — " + strategy
-		}
-	}
-	if addendum != "" {
-		out += ", " + addendum
-	}
-	return out
-}
-
-// formatElapsed renders a duration as compact "Ns" or "Nm Ns".
-func formatElapsed(d time.Duration) string {
-	d = d.Round(time.Second)
-	if d < time.Minute {
-		return fmt.Sprintf("%ds", int(d.Seconds()))
-	}
-	m := int(d.Minutes())
-	s := int(d.Seconds()) - m*60
-	if s == 0 {
-		return fmt.Sprintf("%dm", m)
-	}
-	return fmt.Sprintf("%dm %ds", m, s)
 }
 
 // remainingDuration returns the time until deadline, clamped at 1s to

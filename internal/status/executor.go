@@ -96,6 +96,15 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	}
 
 	tg.Done(id, summarizeDeployment(deploymentInfo))
+	// Two output systems intentionally coexist on the success path
+	// (output.md §11 Q-2 — to be revisited when status grows multi-target
+	// support). The Targets row is the at-a-glance summary
+	// ("✓ COMPLETE — v42 (2h ago)"); display.DeploymentStatus follows with
+	// the structured Header + Table that surfaces the full deployment
+	// metadata (Deployment Number, strategy, started/completed timestamps).
+	// In TTY mode the Targets renderer has already finalised by the time
+	// the table prints, so the two views stack cleanly without competing
+	// for the cursor.
 	display.DeploymentStatus(e.reporter, deploymentInfo, cfg, resources)
 	return nil
 }

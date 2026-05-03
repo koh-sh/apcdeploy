@@ -834,4 +834,19 @@ region: us-east-1
 	if !strings.Contains(err.Error(), "deployment already in progress") {
 		t.Errorf("expected 'deployment already in progress' error, got: %v", err)
 	}
+
+	// The Targets row must finalise with Fail so the user sees `✗ failed:
+	// deployment already in progress` inline with the target identifier —
+	// not just the cmd/root.go error line.
+	foundFail := false
+	for _, call := range reporter.TargetsCalls {
+		for _, tr := range call.Transitions {
+			if tr.Kind == "fail" && tr.Err != nil && strings.Contains(tr.Err.Error(), "deployment already in progress") {
+				foundFail = true
+			}
+		}
+	}
+	if !foundFail {
+		t.Errorf("expected Targets.Fail with 'deployment already in progress'; got: %+v", reporter.TargetsCalls)
+	}
 }

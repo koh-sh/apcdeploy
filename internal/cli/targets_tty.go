@@ -98,8 +98,8 @@ func (t *ttyTargets) animate() {
 func (t *ttyTargets) SetPhase(id, phase, detail string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	row, ok := t.rows[id]
-	if !ok || t.closed || isTerminal(row.state) {
+	row, ok := t.rows[sanitizeIdentifier(id)]
+	if !ok || t.closed || isTerminalState(row.state) {
 		return
 	}
 	row.state = rowRunning
@@ -115,8 +115,8 @@ func (t *ttyTargets) SetPhase(id, phase, detail string) {
 func (t *ttyTargets) SetProgress(id string, percent float64, eta time.Duration) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	row, ok := t.rows[id]
-	if !ok || t.closed || isTerminal(row.state) {
+	row, ok := t.rows[sanitizeIdentifier(id)]
+	if !ok || t.closed || isTerminalState(row.state) {
 		return
 	}
 	row.state = rowRunning
@@ -145,8 +145,8 @@ func (t *ttyTargets) Skip(id, reason string) {
 func (t *ttyTargets) transition(id string, state targetsRowState, mutate func(*targetsRow)) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	row, ok := t.rows[id]
-	if !ok || t.closed || isTerminal(row.state) {
+	row, ok := t.rows[sanitizeIdentifier(id)]
+	if !ok || t.closed || isTerminalState(row.state) {
 		return
 	}
 	row.state = state
@@ -171,8 +171,4 @@ func (t *ttyTargets) Close() {
 		t.redraw()
 		t.mu.Unlock()
 	}
-}
-
-func isTerminal(s targetsRowState) bool {
-	return s == rowDone || s == rowFail || s == rowSkip
 }

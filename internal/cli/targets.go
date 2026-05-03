@@ -2,12 +2,43 @@ package cli
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/koh-sh/apcdeploy/internal/reporter"
 )
+
+// terminalEscapeRE matches ANSI / DEC escape sequences that could be smuggled
+// through a target identifier (which is built from user-controlled strings in
+// apcdeploy.yml — application / configuration_profile / environment / region).
+// Stripping them at the Targets boundary prevents an attacker-controlled
+// config from emitting cursor-positioning, screen-clearing, or palette
+// sequences that could mislead the user about deployment outcomes.
+//
+// The pattern covers CSI (\x1b[…final), OSC (\x1b]…BEL/ST), DCS / SOS / PM /
+// APC (\x1bP/X/^/_…ST), and the bare ESC. lipgloss appends its own escapes
+// at render time; those are constructed from styles defined in style.go and
+// are never derived from caller input, so they reach the terminal unmolested.
+var terminalEscapeRE = regexp.MustCompile(
+	`\x1b(?:` +
+		`\[[0-9;?]*[A-Za-z]` + // CSI: ESC [ params final
+		`|\][^\x07\x1b]*(?:\x07|\x1b\\)` + // OSC: ESC ] … BEL or ST
+		`|[PX^_][^\x1b]*\x1b\\` + // DCS / SOS / PM / APC: ESC P/X/^/_ … ST
+		`|.` + // ESC + any single char (covers two-byte forms)
+		`)`,
+)
+
+// sanitizeIdentifier strips ANSI / DEC escape sequences from id. Used at the
+// Targets boundary so caller-supplied identifiers cannot inject terminal
+// control codes (output.md §10.3 — identifier integrity).
+func sanitizeIdentifier(id string) string {
+	if !strings.ContainsRune(id, '\x1b') {
+		return id
+	}
+	return terminalEscapeRE.ReplaceAllString(id, "")
+}
 
 // targetsBarWidth is the fixed visual width of the deploying-phase progress
 // bar (output.md §5.4). Bars do not adapt to terminal width — they print at
@@ -57,6 +88,14 @@ func (r *Reporter) Targets(ids []string) reporter.Targets {
 	}
 	return newPlainTargets(r, ids)
 }
+
+// Compile-time interface checks: a missing method on any of these
+// implementations should fail the build immediately rather than at the
+// (rare) call site.
+var (
+	_ reporter.Targets = (*ttyTargets)(nil)
+	_ reporter.Targets = (*plainTargets)(nil)
+)
 
 // idColumnWidth returns the rune-aware width of the longest identifier
 // padded by targetsIDGap. Used by both TTY and non-TTY implementations
@@ -148,6 +187,17 @@ func formatETA(d time.Duration) string {
 	return fmt.Sprintf("(~%d min left)", int(d.Minutes()+0.5))
 }
 
+// isTerminalState reports whether the given Targets row state is terminal —
+// i.e. Done / Fail / Skip have already finalised the row and further
+// SetPhase / SetProgress / Done / Fail / Skip calls against the same id MUST
+// be ignored. Centralised here so the TTY and Plain implementations share a
+// single guard. The function name is deliberately distinct from
+// `cli.IsTerminal` (which checks whether a *os.File is a TTY) to avoid the
+// reader having to context-switch between two unrelated meanings.
+func isTerminalState(s targetsRowState) bool {
+	return s == rowDone || s == rowFail || s == rowSkip
+}
+
 // targetsBase holds the fields shared by the TTY and non-TTY implementations.
 type targetsBase struct {
 	mu      sync.Mutex
@@ -158,13 +208,17 @@ type targetsBase struct {
 }
 
 func newTargetsBase(ids []string) targetsBase {
-	rows := make(map[string]*targetsRow, len(ids))
-	for _, id := range ids {
+	clean := make([]string, len(ids))
+	for i, id := range ids {
+		clean[i] = sanitizeIdentifier(id)
+	}
+	rows := make(map[string]*targetsRow, len(clean))
+	for _, id := range clean {
 		rows[id] = &targetsRow{id: id, state: rowPending}
 	}
 	return targetsBase{
 		rows:    rows,
-		order:   append([]string(nil), ids...),
-		idWidth: idColumnWidth(ids),
+		order:   clean,
+		idWidth: idColumnWidth(clean),
 	}
 }

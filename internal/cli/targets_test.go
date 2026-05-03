@@ -126,6 +126,34 @@ func TestIDColumnWidth(t *testing.T) {
 	}
 }
 
+func TestSanitizeIdentifier(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"plain ascii unchanged", "us-east-1/my-app/my-profile/dev", "us-east-1/my-app/my-profile/dev"},
+		{"empty unchanged", "", ""},
+		{"CSI clear screen stripped", "us-east-1/\x1b[2Jevil/p/e", "us-east-1/evil/p/e"},
+		{"CSI cursor move stripped", "a\x1b[1Ab", "ab"},
+		{"OSC sequence stripped", "a\x1b]0;title\x07b", "ab"},
+		{"OSC with ST stripped", "a\x1b]0;title\x1b\\b", "ab"},
+		{"DCS stripped", "a\x1bP1;2|payload\x1b\\b", "ab"},
+		{"SGR color stripped", "a\x1b[31;1mb\x1b[0m", "ab"},
+		{"bare ESC pair stripped", "a\x1bMb", "ab"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := sanitizeIdentifier(tt.in); got != tt.want {
+				t.Errorf("sanitizeIdentifier(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestPadID(t *testing.T) {
 	t.Parallel()
 

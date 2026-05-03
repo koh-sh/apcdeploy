@@ -891,11 +891,39 @@ func TestMakeTargetsDeployTick(t *testing.T) {
 		percent       float64
 		totalDuration time.Duration
 		wantPercent   float64
+		// wantETAZero asserts ETA == 0. wantETAPositive asserts ETA > 0.
+		// Tests fire the tick immediately after closure construction so
+		// elapsed is effectively zero — for non-baking states the ETA
+		// approximates totalDuration. We only assert sign rather than an
+		// exact duration to avoid flakes from waitStart drift.
+		wantETAZero     bool
+		wantETAPositive bool
 	}{
-		{"deploying mid", types.DeploymentStateDeploying, 42.5, 10 * time.Minute, 0.425},
-		{"deploying low", types.DeploymentStateDeploying, 25, 8 * time.Minute, 0.25},
-		{"baking pins to 1.0", types.DeploymentStateBaking, 30, 10 * time.Minute, 1.0},
-		{"complete pins to 1.0", types.DeploymentStateComplete, 100, 10 * time.Minute, 1.0},
+		{
+			name: "deploying mid", state: types.DeploymentStateDeploying,
+			percent: 42.5, totalDuration: 10 * time.Minute,
+			wantPercent: 0.425, wantETAPositive: true,
+		},
+		{
+			name: "deploying low", state: types.DeploymentStateDeploying,
+			percent: 25, totalDuration: 8 * time.Minute,
+			wantPercent: 0.25, wantETAPositive: true,
+		},
+		{
+			name:  "AllAtOnce-style zero totalDuration → ETA 0",
+			state: types.DeploymentStateDeploying, percent: 50, totalDuration: 0,
+			wantPercent: 0.5, wantETAZero: true,
+		},
+		{
+			name: "baking pins to 1.0 with ETA 0", state: types.DeploymentStateBaking,
+			percent: 30, totalDuration: 10 * time.Minute,
+			wantPercent: 1.0, wantETAZero: true,
+		},
+		{
+			name: "complete pins to 1.0 with ETA 0", state: types.DeploymentStateComplete,
+			percent: 100, totalDuration: 10 * time.Minute,
+			wantPercent: 1.0, wantETAZero: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -921,6 +949,12 @@ func TestMakeTargetsDeployTick(t *testing.T) {
 			if delta := progressTr[0].Percent - tt.wantPercent; delta < -0.001 || delta > 0.001 {
 				t.Errorf("percent = %v, want %v", progressTr[0].Percent, tt.wantPercent)
 			}
+			switch {
+			case tt.wantETAZero && progressTr[0].ETA != 0:
+				t.Errorf("ETA = %v, want 0", progressTr[0].ETA)
+			case tt.wantETAPositive && progressTr[0].ETA <= 0:
+				t.Errorf("ETA = %v, want > 0", progressTr[0].ETA)
+			}
 		})
 	}
 }
@@ -936,10 +970,14 @@ func TestMakeTargetsBakeTick(t *testing.T) {
 		total      time.Duration
 		wantDetail string
 	}{
-		{"zero total falls back to <1 min", 0, 0, "(<1 min left)"},
-		{"early in bake shows full window", 0, 10 * time.Minute, "(~10 min left)"},
-		{"mid bake shows remaining", 5 * time.Minute, 10 * time.Minute, "(~5 min left)"},
-		{"elapsed exceeds total clamps to <1 min", 11 * time.Minute, 10 * time.Minute, "(<1 min left)"},
+		// Detail is emitted with a leading space — remainingFromElapsedSuffix
+		// returns " (~N min left)" / " (<1 min left)". The bake tick passes
+		// that string directly to SetPhase as the detail, so the assertion
+		// includes the leading space and match is exact.
+		{"zero total falls back to <1 min", 0, 0, " (<1 min left)"},
+		{"early in bake shows full window", 0, 10 * time.Minute, " (~10 min left)"},
+		{"mid bake shows remaining", 5 * time.Minute, 10 * time.Minute, " (~5 min left)"},
+		{"elapsed exceeds total clamps to <1 min", 11 * time.Minute, 10 * time.Minute, " (<1 min left)"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -961,9 +999,7 @@ func TestMakeTargetsBakeTick(t *testing.T) {
 			if detail == "" {
 				t.Fatalf("expected baking phase transition; got %+v", m.TargetsCalls)
 			}
-			// Detail format includes leading space (" (~..."); compare suffix.
-			wantSuffix := " " + tt.wantDetail
-			if detail != wantSuffix && detail != tt.wantDetail {
+			if detail != tt.wantDetail {
 				t.Errorf("baking detail = %q, want %q", detail, tt.wantDetail)
 			}
 		})

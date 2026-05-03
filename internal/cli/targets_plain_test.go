@@ -3,7 +3,9 @@ package cli
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -118,6 +120,29 @@ func TestPlainTargets_UnknownIDIgnored(t *testing.T) {
 	if buf.Len() != 0 {
 		t.Errorf("unknown id should not emit output, got: %q", buf.String())
 	}
+}
+
+// TestPlainTargets_ConcurrentAccess fires SetPhase / SetProgress / Done
+// from many goroutines against a shared Targets handle. Used together
+// with `go test -race` to detect mutex misuse — the Targets contract
+// promises concurrent calls are safe.
+func TestPlainTargets_ConcurrentAccess(t *testing.T) {
+	t.Parallel()
+
+	pt, _ := newTestPlainTargets(t, []string{"a", "b", "c"})
+	defer pt.Close()
+
+	var wg sync.WaitGroup
+	for i := range 50 {
+		wg.Add(1)
+		go func(n int) {
+			defer wg.Done()
+			pt.SetPhase("a", fmt.Sprintf("phase-%d", n%4), "")
+			pt.SetProgress("b", float64(n%100)/100.0, 0)
+		}(i)
+	}
+	wg.Wait()
+	pt.Done("c", "ok")
 }
 
 func TestPlainTargets_EtaIgnoredInSetProgress(t *testing.T) {

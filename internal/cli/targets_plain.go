@@ -36,34 +36,36 @@ func newPlainTargets(r *Reporter, ids []string) *plainTargets {
 // SetPhase emits one `<id>: <phase> [<detail>]` line per genuine phase
 // transition. Repeating the same phase is silent.
 func (t *plainTargets) SetPhase(id, phase, detail string) {
+	clean := sanitizeIdentifier(id)
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	row, ok := t.rows[id]
-	if !ok || t.closed || isTerminal(row.state) {
+	row, ok := t.rows[clean]
+	if !ok || t.closed || isTerminalState(row.state) {
 		return
 	}
 	row.state = rowRunning
 	row.phase = phase
 	row.detail = detail
-	if t.lastPhase[id] == phase {
+	if t.lastPhase[clean] == phase {
 		return
 	}
-	t.lastPhase[id] = phase
+	t.lastPhase[clean] = phase
 	body := phase
 	if detail != "" {
 		body += " " + detail
 	}
-	fmt.Fprintf(t.w, "%s: %s\n", id, body)
+	fmt.Fprintf(t.w, "%s: %s\n", clean, body)
 }
 
 // SetProgress emits `<id>: <phase> NN%` only when the percent crosses a new
 // 25-step threshold. Calling SetProgress also pins the row's phase to
 // "deploying" (the only sub-phase that reports a real percent).
 func (t *plainTargets) SetProgress(id string, percent float64, _ time.Duration) {
+	clean := sanitizeIdentifier(id)
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	row, ok := t.rows[id]
-	if !ok || t.closed || isTerminal(row.state) {
+	row, ok := t.rows[clean]
+	if !ok || t.closed || isTerminalState(row.state) {
 		return
 	}
 	row.state = rowRunning
@@ -73,46 +75,50 @@ func (t *plainTargets) SetProgress(id string, percent float64, _ time.Duration) 
 		row.phase = "deploying"
 	}
 	threshold := percentThreshold(percent)
-	if threshold <= t.progressThreshold[id] {
+	if threshold <= t.progressThreshold[clean] {
 		return
 	}
-	t.progressThreshold[id] = threshold
-	fmt.Fprintf(t.w, "%s: %s %d%%\n", id, row.phase, threshold)
+	t.progressThreshold[clean] = threshold
+	fmt.Fprintf(t.w, "%s: %s %d%%\n", clean, row.phase, threshold)
 }
 
 // Done emits a single success line.
 func (t *plainTargets) Done(id, summary string) {
-	t.terminal(id, rowDone, func() {
-		fmt.Fprintf(t.w, "%s: %s %s\n", id, symSuccess, summary)
+	clean := sanitizeIdentifier(id)
+	t.terminal(clean, rowDone, func() {
+		fmt.Fprintf(t.w, "%s: %s %s\n", clean, symSuccess, summary)
 	})
 }
 
 // Fail emits a single failure line. The error message is rendered raw; the
 // surrounding command is responsible for any Errors: section.
 func (t *plainTargets) Fail(id string, err error) {
+	clean := sanitizeIdentifier(id)
 	msg := ""
 	if err != nil {
 		msg = err.Error()
 	}
-	t.terminal(id, rowFail, func() {
-		fmt.Fprintf(t.w, "%s: %s failed: %s\n", id, symError, msg)
+	t.terminal(clean, rowFail, func() {
+		fmt.Fprintf(t.w, "%s: %s failed: %s\n", clean, symError, msg)
 	})
 }
 
 // Skip emits a single skip line.
 func (t *plainTargets) Skip(id, reason string) {
-	t.terminal(id, rowSkip, func() {
-		fmt.Fprintf(t.w, "%s: %s %s\n", id, symSkip, reason)
+	clean := sanitizeIdentifier(id)
+	t.terminal(clean, rowSkip, func() {
+		fmt.Fprintf(t.w, "%s: %s %s\n", clean, symSkip, reason)
 	})
 }
 
 // terminal flips a row to a terminal state and emits the matching line.
-// Repeated calls against the same id are dropped.
+// Repeated calls against the same id are dropped. id is expected to already
+// be sanitized by the caller (the public methods sanitize at entry).
 func (t *plainTargets) terminal(id string, state targetsRowState, emit func()) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	row, ok := t.rows[id]
-	if !ok || t.closed || isTerminal(row.state) {
+	if !ok || t.closed || isTerminalState(row.state) {
 		return
 	}
 	row.state = state

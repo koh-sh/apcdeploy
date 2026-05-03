@@ -424,6 +424,34 @@ func TestResolveStrategyErrorsWhenNoneAvailable(t *testing.T) {
 	}
 }
 
+// TestResolveStrategyFallsBackToIDOnNameLookupFailure ensures that when the
+// inherited strategy ID cannot be resolved to a human-readable name (e.g.
+// transient ListDeploymentStrategies failure, missing IAM permissions), the
+// returned display name falls back to the ID rather than aborting the entire
+// edit. This is the documented contract in resolveStrategy.
+func TestResolveStrategyFallsBackToIDOnNameLookupFailure(t *testing.T) {
+	t.Parallel()
+
+	client := &mock.MockAppConfigClient{
+		ListDeploymentStrategiesFunc: func(ctx context.Context, params *appconfig.ListDeploymentStrategiesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentStrategiesOutput, error) {
+			return nil, fmt.Errorf("transient AWS failure")
+		},
+	}
+	awsClient := awsInternal.NewTestClient(client)
+	resolver := awsInternal.NewResolver(awsClient)
+
+	id, name, err := resolveStrategy(context.Background(), resolver, "", "strategy-xyz")
+	if err != nil {
+		t.Fatalf("expected fallback rather than error, got: %v", err)
+	}
+	if id != "strategy-xyz" {
+		t.Errorf("id = %q, want strategy-xyz", id)
+	}
+	if name != "strategy-xyz" {
+		t.Errorf("expected name to fall back to ID; got %q", name)
+	}
+}
+
 func TestResolveStrategyFlagResolveFails(t *testing.T) {
 	t.Parallel()
 
@@ -743,6 +771,11 @@ func TestWorkflowFeatureFlagsIgnoresMetadata(t *testing.T) {
 			return &appconfig.GetHostedConfigurationVersionOutput{
 				Content:     deployed,
 				ContentType: aws.String(config.ContentTypeJSON),
+			}, nil
+		},
+		ListDeploymentStrategiesFunc: func(ctx context.Context, params *appconfig.ListDeploymentStrategiesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentStrategiesOutput, error) {
+			return &appconfig.ListDeploymentStrategiesOutput{
+				Items: []types.DeploymentStrategy{{Id: aws.String("strategy-1"), Name: aws.String("AppConfig.AllAtOnce")}},
 			}, nil
 		},
 	}

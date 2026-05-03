@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/koh-sh/apcdeploy/internal/aws"
+	"github.com/koh-sh/apcdeploy/internal/cli"
 	"github.com/koh-sh/apcdeploy/internal/config"
 	"github.com/koh-sh/apcdeploy/internal/reporter"
 )
@@ -139,7 +140,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 			tg.Fail(id, err)
 			return fmt.Errorf("deployment failed: %w", err)
 		}
-		tg.Done(id, formatRunSummary("deployed", deployStart, versionNumber, strategyName, "baking started"))
+		tg.Done(id, cli.FormatDeploymentSummary("deployed", deployStart, versionNumber, strategyName, "baking started"))
 
 	case opts.WaitBake:
 		// waitCtx caps total wait at opts.Timeout. The per-phase timeout passed
@@ -158,54 +159,13 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 			tg.Fail(id, err)
 			return fmt.Errorf("deployment failed: %w", err)
 		}
-		tg.Done(id, formatRunSummary("complete", deployStart, versionNumber, strategyName, ""))
+		tg.Done(id, cli.FormatDeploymentSummary("complete", deployStart, versionNumber, strategyName, ""))
 
 	default:
-		tg.Done(id, formatRunSummary("started", deployStart, versionNumber, strategyName, fmt.Sprintf("deployment #%d", deploymentNumber)))
+		tg.Done(id, cli.FormatDeploymentSummary("started", deployStart, versionNumber, strategyName, fmt.Sprintf("deployment #%d", deploymentNumber)))
 	}
 
 	return nil
-}
-
-// formatRunSummary builds the post-icon Targets summary for a run completion
-// per output.md §3.3.2: `<verb> (<elapsed>) — v<N>, <Strategy>[, <addendum>]`.
-//
-// elapsed is omitted (i.e. only the verb is shown before "—") when the start
-// time is the zero value or when the verb is "started" without a meaningful
-// elapsed reading. addendum is appended after the strategy when non-empty.
-func formatRunSummary(verb string, start time.Time, version int32, strategy, addendum string) string {
-	out := verb
-	if !start.IsZero() && verb != "started" {
-		out += " (" + formatElapsed(time.Since(start)) + ")"
-	}
-	if version > 0 {
-		out += fmt.Sprintf(" — v%d", version)
-	}
-	if strategy != "" {
-		if version > 0 {
-			out += ", " + strategy
-		} else {
-			out += " — " + strategy
-		}
-	}
-	if addendum != "" {
-		out += ", " + addendum
-	}
-	return out
-}
-
-// formatElapsed renders a duration as compact "Ns" or "Nm Ns".
-func formatElapsed(d time.Duration) string {
-	d = d.Round(time.Second)
-	if d < time.Minute {
-		return fmt.Sprintf("%ds", int(d.Seconds()))
-	}
-	m := int(d.Minutes())
-	s := int(d.Seconds()) - m*60
-	if s == 0 {
-		return fmt.Sprintf("%dm", m)
-	}
-	return fmt.Sprintf("%dm %ds", m, s)
 }
 
 // remainingSeconds returns the seconds remaining until deadline, clamped at

@@ -37,7 +37,7 @@ func (m *MockReporter) Targets(ids []string) reporter.Targets {
 	m.TargetsCalls = append(m.TargetsCalls, TargetsCall{
 		IDs: append([]string(nil), ids...),
 	})
-	m.Messages = append(m.Messages, "targets: "+joinStrings(ids))
+	m.Messages = append(m.Messages, "targets: "+strings.Join(ids, ","))
 	return &mockTargets{m: m, idx: idx}
 }
 
@@ -82,15 +82,4 @@ func (t *mockTargets) record(tr TargetsTransition) {
 	}
 	t.m.TargetsCalls[t.idx].Transitions = append(t.m.TargetsCalls[t.idx].Transitions, tr)
 	t.m.Messages = append(t.m.Messages, "targets-"+tr.Kind+": "+tr.ID)
-}
-
-func joinStrings(ss []string) string {
-	var out strings.Builder
-	for i, s := range ss {
-		if i > 0 {
-			out.WriteString(",")
-		}
-		out.WriteString(s)
-	}
-	return out.String()
 }

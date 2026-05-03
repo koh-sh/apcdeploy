@@ -86,6 +86,11 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	deploymentNumber := deployment.DeploymentNumber
 	details, err := aws.GetDeploymentDetails(ctx, awsClient, resources.ApplicationID, resources.EnvironmentID, deploymentNumber)
 	if err != nil {
+		// Targets is intentionally NOT opened on this path: the next step is
+		// the confirmation prompt (or its bypass via --yes), and the in-place
+		// Targets renderer would fight with the prompt for stderr. Failures
+		// here surface only via cmd/root.go's Error line, which is the right
+		// shape for "we couldn't even gather enough state to ask the user".
 		return fmt.Errorf("failed to get deployment details: %w", err)
 	}
 

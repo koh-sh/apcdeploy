@@ -155,6 +155,13 @@ func (d *Deployer) WaitForBakingComplete(ctx context.Context, resolved *aws.Reso
 // The "(~N min left)" countdown is derived from wall-clock elapsed time
 // (waitStart) minus the strategy's totalDuration so non-linear strategies
 // (EXPONENTIAL) report honest remaining time.
+//
+// Lives in `run` rather than `internal/aws` or `internal/cli` because the
+// only callers are deploy-shape commands (run + edit). Moving it to either
+// neutral location would introduce a UI dependency in `aws` (Targets is a
+// reporter concept) or an AWS-domain dependency in `cli` (DeploymentState
+// is an AWS type). The `edit → run` import is the lesser evil while the
+// caller set stays at two; revisit if a third caller appears.
 func MakeTargetsDeployTick(tg reporter.Targets, id string) aws.DeploymentTickFunc {
 	waitStart := time.Now()
 	return func(state types.DeploymentState, percent float64, totalDuration time.Duration) {

@@ -95,6 +95,8 @@ func (s *silentSpinner) Stop() {
 	s.finished = true
 }
 
+var _ reporter.Targets = (*silentTargets)(nil)
+
 type silentTargets struct {
 	r      *SilentReporter
 	closed bool

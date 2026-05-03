@@ -140,7 +140,7 @@ Configuration file management:
 
 The single output abstraction used by every command. See [Output Contract](.claude/rules/output-contract.md) for the full contract.
 
-- `Reporter`: Interface with `Step`, `Success`, `Info`, `Warn`, `Error`, `Header`, `Box`, `Table`, `Spin`, `Checklist`, `Progress`, `Data`, `Diff`
+- `Reporter`: Interface with `Step`, `Success`, `Info`, `Warn`, `Error`, `Header`, `Box`, `Table`, `Spin`, `Targets`, `Data`, `Diff`. `Targets` is the primary primitive for deployment-target commands (`run` / `diff` / `pull` / `rollback` / `edit` / `get` / `status`); `Step` / `Success` / `Info` / `Spin` are retained for `init`'s sequential interactive workflow only.
 - `internal/cli/reporter.go`: TTY-aware console implementation using lipgloss styles + bubbles spinner frames
 - `internal/cli/silent_reporter.go`: Silent variant that suppresses everything except `Error` / `Data` / `Diff`
 - `internal/cli/style.go`: Centralized lipgloss styles (the only place ANSI/color is defined)
@@ -357,7 +357,7 @@ region: <aws-region>  # optional, uses AWS SDK default if omitted
 
 ## Output Contract
 
-Every command produces output through `internal/reporter`. The full contract — channels (stdout vs stderr), output kinds (Step/Success/Info/Warn/Error/Header/Box/Table/Spin/Checklist/Progress/Data/Diff), `--silent` semantics, TTY degradation, and rules for adding new commands — lives in [.claude/rules/output-contract.md](.claude/rules/output-contract.md).
+Every command produces output through `internal/reporter`. The full contract — channels (stdout vs stderr), output kinds (Targets/Step/Success/Info/Warn/Error/Header/Box/Table/Spin/Data/Diff), the per-row state machine (preparing/comparing/creating-version/deploying/baking → done/failed/skipped), `--silent` semantics, TTY degradation, and rules for adding new commands — lives in [.claude/rules/output-contract.md](.claude/rules/output-contract.md).
 
 Quick reference:
 
