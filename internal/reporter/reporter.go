@@ -55,6 +55,17 @@ type Reporter interface {
 	// invoke either Done or Fail on the returned ProgressBar.
 	Progress(msg string) ProgressBar
 
+	// Targets opens a target-centric, multi-row block where each id is one
+	// row. The implementation precomputes column widths from the full id
+	// list, so all identifiers MUST be supplied up front. Callers MUST
+	// invoke Close on the returned handle exactly once (defer it).
+	//
+	// See docs/design/output.md §4.1 / §5 — this is the primary primitive
+	// for run/diff/pull/rollback/edit/get/status output. It coexists with
+	// the older Step/Success/Spin/Checklist/Progress kinds during the
+	// migration; those are removed in Phase A3.
+	Targets(ids []string) Targets
+
 	// Data writes a machine-readable payload to stdout. Always emitted.
 	Data(p []byte)
 	// Diff writes a unified diff payload to stdout. Always emitted; colorized

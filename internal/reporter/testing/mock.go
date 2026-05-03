@@ -32,6 +32,10 @@ type MockReporter struct {
 	// ChecklistCalls records each checklist lifecycle: the initial item
 	// labels and every state transition.
 	ChecklistCalls []ChecklistCall
+
+	// TargetsCalls records each Targets lifecycle: the initial identifier
+	// list and every recorded transition.
+	TargetsCalls []TargetsCall
 }
 
 // ChecklistCall captures the lifecycle of a single Checklist invocation.
@@ -165,6 +169,7 @@ func (m *MockReporter) Clear() {
 	m.SpinnerCalls = nil
 	m.ProgressCalls = nil
 	m.ChecklistCalls = nil
+	m.TargetsCalls = nil
 }
 
 type mockSpinner struct {

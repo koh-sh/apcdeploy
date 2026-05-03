@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 	"testing"
 
@@ -173,5 +174,50 @@ func TestSilentReporter_ProgressStopIsSilent(t *testing.T) {
 	pb.Fail("late")
 	if errBuf.Len() != 0 {
 		t.Errorf("Fail after Stop must be a no-op; got %q", errBuf.String())
+	}
+}
+
+func TestSilentReporter_TargetsSuppressed(t *testing.T) {
+	t.Parallel()
+
+	r, out, errBuf := newTestSilentReporter()
+	tg := r.Targets([]string{"id"})
+	tg.SetPhase("id", "preparing", "")
+	tg.SetProgress("id", 0.5, 0)
+	tg.Done("id", "deployed (1s) — v1, AllAtOnce")
+	tg.Skip("id", "no changes")
+	tg.Close()
+
+	if out.Len() != 0 {
+		t.Errorf("Targets must not write to stdout: %q", out.String())
+	}
+	if errBuf.Len() != 0 {
+		t.Errorf("Targets non-fail kinds must be silent: %q", errBuf.String())
+	}
+}
+
+func TestSilentReporter_TargetsFailEmitsError(t *testing.T) {
+	t.Parallel()
+
+	r, _, errBuf := newTestSilentReporter()
+	tg := r.Targets([]string{"id"})
+	tg.Fail("id", errors.New("boom"))
+	tg.Close()
+
+	if !strings.Contains(errBuf.String(), "boom") {
+		t.Errorf("Fail should surface error message; got %q", errBuf.String())
+	}
+}
+
+func TestSilentReporter_TargetsFailNilErrorIsSilent(t *testing.T) {
+	t.Parallel()
+
+	r, _, errBuf := newTestSilentReporter()
+	tg := r.Targets([]string{"id"})
+	tg.Fail("id", nil)
+	tg.Close()
+
+	if errBuf.Len() != 0 {
+		t.Errorf("Fail with nil error must be silent; got %q", errBuf.String())
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"github.com/koh-sh/apcdeploy/internal/reporter"
 )
@@ -57,6 +58,13 @@ func (r *SilentReporter) Checklist(items []string) reporter.Checklist {
 // Error so that fatal failures still surface in scripts.
 func (r *SilentReporter) Progress(string) reporter.ProgressBar {
 	return &silentProgressBar{r: r}
+}
+
+// Targets returns a no-op Targets handle. Done/Skip/SetPhase/SetProgress are
+// silent; only Fail forwards to Error so that fatal failures still surface
+// in scripts.
+func (r *SilentReporter) Targets([]string) reporter.Targets {
+	return &silentTargets{r: r}
 }
 
 // Data writes a machine-readable payload to stdout. Always emitted.
@@ -126,4 +134,28 @@ func (p *silentProgressBar) Stop() {
 		return
 	}
 	p.finished = true
+}
+
+type silentTargets struct {
+	r      *SilentReporter
+	closed bool
+}
+
+func (t *silentTargets) SetPhase(string, string, string)            {}
+func (t *silentTargets) SetProgress(string, float64, time.Duration) {}
+func (t *silentTargets) Done(string, string)                        {}
+func (t *silentTargets) Skip(string, string)                        {}
+
+func (t *silentTargets) Fail(_ string, err error) {
+	if t.closed || err == nil {
+		return
+	}
+	t.r.Error(err.Error())
+}
+
+func (t *silentTargets) Close() {
+	if t.closed {
+		return
+	}
+	t.closed = true
 }
