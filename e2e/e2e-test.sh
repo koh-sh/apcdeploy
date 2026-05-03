@@ -37,16 +37,16 @@ $APCDEPLOY init --silent --app "$APP" --profile json-freeform --env dev --region
 use_strategy
 echo '{"v":"1"}' > data.json
 echo "Test verbose output (without --silent) to verify detailed logging works"
-# diff folds resolve + fetch-deployment + fetch-config into a single spinner.
-# In non-TTY mode the spinner emits only its Done line, which differs by
-# whether a prior deployment exists ("Loaded deployment data ..." vs "No prior
-# deployment ..."). The test only cares that *some* progress reaches stderr
-# (the spinner is the user-visible signal that work is happening), so we
-# match either message.
-$APCDEPLOY diff 2>&1 | grep -qE "(Loaded deployment data|No prior deployment)"
+# diff drives a single Targets row through `comparing` → `✓ <outcome>`.
+# Non-TTY mode emits a line per transition; the exact `<outcome>` (`no
+# changes`, `diff (N lines changed: ...)`, or `no prior deployment`) depends
+# on whether a prior deployment exists and whether local matches it. The
+# test only cares that *some* progress reaches stderr, so we match the
+# Targets transition vocabulary.
+$APCDEPLOY diff 2>&1 | grep -qE "(no changes|no prior deployment|diff \()"
 $APCDEPLOY diff | grep -q "v"
 echo "Test silent mode suppresses verbose output"
-if $APCDEPLOY diff --silent 2>&1 | grep -qE "(Loaded deployment data|No prior deployment)"; then
+if $APCDEPLOY diff --silent 2>&1 | grep -qE "(no changes|no prior deployment|diff \()"; then
     echo "ERROR: Silent mode should not show progress messages"
     exit 1
 fi
@@ -132,7 +132,7 @@ $APCDEPLOY run --wait-bake --silent
 
 EDITOR=$FAKE_EDITOR APCDEPLOY_EDIT_CONTENT='{"e":"new"}' $APCDEPLOY edit --region "$REGION" --app "$APP" --profile json-freeform --env dev --wait-bake --silent
 $APCDEPLOY get --silent --yes | jq -e '.e == "new"' > /dev/null
-EDITOR=$FAKE_EDITOR APCDEPLOY_EDIT_CONTENT='{"e":"new"}' $APCDEPLOY edit --region "$REGION" --app "$APP" --profile json-freeform --env dev 2>&1 | grep -q "No changes detected"
+EDITOR=$FAKE_EDITOR APCDEPLOY_EDIT_CONTENT='{"e":"new"}' $APCDEPLOY edit --region "$REGION" --app "$APP" --profile json-freeform --env dev 2>&1 | grep -q "no changes"
 if EDITOR=$FAKE_EDITOR APCDEPLOY_EDIT_CONTENT='not-json' $APCDEPLOY edit --region "$REGION" --app "$APP" --profile json-freeform --env dev --silent; then exit 1; fi
 
 echo "Description: default marker, explicit value, opt-out, length cap, edit"
@@ -199,11 +199,12 @@ echo "Edge cases: no deployment history, invalid timeout, missing required flags
 title "========== E5: Edge Cases =========="
 $APCDEPLOY init --silent --app "$APP" --profile error-test --env staging --region "$REGION" --force
 use_strategy
-# Run without `--silent` because the "no deployment" notice is now the spinner
-# Done message wrapping the deployment fetch — silent mode suppresses spinner
-# output (only Error / Data / Diff survive).
-$APCDEPLOY diff 2>&1 | grep -q "No prior deployment" || echo "⚠️  Deployment may exist"
-$APCDEPLOY status 2>&1 | grep -q "No deploy" || echo "⚠️  Deployment may exist"
+# Run without `--silent` because the "no deployment" notice is now part of
+# the Targets row's terminal state ("✓ no prior deployment" for diff,
+# "→ no deployment" for status) — silent mode suppresses Targets entirely
+# (only Error / Data / Diff survive).
+$APCDEPLOY diff 2>&1 | grep -q "no prior deployment" || echo "⚠️  Deployment may exist"
+$APCDEPLOY status 2>&1 | grep -q "no deployment" || echo "⚠️  Deployment may exist"
 
 # pull and edit must exit 2 (not 1) so scripts can distinguish "no prior deployment" from real errors.
 rc=0; $APCDEPLOY pull --silent || rc=$?; [ "$rc" -eq 2 ]

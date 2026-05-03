@@ -8,6 +8,7 @@ import (
 
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/cli"
+	apcerrors "github.com/koh-sh/apcdeploy/internal/errors"
 	"github.com/spf13/cobra"
 )
 
@@ -75,7 +76,18 @@ func Execute() {
 		// Funnel the top-level error through the Reporter so the styled "✗"
 		// prefix is consistent with the rest of stderr output. Both real and
 		// silent reporters always emit Error.
-		cli.GetReporter(silent).Error(err.Error())
+		rep := cli.GetReporter(silent)
+		rep.Error(err.Error())
+		// Append a Resolution: <hint> line when the underlying AWS error code
+		// has a documented remediation (output.md §8.3 / internal/errors).
+		// Emitted via Warn (⚠) instead of Error (✗) so the visual hierarchy is
+		// "what failed" first, "how to recover" second; both lines reach
+		// stderr even under --silent because Warn-via-the-real-reporter is
+		// suppressed by the silent variant — so the hint shows in interactive
+		// runs but not in piped/automation output.
+		if hint := apcerrors.Resolution(err); hint != "" {
+			rep.Warn("Resolution: " + hint)
+		}
 		// Exit 2 when the failure is "no prior deployment" so scripts can
 		// distinguish that condition (e.g. first-time setup) from real errors.
 		if errors.Is(err, awsInternal.ErrNoDeployment) {

@@ -36,7 +36,19 @@ func NewExecutorWithFactory(rep reporter.Reporter, factory func(context.Context,
 	}
 }
 
-// Execute performs the complete diff workflow
+// Execute performs the complete diff workflow.
+//
+// Output shape (docs/design/output.md §7.2):
+//   - changed:       ✓ diff (N lines changed) on the Targets row, unified diff
+//     on stdout (no `=== ===` header for N=1, per §7.2 stdout
+//     header rules).
+//   - no changes:    ✓ no changes on the Targets row, no stdout payload.
+//   - no deployment: ✓ no prior deployment on the Targets row, local data on
+//     stdout (acts as the right-hand side of the would-be diff).
+//   - errors:        ✗ failed: <message> on the Targets row.
+//
+// The in-progress deployment warning still bypasses the Reporter via display
+// (CONTRACT EXCEPTION) so scripts under --silent still see the risk note.
 func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	cfg, err := config.LoadConfig(opts.ConfigFile)
 	if err != nil {
@@ -53,51 +65,48 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 		return fmt.Errorf("failed to load local configuration file: %w", err)
 	}
 
-	// Resolve + GetLatestDeployment + GetHostedConfigurationVersion are folded
-	// into one user-facing phase ("load deployment data") because the user
-	// thinks of them as a single step — fetching the remote side of the diff.
-	sp := e.reporter.Spin("Loading deployment data...")
+	id := config.Identifier(awsClient.Region, cfg)
+	tg := e.reporter.Targets([]string{id})
+	defer tg.Close()
+	tg.SetPhase(id, "comparing", "")
+
 	resolver := aws.NewResolver(awsClient)
 	resources, err := resolver.ResolveAll(ctx, cfg.Application, cfg.ConfigurationProfile, cfg.Environment, cfg.DeploymentStrategy)
 	if err != nil {
-		sp.Stop()
+		tg.Fail(id, err)
 		return fmt.Errorf("failed to resolve resources: %w", err)
 	}
 
 	deployment, err := aws.GetLatestDeployment(ctx, awsClient, resources.ApplicationID, resources.EnvironmentID, resources.Profile.ID)
 	if err != nil {
-		sp.Stop()
+		tg.Fail(id, err)
 		return fmt.Errorf("failed to get latest deployment: %w", err)
 	}
 
-	// No prior deployment: emit the local data as the stdout payload (acts as
-	// the "right side" of the would-be diff) and surface the next-step hint
-	// via the Reporter so silent mode suppresses the human-facing parts
-	// automatically.
 	if deployment == nil {
-		sp.Done("No prior deployment — this will be the initial deployment")
-		e.reporter.Header("Local configuration")
+		tg.Done(id, "no prior deployment")
+		// The local data is the would-be initial deployment payload — emit it
+		// to stdout so consumers can pipe it into apcdeploy run / git apply.
 		e.reporter.Data(localData)
 		if len(localData) > 0 && localData[len(localData)-1] != '\n' {
 			e.reporter.Data([]byte("\n"))
 		}
-		e.reporter.Info("Run 'apcdeploy run' to create the first deployment.")
 		return nil
 	}
 
 	remoteData, err := aws.GetHostedConfigurationVersion(ctx, awsClient, resources.ApplicationID, resources.Profile.ID, deployment.ConfigurationVersion)
 	if err != nil {
-		sp.Stop()
+		tg.Fail(id, err)
 		return fmt.Errorf("failed to get deployed configuration: %w", err)
 	}
-	sp.Done(fmt.Sprintf("Loaded deployment data (deployment #%d, version %s)", deployment.DeploymentNumber, deployment.ConfigurationVersion))
 
 	diffResult, err := calculate(string(remoteData), string(localData), cfg.DataFile, resources.Profile.Type)
 	if err != nil {
+		tg.Fail(id, err)
 		return fmt.Errorf("failed to calculate diff: %w", err)
 	}
 
-	display(e.reporter, diffResult, cfg, resources, deployment)
+	display(e.reporter, tg, id, diffResult, deployment)
 
 	if opts.ExitNonzero && diffResult.HasChanges {
 		return ErrDiffFound

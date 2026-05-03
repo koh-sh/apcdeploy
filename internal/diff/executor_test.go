@@ -150,18 +150,19 @@ region: us-east-1
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// "No prior deployment" is now reported as the spinner's Done message
-	// rather than a separate Warn line.
+	// "no prior deployment" is now finalised on the Targets row's Done
+	// transition, and the local data is emitted as the stdout payload (it
+	// acts as the right-hand side of the would-be diff).
 	hasNotice := false
-	for _, msg := range reporter.Messages {
-		if strings.Contains(msg, "No prior deployment") {
-			hasNotice = true
-			break
+	for _, call := range reporter.TargetsCalls {
+		for _, tr := range call.Transitions {
+			if tr.Kind == "done" && strings.Contains(tr.Summary, "no prior deployment") {
+				hasNotice = true
+			}
 		}
 	}
-
 	if !hasNotice {
-		t.Errorf("expected 'No prior deployment' notice; got: %v", reporter.Messages)
+		t.Errorf("expected Targets.Done('no prior deployment'); got: %+v", reporter.TargetsCalls)
 	}
 }
 

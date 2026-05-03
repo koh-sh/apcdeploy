@@ -16,6 +16,7 @@ import (
 	"github.com/koh-sh/apcdeploy/internal/aws/mock"
 	"github.com/koh-sh/apcdeploy/internal/config"
 	promptTesting "github.com/koh-sh/apcdeploy/internal/prompt/testing"
+	"github.com/koh-sh/apcdeploy/internal/reporter"
 	reporterTesting "github.com/koh-sh/apcdeploy/internal/reporter/testing"
 )
 
@@ -142,8 +143,19 @@ func TestWorkflowHappyPath(t *testing.T) {
 		t.Errorf("expected inherited strategy, got %q", startedWithStrategy)
 	}
 
-	assertContainsMessage(t, rep.Messages, "Created configuration version 4")
-	assertContainsMessage(t, rep.Messages, "Started deployment #8")
+	// The Targets row's Done summary carries v<version> and the deployment
+	// addendum (no --wait flag → "started" verb with deployment #N).
+	foundDone := false
+	for _, call := range rep.TargetsCalls {
+		for _, tr := range call.Transitions {
+			if tr.Kind == "done" && strings.Contains(tr.Summary, "v4") && strings.Contains(tr.Summary, "deployment #8") {
+				foundDone = true
+			}
+		}
+	}
+	if !foundDone {
+		t.Errorf("expected Done summary mentioning 'v4' and 'deployment #8'; got: %+v", rep.TargetsCalls)
+	}
 }
 
 func TestWorkflowErrorsWhenNoDeployment(t *testing.T) {
@@ -204,7 +216,17 @@ func TestWorkflowSkipsWhenNoChanges(t *testing.T) {
 	if createCalled {
 		t.Error("CreateHostedConfigurationVersion should not be called when no changes")
 	}
-	assertContainsMessage(t, rep.Messages, "No changes detected")
+	foundSkip := false
+	for _, call := range rep.TargetsCalls {
+		for _, tr := range call.Transitions {
+			if tr.Kind == "skip" && strings.Contains(tr.Reason, "no changes") {
+				foundSkip = true
+			}
+		}
+	}
+	if !foundSkip {
+		t.Errorf("expected Targets.Skip with 'no changes'; got: %+v", rep.TargetsCalls)
+	}
 }
 
 func TestWorkflowRejectsInvalidJSON(t *testing.T) {
@@ -329,17 +351,6 @@ func TestWorkflowInteractiveSelection(t *testing.T) {
 	}
 }
 
-// assertContainsMessage fails the test if no reporter message contains substr.
-func assertContainsMessage(t *testing.T, messages []string, substr string) {
-	t.Helper()
-	for _, m := range messages {
-		if strings.Contains(m, substr) {
-			return
-		}
-	}
-	t.Errorf("expected message containing %q, got: %v", substr, messages)
-}
-
 func TestNewWorkflowWithProvidedRegion(t *testing.T) {
 	// With all flags provided, newWorkflow should succeed without touching AWS,
 	// using awsConfig.LoadDefaultConfig. We just need it to construct a workflow.
@@ -397,14 +408,14 @@ func TestNewWorkflowTTYCheckFails(t *testing.T) {
 	}
 }
 
-func TestResolveStrategyIDErrorsWhenNoneAvailable(t *testing.T) {
+func TestResolveStrategyErrorsWhenNoneAvailable(t *testing.T) {
 	t.Parallel()
 
 	client := &mock.MockAppConfigClient{}
 	awsClient := awsInternal.NewTestClient(client)
 	resolver := awsInternal.NewResolver(awsClient)
 
-	_, err := resolveStrategyID(context.Background(), resolver, "", "")
+	_, _, err := resolveStrategy(context.Background(), resolver, "", "")
 	if err == nil {
 		t.Fatal("expected error when no strategy provided or inherited")
 	}
@@ -413,7 +424,35 @@ func TestResolveStrategyIDErrorsWhenNoneAvailable(t *testing.T) {
 	}
 }
 
-func TestResolveStrategyIDFlagResolveFails(t *testing.T) {
+// TestResolveStrategyFallsBackToIDOnNameLookupFailure ensures that when the
+// inherited strategy ID cannot be resolved to a human-readable name (e.g.
+// transient ListDeploymentStrategies failure, missing IAM permissions), the
+// returned display name falls back to the ID rather than aborting the entire
+// edit. This is the documented contract in resolveStrategy.
+func TestResolveStrategyFallsBackToIDOnNameLookupFailure(t *testing.T) {
+	t.Parallel()
+
+	client := &mock.MockAppConfigClient{
+		ListDeploymentStrategiesFunc: func(ctx context.Context, params *appconfig.ListDeploymentStrategiesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentStrategiesOutput, error) {
+			return nil, fmt.Errorf("transient AWS failure")
+		},
+	}
+	awsClient := awsInternal.NewTestClient(client)
+	resolver := awsInternal.NewResolver(awsClient)
+
+	id, name, err := resolveStrategy(context.Background(), resolver, "", "strategy-xyz")
+	if err != nil {
+		t.Fatalf("expected fallback rather than error, got: %v", err)
+	}
+	if id != "strategy-xyz" {
+		t.Errorf("id = %q, want strategy-xyz", id)
+	}
+	if name != "strategy-xyz" {
+		t.Errorf("expected name to fall back to ID; got %q", name)
+	}
+}
+
+func TestResolveStrategyFlagResolveFails(t *testing.T) {
 	t.Parallel()
 
 	client := &mock.MockAppConfigClient{
@@ -424,7 +463,7 @@ func TestResolveStrategyIDFlagResolveFails(t *testing.T) {
 	awsClient := awsInternal.NewTestClient(client)
 	resolver := awsInternal.NewResolver(awsClient)
 
-	_, err := resolveStrategyID(context.Background(), resolver, "MyStrategy", "")
+	_, _, err := resolveStrategy(context.Background(), resolver, "MyStrategy", "")
 	if err == nil {
 		t.Fatal("expected error when strategy resolution fails")
 	}
@@ -436,7 +475,7 @@ func TestResolveStrategyIDFlagResolveFails(t *testing.T) {
 func TestWaitIfRequested(t *testing.T) {
 	t.Parallel()
 
-	makeWorkflow := func(states []types.DeploymentState) (*workflow, *reporterTesting.MockReporter) {
+	makeWorkflowAndTargets := func(states []types.DeploymentState) (*workflow, *reporterTesting.MockReporter, *resolvedTargets, reporter.Targets, string) {
 		callCount := 0
 		client := &mock.MockAppConfigClient{
 			GetDeploymentFunc: func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
@@ -448,54 +487,88 @@ func TestWaitIfRequested(t *testing.T) {
 		awsClient := awsInternal.NewTestClient(client)
 		awsClient.PollingInterval = 10 * time.Millisecond
 		rep := &reporterTesting.MockReporter{}
-		return newWorkflowWithClient(awsClient, &promptTesting.MockPrompter{}, rep), rep
+		wf := newWorkflowWithClient(awsClient, &promptTesting.MockPrompter{}, rep)
+		t := &resolvedTargets{
+			AppName: "test-app",
+			AppID:   "app",
+			EnvName: "test-env",
+			EnvID:   "env",
+			Profile: &awsInternal.ProfileInfo{ID: "profile-id", Name: "test-profile", Type: "AWS.Freeform"},
+		}
+		id := t.Identifier(awsClient.Region)
+		tg := rep.Targets([]string{id})
+		return wf, rep, t, tg, id
 	}
 
-	t.Run("no wait emits warning", func(t *testing.T) {
+	t.Run("no wait finalises Targets with 'started'", func(t *testing.T) {
 		t.Parallel()
-		wf, rep := makeWorkflow([]types.DeploymentState{types.DeploymentStateComplete})
-		if err := wf.waitIfRequested(context.Background(), "app", "env", 5, &Options{Timeout: 1}); err != nil {
+		wf, rep, tgts, tg, id := makeWorkflowAndTargets([]types.DeploymentState{types.DeploymentStateComplete})
+		if err := wf.waitIfRequested(context.Background(), tg, id, tgts, 5, 7, "AppConfig.AllAtOnce", time.Now(), &Options{Timeout: 1}); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		assertContainsMessage(t, rep.Messages, "Deployment #5 is in progress")
-	})
-
-	t.Run("wait-deploy stops at baking", func(t *testing.T) {
-		t.Parallel()
-		wf, rep := makeWorkflow([]types.DeploymentState{types.DeploymentStateBaking})
-		if err := wf.waitIfRequested(context.Background(), "app", "env", 5, &Options{WaitDeploy: true, Timeout: 2}); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		tg.Close()
+		foundStarted := false
+		for _, call := range rep.TargetsCalls {
+			for _, tr := range call.Transitions {
+				if tr.Kind == "done" && strings.Contains(tr.Summary, "started") && strings.Contains(tr.Summary, "deployment #5") {
+					foundStarted = true
+				}
+			}
 		}
-		assertContainsMessage(t, rep.Messages, "Deployment phase completed")
-	})
-
-	t.Run("wait-bake waits for complete", func(t *testing.T) {
-		t.Parallel()
-		wf, rep := makeWorkflow([]types.DeploymentState{types.DeploymentStateComplete})
-		if err := wf.waitIfRequested(context.Background(), "app", "env", 5, &Options{WaitBake: true, Timeout: 2}); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		assertContainsMessage(t, rep.Messages, "Deployment completed successfully")
-
-		// --wait-bake must split into a deploy progress bar (real rollout
-		// %) and a bake spinner (monitoring wait, no quantified progress)
-		// so the user gets feedback during the bake window without being
-		// misled into thinking deployment work is still happening.
-		if got := len(rep.ProgressCalls); got != 1 {
-			t.Fatalf("expected 1 progress bar (deploy), got %d: %+v", got, rep.ProgressCalls)
-		}
-		if rep.ProgressCalls[0].StartMessage != "Deploying..." {
-			t.Errorf("deploy progress bar start = %q, want %q", rep.ProgressCalls[0].StartMessage, "Deploying...")
-		}
-		if got := len(rep.SpinnerCalls); got != 1 {
-			t.Fatalf("expected 1 spinner (bake), got %d: %+v", got, rep.SpinnerCalls)
-		}
-		if rep.SpinnerCalls[0].StartMessage != "Baking..." {
-			t.Errorf("bake spinner start = %q, want %q", rep.SpinnerCalls[0].StartMessage, "Baking...")
+		if !foundStarted {
+			t.Errorf("expected Done summary mentioning 'started' and 'deployment #5'; got: %+v", rep.TargetsCalls)
 		}
 	})
 
-	t.Run("wait-deploy propagates error", func(t *testing.T) {
+	t.Run("wait-deploy finalises Targets with 'deployed'", func(t *testing.T) {
+		t.Parallel()
+		wf, rep, tgts, tg, id := makeWorkflowAndTargets([]types.DeploymentState{types.DeploymentStateBaking})
+		if err := wf.waitIfRequested(context.Background(), tg, id, tgts, 5, 7, "AppConfig.AllAtOnce", time.Now(), &Options{WaitDeploy: true, Timeout: 2}); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		tg.Close()
+		foundDeployed := false
+		for _, call := range rep.TargetsCalls {
+			for _, tr := range call.Transitions {
+				if tr.Kind == "done" && strings.Contains(tr.Summary, "deployed") {
+					foundDeployed = true
+				}
+			}
+		}
+		if !foundDeployed {
+			t.Errorf("expected Done summary with 'deployed'; got: %+v", rep.TargetsCalls)
+		}
+	})
+
+	t.Run("wait-bake finalises Targets with 'complete' and visits baking sub-phase", func(t *testing.T) {
+		t.Parallel()
+		wf, rep, tgts, tg, id := makeWorkflowAndTargets([]types.DeploymentState{types.DeploymentStateComplete})
+		if err := wf.waitIfRequested(context.Background(), tg, id, tgts, 5, 7, "AppConfig.AllAtOnce", time.Now(), &Options{WaitBake: true, Timeout: 2}); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		tg.Close()
+
+		seenBaking := false
+		foundComplete := false
+		for _, call := range rep.TargetsCalls {
+			for _, tr := range call.Transitions {
+				if tr.Kind == "phase" && tr.Phase == "baking" {
+					seenBaking = true
+				}
+				if tr.Kind == "done" && strings.Contains(tr.Summary, "complete") {
+					foundComplete = true
+				}
+			}
+		}
+		if !seenBaking {
+			t.Errorf("expected baking sub-phase transition; got: %+v", rep.TargetsCalls)
+		}
+		if !foundComplete {
+			t.Errorf("expected Done summary with 'complete'; got: %+v", rep.TargetsCalls)
+		}
+	})
+
+	t.Run("wait-deploy propagates error and Fails the row", func(t *testing.T) {
 		t.Parallel()
 		client := &mock.MockAppConfigClient{
 			GetDeploymentFunc: func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
@@ -504,13 +577,33 @@ func TestWaitIfRequested(t *testing.T) {
 		}
 		awsClient := awsInternal.NewTestClient(client)
 		awsClient.PollingInterval = 10 * time.Millisecond
-		wf := newWorkflowWithClient(awsClient, &promptTesting.MockPrompter{}, &reporterTesting.MockReporter{})
-		err := wf.waitIfRequested(context.Background(), "app", "env", 5, &Options{WaitDeploy: true, Timeout: 1})
+		rep := &reporterTesting.MockReporter{}
+		wf := newWorkflowWithClient(awsClient, &promptTesting.MockPrompter{}, rep)
+		tgts := &resolvedTargets{
+			AppName: "test-app", AppID: "app",
+			EnvName: "test-env", EnvID: "env",
+			Profile: &awsInternal.ProfileInfo{ID: "profile-id", Name: "test-profile", Type: "AWS.Freeform"},
+		}
+		id := tgts.Identifier(awsClient.Region)
+		tg := rep.Targets([]string{id})
+		err := wf.waitIfRequested(context.Background(), tg, id, tgts, 5, 7, "AppConfig.AllAtOnce", time.Now(), &Options{WaitDeploy: true, Timeout: 1})
 		if err == nil {
 			t.Fatal("expected error from wait")
 		}
 		if !strings.Contains(err.Error(), "deployment failed") {
 			t.Errorf("expected wrapped deployment error, got: %v", err)
+		}
+		tg.Close()
+		foundFail := false
+		for _, call := range rep.TargetsCalls {
+			for _, tr := range call.Transitions {
+				if tr.Kind == "fail" {
+					foundFail = true
+				}
+			}
+		}
+		if !foundFail {
+			t.Errorf("expected Targets.Fail; got: %+v", rep.TargetsCalls)
 		}
 	})
 }
@@ -680,6 +773,11 @@ func TestWorkflowFeatureFlagsIgnoresMetadata(t *testing.T) {
 				ContentType: aws.String(config.ContentTypeJSON),
 			}, nil
 		},
+		ListDeploymentStrategiesFunc: func(ctx context.Context, params *appconfig.ListDeploymentStrategiesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentStrategiesOutput, error) {
+			return &appconfig.ListDeploymentStrategiesOutput{
+				Items: []types.DeploymentStrategy{{Id: aws.String("strategy-1"), Name: aws.String("AppConfig.AllAtOnce")}},
+			}, nil
+		},
 	}
 
 	awsClient := awsInternal.NewTestClient(client)
@@ -697,7 +795,17 @@ func TestWorkflowFeatureFlagsIgnoresMetadata(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	assertContainsMessage(t, rep.Messages, "No changes detected")
+	foundSkip := false
+	for _, call := range rep.TargetsCalls {
+		for _, tr := range call.Transitions {
+			if tr.Kind == "skip" && strings.Contains(tr.Reason, "no changes") {
+				foundSkip = true
+			}
+		}
+	}
+	if !foundSkip {
+		t.Errorf("expected Targets.Skip with 'no changes'; got: %+v", rep.TargetsCalls)
+	}
 }
 
 // TestWorkflowForwardsDescription verifies that opts.Description reaches both

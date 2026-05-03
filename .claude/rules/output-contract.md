@@ -8,6 +8,10 @@ The contract is enforced by the `internal/reporter` interface and its
 `internal/cli` implementations. Executors MUST NOT call `fmt.Fprint*` directly;
 all output flows through the `Reporter`.
 
+The visual model and per-command screen designs live in
+`docs/design/output.md`. This file is the implementation-level contract — the
+"rules" — while `output.md` is the "picture".
+
 ## Channels
 
 | Channel | Purpose | `--silent` |
@@ -28,42 +32,58 @@ silent-mode behavior, and visual treatment.
 
 | Kind | Channel | `--silent` | Visual (TTY) | Use for |
 |---|---|---|---|---|
-| `Step(msg)` | stderr | suppressed | `⏳` + dim | Starting a long-running step |
-| `Success(msg)` | stderr | suppressed | `✓` + green | Step completion |
-| `Info(msg)` | stderr | suppressed | `ℹ` + cyan | Neutral information ("no deployment found, creating without data") |
-| `Warn(msg)` | stderr | suppressed | `⚠` + yellow | Non-fatal anomaly the user should notice |
+| `Targets(ids) Targets` | stderr | suppressed; non-TTY: line per phase transition / threshold | identifier-aligned multi-row block with state icon, phase, optional progress bar | All deployment-target lifecycles (`run` / `diff` / `pull` / `rollback` / `edit` / `get --yes` / `status`) |
+| `Header(title)` | stderr | suppressed | bold + rule line | Section heading (e.g. `init` / `ls-resources`) |
+| `Box(title, lines)` | stderr | suppressed | bordered card | Multi-line panel (`init`'s "Next steps", `status`'s no-deployment guidance) |
+| `Table(headers, rows)` | stderr | suppressed | lipgloss table | Structured key/value or row data (`status` detail, `ls-resources`) |
+| `Warn(msg)` | stderr | suppressed | `⚠` + yellow | Non-fatal anomaly the user should notice (`get` cost notice) |
 | `Error(msg)` | stderr | **always shown** | `✗` + red | Fatal error (used only by `cmd/root.go`) |
-| `Header(title)` | stderr | suppressed | bold + rule line | Section heading (e.g. "Configuration Diff") |
-| `Box(title, lines)` | stderr | suppressed | bordered card | Multi-line panel (e.g. init's "Next steps") |
-| `Table(headers, rows)` | stderr | suppressed | lipgloss table | Structured key/value or row data |
-| `Spin(msg) Spinner` | stderr | suppressed; non-TTY: silent until `Done`/`Fail` emits the completion line | animated frames | Single-phase live indicator wrapping a long call |
-| `Checklist(items) Checklist` | stderr | suppressed; non-TTY: silent except completion line per `Done`/`Fail`/`Skip` | live block of `○ ⠋ ✓ ✗ →` items | Multi-phase progress where every phase is known up-front |
-| `Progress(msg) ProgressBar` | stderr | suppressed; non-TTY: `Step` at thresholds | live bar with `[####  ] 50%` | Percentage progress for long operations (deployment monitoring) |
+| `Step(msg)` | stderr | suppressed | `⏳` + dim | **`init` only** — sequential workflow step announcement |
+| `Success(msg)` | stderr | suppressed | `✓` + green | **`init` only** — sequential workflow step completion |
+| `Info(msg)` | stderr | suppressed | `ℹ` + cyan | **`init` only** — neutral information ("no deployment found, creating without data") |
+| `Spin(msg) Spinner` | stderr | suppressed; non-TTY: silent until `Done`/`Fail` emits the completion line | animated frames | **`init` only** — single-phase live indicator wrapping a long call |
 | `Data(p []byte)` | **stdout** | **always shown** | none | Machine-readable payload |
 | `Diff(p []byte)` | **stdout** | **always shown** | colorized when TTY | Unified diff payload |
 
-`Spinner` is `interface { Update(msg string); Done(msg string); Fail(msg
-string); Stop() }`. `Update` swaps the animated label without changing the
-running state — useful for countdown-style mid-flight labels (e.g. "Baking…
-(~5 min left)"); on non-TTY output it is silent. `Done` emits a
-`Success`-equivalent line; `Fail` emits an `Error`-equivalent line on stderr;
+`Targets` is the primary primitive (see `docs/design/output.md` §4). Every
+deployment-target command tracks its lifecycle through a `Targets` block where
+each `id` is one row and the row's state icon, phase label, and optional
+progress bar are driven from the executor. `Step` / `Success` / `Info` /
+`Spin` are retained only for `init`, which is fundamentally a sequential
+interactive workflow that does not fit the target-centric model
+(`docs/design/output.md` §11 Q-1).
+
+`Targets` is `interface { SetPhase(id, phase, detail string); SetProgress(id
+string, percent float64, eta time.Duration); Done(id, summary string);
+Fail(id string, err error); Skip(id, reason string); Close() }`. All
+identifiers MUST be supplied to the constructor up front — the implementation
+precomputes column widths and cannot accept new rows mid-flight. `Done` /
+`Fail` / `Skip` are sticky: subsequent calls against the same id are
+ignored. Callers MUST `defer tg.Close()` immediately after construction;
+forgetting Close leaks the rendering goroutine.
+
+`Spinner` (returned by `Spin`) is `interface { Update(msg string); Done(msg
+string); Fail(msg string); Stop() }`. `Update` swaps the animated label
+without changing the running state; on non-TTY output it is silent. `Done`
+emits a `Success`-equivalent line; `Fail` emits an `Error`-equivalent line;
 `Stop` terminates silently.
 
-`Checklist` is `interface { Start(idx int); Done(idx int, msg string); Fail(idx
-int, msg string); Skip(idx int, msg string); Close() }`. Items are referenced
-by their zero-based index in the labels slice. `Start` flips an item to the
-animated state, `Done`/`Fail`/`Skip` finalize it (with `msg` overriding the
-original label when non-empty), and `Close` releases the rendering goroutine
-(callers MUST invoke it exactly once — defer it). Use `Checklist` instead of a
-sequence of `Spin` calls when the work has a known, multi-phase plan; use
-`Spin` for one-off long calls.
+## Phases and state icons (Targets)
 
-`ProgressBar` is `interface { Update(percent float64, msg string); Done(msg
-string); Fail(msg string); Stop() }`. `Update` advances the bar (`percent` is
-clamped to `[0.0, 1.0]`). `Done` finalizes with a `Success`-equivalent line;
-`Fail` finalizes with an `Error`-equivalent line. `Stop` finalizes silently —
-use it when the surrounding caller will emit its own terminal line so the bar
-does not double-print. Exactly one of `Done`/`Fail`/`Stop` MUST be called.
+Each Targets row progresses through these states (`docs/design/output.md` §3):
+
+| State | Icon | Color | Meaning |
+|---|---|---|---|
+| pending | `○` | dim | initial state before `SetPhase` |
+| running | `⠋` (spinner) | step blue | active sub-phase (preparing / comparing / creating-version / deploying / baking) |
+| running with progress | `█░` bar | green/dim | deploying with quantified rollout % |
+| done | `✓` | green | terminal success (`Targets.Done`) |
+| failed | `✗` | red | terminal failure (`Targets.Fail`) |
+| skipped | `→` | dim | terminal early-exit / no-op (`Targets.Skip`) |
+
+Phase verbs are limited to: `preparing`, `comparing`, `creating-version`,
+`deploying`, `baking`, `fetching`, `stopping`. New verbs require an entry in
+`output.md` §3.2.
 
 ## Confirmations
 
@@ -82,8 +102,10 @@ Reporter kind — they live in `internal/prompt`. The contract for confirmations
 `--silent` (alias `-s`) is a global flag that swaps the concrete Reporter for a
 silent variant. Rules:
 
-- Silent mode suppresses Step / Success / Info / Warn / Header / Box / Table /
-  Spin / Checklist / Progress entirely.
+- Silent mode suppresses Targets / Step / Success / Info / Warn / Header / Box
+  / Table / Spin entirely. `Targets.Fail` is the lone exception — its
+  underlying error is forwarded through `Error` so fatal failures still
+  surface in scripts.
 - Silent mode preserves Error (always to stderr) and Data / Diff (always to
   stdout) so scripts still receive errors and payloads.
 - Silent mode does NOT change confirmation behavior — the user still must pass
@@ -96,15 +118,14 @@ silent variant. Rules:
 
 When stderr is not a TTY (CI, pipes, redirects), the Reporter degrades:
 
+- `Targets`:
+  - In TTY mode the rows redraw in place on every state / progress change.
+  - In non-TTY mode each phase transition emits a new `<id>: <phase>
+    [<detail>]` line and progress is decimated to 25 / 50 / 75 / 100 %
+    thresholds. Done / Fail / Skip emit a single terminal line per row.
 - `Spin` stays silent until the caller invokes `Done`/`Fail`, which emit a
   single `Success`/`Error` line. The starting message is dropped so logs only
   record terminal states.
-- `Checklist` likewise stays silent until each item's `Done`/`Fail`/`Skip`
-  fires; those emit a `Success`/`Error`/`Info` line respectively. There is no
-  pre-printed pending list and no per-item Start announcement.
-- `Progress` collapses to coarse `Step` lines emitted only when crossing 25 /
-  50 / 75 / 100 % thresholds; `ProgressBar.Done`/`Fail` emit the same
-  `Success`/`Error` lines as the TTY path.
 - `Header` / `Box` / `Table` drop borders and color but keep structure (plain
   text with the same content).
 - `Diff` drops ANSI color so piped consumers get clean text.
@@ -114,10 +135,11 @@ When stderr is not a TTY (CI, pipes, redirects), the Reporter degrades:
 
 - All color comes from `lipgloss` styles defined in `internal/cli/style.go`.
 - `lipgloss` honors `NO_COLOR`; setting it disables color globally.
-- Symbols (`⏳ ✓ ℹ ⚠ ✗ ○ →`) MUST be the only emoji-like glyphs used. `○` and
-  `→` are reserved for `Checklist` (pending and skip respectively); the rest
-  are used as line prefixes by their corresponding kinds. No other emoji in
-  CLI output.
+- Symbols (`✓ ✗ ⊘ ⚠ ℹ ⠋ → █ ░ ⏳ ○`) MUST be the only emoji-like glyphs used.
+  `→` and `○` are reserved for `Targets` (skip / pending), `█` and `░` for
+  the progress bar, and the rest are line prefixes for their corresponding
+  kinds. `⏳` survives only for `init`'s `Step` lines. No other emoji in CLI
+  output.
 
 ## Documented exceptions
 
@@ -152,14 +174,34 @@ without adding a similar entry here.
 
 ## Adding a new command
 
-1. Decide what (if anything) goes to stdout — that is your `Data` or `Diff` payload.
-2. Pick Reporter kinds for everything else. A typical command issues:
-   - One `Spin` for a single AWS round-trip, OR a `Checklist` for a known
-     multi-phase plan (defer `Close()` immediately).
-   - Optional `Header` + `Table` for a final summary; `Box` for next-step
-     guidance.
-   - Do not emit a `Step` for instant operations (file reads, validation,
-     content-type detection). Failures will surface via the returned error;
-     the absence of an error is the success signal.
-3. Wire the command to `cli.GetReporter(silent)` in `cmd/<name>.go`.
-4. Do not branch on `opts.Silent` inside the executor.
+1. Decide what (if anything) goes to stdout — that is your `Data` or `Diff`
+   payload.
+2. Pick Reporter kinds for everything else. The default shape for a
+   deployment-target command is:
+   - Build the canonical identifier with `config.Identifier(region, cfg)`.
+   - Open a `Targets` block, `defer tg.Close()`, drive the row through
+     `SetPhase` / `SetProgress` and finalise with `Done` / `Fail` / `Skip`.
+   - Optional `Header` + `Table` / `Box` for a final summary or guidance.
+   - Do not emit any phase transition for instant operations (file reads,
+     validation, content-type detection). Failures surface via the returned
+     error; the absence of an error is the success signal.
+   - For wait phases, use `run.MakeTargetsDeployTick` /
+     `run.MakeTargetsBakeTick` to drive the row from the AWS polling tick
+     callbacks.
+3. For a non-target sequential workflow (`init`-style), use `Step` /
+   `Success` / `Info` / `Spin` instead. New commands should justify why they
+   need this path rather than `Targets` — most deployment-flavoured commands
+   fit `Targets`.
+4. Wire the command to `cli.GetReporter(silent)` in `cmd/<name>.go`.
+5. Do not branch on `opts.Silent` inside the executor.
+
+## Resolution hints
+
+When emitting a `Targets.Fail` whose underlying error is an AWS API error,
+the command may consult `internal/errors.Resolution(err)` to look up a
+short user-facing remediation hint (e.g. "wait for the current deployment to
+complete or run 'apcdeploy rollback'"). Hints exist only for the small set of
+AWS error codes documented in `internal/errors/resolution.go`; callers MUST
+NOT invent new hints inline. To add a hint, add an entry to
+`resolutionHints` and document the rationale in
+`docs/design/output.md` §8.3.

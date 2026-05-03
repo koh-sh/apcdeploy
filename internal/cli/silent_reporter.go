@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"github.com/koh-sh/apcdeploy/internal/reporter"
 )
@@ -47,16 +48,11 @@ func (r *SilentReporter) Spin(string) reporter.Spinner {
 	return &silentSpinner{r: r}
 }
 
-// Checklist returns a no-op checklist. Done/Skip are silent; only Fail
-// forwards to Error so that fatal failures still surface in scripts.
-func (r *SilentReporter) Checklist(items []string) reporter.Checklist {
-	return newSilentChecklist(r, items)
-}
-
-// Progress returns a no-op progress bar. Done is silent; Fail forwards to
-// Error so that fatal failures still surface in scripts.
-func (r *SilentReporter) Progress(string) reporter.ProgressBar {
-	return &silentProgressBar{r: r}
+// Targets returns a no-op Targets handle. Done/Skip/SetPhase/SetProgress are
+// silent; only Fail forwards to Error so that fatal failures still surface
+// in scripts.
+func (r *SilentReporter) Targets([]string) reporter.Targets {
+	return &silentTargets{r: r}
 }
 
 // Data writes a machine-readable payload to stdout. Always emitted.
@@ -99,31 +95,28 @@ func (s *silentSpinner) Stop() {
 	s.finished = true
 }
 
-type silentProgressBar struct {
-	r        *SilentReporter
-	finished bool
+var _ reporter.Targets = (*silentTargets)(nil)
+
+type silentTargets struct {
+	r      *SilentReporter
+	closed bool
 }
 
-func (p *silentProgressBar) Update(float64, string) {}
+func (t *silentTargets) SetPhase(string, string, string)            {}
+func (t *silentTargets) SetProgress(string, float64, time.Duration) {}
+func (t *silentTargets) Done(string, string)                        {}
+func (t *silentTargets) Skip(string, string)                        {}
 
-func (p *silentProgressBar) Done(string) {
-	if p.finished {
+func (t *silentTargets) Fail(_ string, err error) {
+	if t.closed || err == nil {
 		return
 	}
-	p.finished = true
+	t.r.Error(err.Error())
 }
 
-func (p *silentProgressBar) Fail(msg string) {
-	if p.finished {
+func (t *silentTargets) Close() {
+	if t.closed {
 		return
 	}
-	p.finished = true
-	p.r.Error(msg)
-}
-
-func (p *silentProgressBar) Stop() {
-	if p.finished {
-		return
-	}
-	p.finished = true
+	t.closed = true
 }
