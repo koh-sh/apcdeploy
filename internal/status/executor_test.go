@@ -2,6 +2,7 @@ package status
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -145,22 +146,28 @@ region: us-east-1
 	}
 
 	err = executor.Execute(context.Background(), opts)
-	if err != nil {
-		t.Errorf("expected no error for no deployments case, got: %v", err)
+	// Status returns aws.ErrNoDeployment for the no-deployment case so
+	// cmd/root.go can map it to exit code 2 (output.md §7.4 (d) / §8.6).
+	if !errors.Is(err, awsInternal.ErrNoDeployment) {
+		t.Fatalf("expected aws.ErrNoDeployment, got: %v", err)
 	}
 
-	// "No deployments" is now reported as the spinner's Done message rather
-	// than a separate Warn line, so the user sees the result inline with the
-	// fetch-deployment phase.
-	foundCompletion := false
-	for _, msg := range reporter.Messages {
-		if strings.Contains(msg, "spin-done") && strings.Contains(msg, "No deployments found") {
-			foundCompletion = true
-			break
+	// The Targets row finalises with Skip("no deployment").
+	foundSkip := false
+	for _, call := range reporter.TargetsCalls {
+		for _, tr := range call.Transitions {
+			if tr.Kind == "skip" && strings.Contains(tr.Reason, "no deployment") {
+				foundSkip = true
+			}
 		}
 	}
-	if !foundCompletion {
-		t.Errorf("expected spinner Done with 'No deployments found'; got: %v", reporter.Messages)
+	if !foundSkip {
+		t.Errorf("expected Targets.Skip('no deployment'); got: %+v", reporter.TargetsCalls)
+	}
+
+	// stdout payload is "NONE\n" so scripts can branch on it under --silent.
+	if got := string(reporter.Stdout); got != "NONE\n" {
+		t.Errorf("expected stdout 'NONE\\n', got %q", got)
 	}
 }
 
@@ -608,16 +615,19 @@ region: us-east-1
 		t.Errorf("expected no error, got: %v", err)
 	}
 
-	// Verify that the correct deployment ID was fetched
-	foundProgress := false
-	for _, msg := range reporter.Messages {
-		if strings.Contains(msg, "Fetching deployment #3") {
-			foundProgress = true
-			break
+	// The Targets row's SetPhase carries "(deployment #3)" as the detail so
+	// the user sees which deployment is being fetched even before the row
+	// finalises.
+	foundDetail := false
+	for _, call := range reporter.TargetsCalls {
+		for _, tr := range call.Transitions {
+			if tr.Kind == "phase" && strings.Contains(tr.Detail, "deployment #3") {
+				foundDetail = true
+			}
 		}
 	}
-	if !foundProgress {
-		t.Error("expected progress message for deployment #3")
+	if !foundDetail {
+		t.Errorf("expected Targets phase detail mentioning 'deployment #3'; got: %+v", reporter.TargetsCalls)
 	}
 }
 
