@@ -351,17 +351,6 @@ func TestWorkflowInteractiveSelection(t *testing.T) {
 	}
 }
 
-// assertContainsMessage fails the test if no reporter message contains substr.
-func assertContainsMessage(t *testing.T, messages []string, substr string) {
-	t.Helper()
-	for _, m := range messages {
-		if strings.Contains(m, substr) {
-			return
-		}
-	}
-	t.Errorf("expected message containing %q, got: %v", substr, messages)
-}
-
 func TestNewWorkflowWithProvidedRegion(t *testing.T) {
 	// With all flags provided, newWorkflow should succeed without touching AWS,
 	// using awsConfig.LoadDefaultConfig. We just need it to construct a workflow.

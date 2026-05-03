@@ -40,11 +40,11 @@ func NewExecutorWithFactory(rep reporter.Reporter, factory func(context.Context,
 //
 // Output shape (docs/design/output.md §7.2):
 //   - changed:       ✓ diff (N lines changed) on the Targets row, unified diff
-//                    on stdout (no `=== ===` header for N=1, per §7.2 stdout
-//                    header rules).
+//     on stdout (no `=== ===` header for N=1, per §7.2 stdout
+//     header rules).
 //   - no changes:    ✓ no changes on the Targets row, no stdout payload.
 //   - no deployment: ✓ no prior deployment on the Targets row, local data on
-//                    stdout (acts as the right-hand side of the would-be diff).
+//     stdout (acts as the right-hand side of the would-be diff).
 //   - errors:        ✗ failed: <message> on the Targets row.
 //
 // The in-progress deployment warning still bypasses the Reporter via display

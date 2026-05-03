@@ -307,12 +307,12 @@ region: us-east-1
 // than a progress bar that would imply quantified rollout work.
 func TestExecutorFullWorkflowWithWait(t *testing.T) {
 	tests := []struct {
-		name           string
-		waitDeploy     bool
-		waitBake       bool
-		mockStates     []types.DeploymentState
-		wantVerb       string // verb expected in the Targets.Done summary
-		wantBakingPhase bool  // whether SetPhase("baking", ...) is expected
+		name            string
+		waitDeploy      bool
+		waitBake        bool
+		mockStates      []types.DeploymentState
+		wantVerb        string // verb expected in the Targets.Done summary
+		wantBakingPhase bool   // whether SetPhase("baking", ...) is expected
 	}{
 		{
 			name:            "wait for bake: immediate completion",

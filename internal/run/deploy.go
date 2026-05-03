@@ -147,54 +147,6 @@ func (d *Deployer) WaitForBakingComplete(ctx context.Context, resolved *aws.Reso
 	return d.awsClient.WaitForBakingComplete(ctx, resolved.ApplicationID, resolved.EnvironmentID, deploymentNumber, timeout, onTick)
 }
 
-// MakeDeployTick returns an aws.DeploymentTickFunc that drives a deploy
-// progress bar. While DEPLOYING the bar reflects AppConfig's
-// PercentageComplete; once BAKING (or COMPLETE) is observed the percentage
-// pins at 100% and the label switches to bakingLabel.
-//
-// bakingLabel encodes how the deploy bar terminates relative to the
-// surrounding wait orchestration:
-//   - "Baking..."     when this bar is the only progress UI (--wait-deploy):
-//     the wait loop exits as soon as BAKING is observed, so
-//     the user briefly sees the bar pinned at 100% with the
-//     bake label before pb.Done() prints the success line.
-//   - "Deploying..."  when a separate spinner takes over for bake
-//     (--wait-bake): the deploy bar is finalized and a
-//     dedicated bake spinner is started after pb.Done().
-//
-// The "(~N min left)" suffix is wall-clock based (totalDuration minus
-// locally tracked elapsed time) so non-linear growth strategies
-// (EXPONENTIAL) report honest remaining time. The bar percentage is left as
-// AppConfig's PercentageComplete so the rollout-progress reading is not
-// fabricated.
-//
-// Currently shared between `run` and `edit` only. If a third caller appears,
-// move this to a neutral location (e.g. internal/aws or a new internal
-// package) so feature packages stop reaching across to `run` for the helper.
-func MakeDeployTick(pb reporter.ProgressBar, bakingLabel string) aws.DeploymentTickFunc {
-	waitStart := time.Now()
-	return func(state types.DeploymentState, percent float64, totalDuration time.Duration) {
-		if state == types.DeploymentStateBaking || state == types.DeploymentStateComplete {
-			pb.Update(100, bakingLabel)
-			return
-		}
-		elapsed := time.Since(waitStart)
-		pb.Update(percent, "Deploying..."+remainingFromElapsedSuffix(elapsed, totalDuration))
-	}
-}
-
-// MakeBakeTick returns an aws.BakeTickFunc that updates a Spinner's
-// label with the current "(~N min left)" countdown each tick. Bake is a
-// monitoring wait rather than a quantified rollout, so the UX is a spinner
-// (no bar): the % "filling" of a progress bar would falsely suggest that
-// rollout work is still happening, when in fact the deployment is just
-// waiting out FinalBakeTimeInMinutes.
-func MakeBakeTick(s reporter.Spinner) aws.BakeTickFunc {
-	return func(elapsed, total time.Duration) {
-		s.Update("Baking..." + remainingFromElapsedSuffix(elapsed, total))
-	}
-}
-
 // MakeTargetsDeployTick returns an aws.DeploymentTickFunc that drives a
 // Targets row's deploying sub-phase via SetProgress. Once BAKING (or
 // COMPLETE) is observed the percent pins at 1.0 and the eta is cleared so
@@ -210,10 +162,7 @@ func MakeTargetsDeployTick(tg reporter.Targets, id string) aws.DeploymentTickFun
 			tg.SetProgress(id, 1.0, 0)
 			return
 		}
-		eta := totalDuration - time.Since(waitStart)
-		if eta < 0 {
-			eta = 0
-		}
+		eta := max(totalDuration-time.Since(waitStart), 0)
 		tg.SetProgress(id, percent/100.0, eta)
 	}
 }

@@ -43,7 +43,8 @@ func NewExecutorWithFactory(rep reporter.Reporter, factory func(context.Context,
 //   - errors:       ✗ failed: <message>
 //
 // Sub-phases (output.md §3.2):
-//   preparing → comparing → creating-version → deploying → baking
+//
+//	preparing → comparing → creating-version → deploying → baking
 //
 // The deploying sub-phase drives Targets.SetProgress with AppConfig's
 // PercentageComplete so the caller sees a real rollout bar; the baking

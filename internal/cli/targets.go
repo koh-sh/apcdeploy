@@ -119,10 +119,7 @@ func renderRunning(row *targetsRow, frame string) string {
 
 // renderBar produces a 20-cell █/░ bar for percent in [0, 1].
 func renderBar(percent float64) string {
-	filled := max(int(percent*float64(targetsBarWidth)+0.5), 0)
-	if filled > targetsBarWidth {
-		filled = targetsBarWidth
-	}
+	filled := min(max(int(percent*float64(targetsBarWidth)+0.5), 0), targetsBarWidth)
 	full := strings.Repeat("█", filled)
 	empty := strings.Repeat("░", targetsBarWidth-filled)
 	return styles.success.Render(full) + styles.subtle.Render(empty)

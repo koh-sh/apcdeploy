@@ -239,6 +239,7 @@ func (w *workflow) editAndDeploy(ctx context.Context, t *resolvedTargets, deploy
 //   - is unnecessary for execution (only the ID is used),
 //   - and would risk a stray AWS round-trip when the user has not actually
 //     changed strategies.
+//
 // The Done summary therefore shows the strategy ID for the inherited case;
 // callers that want a human label should pass --deployment-strategy.
 func resolveStrategy(ctx context.Context, resolver *awsInternal.Resolver, providedName, inheritedID string) (string, string, error) {

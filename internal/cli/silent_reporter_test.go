@@ -125,58 +125,6 @@ func TestSilentReporter_SpinStopIsSilent(t *testing.T) {
 	}
 }
 
-func TestSilentReporter_ProgressDoneIsSilent(t *testing.T) {
-	t.Parallel()
-
-	r, _, errBuf := newTestSilentReporter()
-	pb := r.Progress("starting")
-	pb.Update(50, "halfway")
-	pb.Done("finished")
-	if errBuf.Len() != 0 {
-		t.Errorf("silent progress should be silent; got %q", errBuf.String())
-	}
-	// Update after Done must remain silent.
-	pb.Update(99, "post-done")
-	if errBuf.Len() != 0 {
-		t.Errorf("silent progress Update must always be silent; got %q", errBuf.String())
-	}
-}
-
-func TestSilentReporter_ProgressFailEmitsError(t *testing.T) {
-	t.Parallel()
-
-	r, _, errBuf := newTestSilentReporter()
-	pb := r.Progress("starting")
-	pb.Fail("crashed")
-	if !strings.Contains(errBuf.String(), "crashed") {
-		t.Errorf("silent progress Fail should surface via Error; got %q", errBuf.String())
-	}
-
-	// Second Fail is a no-op.
-	before := errBuf.Len()
-	pb.Fail("again")
-	if errBuf.Len() != before {
-		t.Errorf("second Fail should be a no-op; before=%d after=%d", before, errBuf.Len())
-	}
-}
-
-func TestSilentReporter_ProgressStopIsSilent(t *testing.T) {
-	t.Parallel()
-
-	r, _, errBuf := newTestSilentReporter()
-	pb := r.Progress("starting")
-	pb.Stop()
-	if errBuf.Len() != 0 {
-		t.Errorf("silent progress Stop should be silent; got %q", errBuf.String())
-	}
-
-	// Subsequent Fail must NOT surface an error after Stop.
-	pb.Fail("late")
-	if errBuf.Len() != 0 {
-		t.Errorf("Fail after Stop must be a no-op; got %q", errBuf.String())
-	}
-}
-
 func TestSilentReporter_TargetsSuppressed(t *testing.T) {
 	t.Parallel()
 

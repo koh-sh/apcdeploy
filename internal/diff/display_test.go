@@ -25,54 +25,54 @@ func TestDisplay(t *testing.T) {
 	const id = "us-east-1/app/prof/env"
 
 	tests := []struct {
-		name             string
-		result           *Result
-		deployment       *aws.DeploymentInfo
-		wantStdout       string
-		wantDoneSummary  string // substring expected in the done transition's Summary
-		wantWarn         bool
-		wantWarnText     string
+		name            string
+		result          *Result
+		deployment      *aws.DeploymentInfo
+		wantStdout      string
+		wantDoneSummary string // substring expected in the done transition's Summary
+		wantWarn        bool
+		wantWarnText    string
 	}{
 		{
-			name:             "no changes - finalises Targets with 'no changes'",
-			result:           &Result{HasChanges: false, FileName: "data.json"},
-			deployment:       &aws.DeploymentInfo{DeploymentNumber: 1, ConfigurationVersion: "1", State: "COMPLETE"},
-			wantStdout:       "",
-			wantDoneSummary:  "no changes",
+			name:            "no changes - finalises Targets with 'no changes'",
+			result:          &Result{HasChanges: false, FileName: "data.json"},
+			deployment:      &aws.DeploymentInfo{DeploymentNumber: 1, ConfigurationVersion: "1", State: "COMPLETE"},
+			wantStdout:      "",
+			wantDoneSummary: "no changes",
 		},
 		{
-			name:             "has changes - emits diff payload and 'diff (...)' summary",
-			result:           &Result{HasChanges: true, UnifiedDiff: "+added\n-removed\n", FileName: "data.json"},
-			deployment:       &aws.DeploymentInfo{DeploymentNumber: 1, ConfigurationVersion: "1", State: "COMPLETE"},
-			wantStdout:       "+added\n-removed\n",
-			wantDoneSummary:  "diff (",
+			name:            "has changes - emits diff payload and 'diff (...)' summary",
+			result:          &Result{HasChanges: true, UnifiedDiff: "+added\n-removed\n", FileName: "data.json"},
+			deployment:      &aws.DeploymentInfo{DeploymentNumber: 1, ConfigurationVersion: "1", State: "COMPLETE"},
+			wantStdout:      "+added\n-removed\n",
+			wantDoneSummary: "diff (",
 		},
 		{
-			name:             "DEPLOYING surfaces an in-progress notice on stderr",
-			result:           &Result{HasChanges: true, UnifiedDiff: "+a\n-b\n", FileName: "data.json"},
-			deployment:       &aws.DeploymentInfo{DeploymentNumber: 42, ConfigurationVersion: "1", State: "DEPLOYING"},
-			wantStdout:       "+a\n-b\n",
-			wantDoneSummary:  "diff (",
-			wantWarn:         true,
-			wantWarnText:     "Deployment #42 is currently DEPLOYING",
+			name:            "DEPLOYING surfaces an in-progress notice on stderr",
+			result:          &Result{HasChanges: true, UnifiedDiff: "+a\n-b\n", FileName: "data.json"},
+			deployment:      &aws.DeploymentInfo{DeploymentNumber: 42, ConfigurationVersion: "1", State: "DEPLOYING"},
+			wantStdout:      "+a\n-b\n",
+			wantDoneSummary: "diff (",
+			wantWarn:        true,
+			wantWarnText:    "Deployment #42 is currently DEPLOYING",
 		},
 		{
-			name:             "BAKING surfaces an in-progress notice on stderr",
-			result:           &Result{HasChanges: true, UnifiedDiff: "+a\n-b\n", FileName: "data.json"},
-			deployment:       &aws.DeploymentInfo{DeploymentNumber: 7, ConfigurationVersion: "1", State: "BAKING"},
-			wantStdout:       "+a\n-b\n",
-			wantDoneSummary:  "diff (",
-			wantWarn:         true,
-			wantWarnText:     "Deployment #7 is currently BAKING",
+			name:            "BAKING surfaces an in-progress notice on stderr",
+			result:          &Result{HasChanges: true, UnifiedDiff: "+a\n-b\n", FileName: "data.json"},
+			deployment:      &aws.DeploymentInfo{DeploymentNumber: 7, ConfigurationVersion: "1", State: "BAKING"},
+			wantStdout:      "+a\n-b\n",
+			wantDoneSummary: "diff (",
+			wantWarn:        true,
+			wantWarnText:    "Deployment #7 is currently BAKING",
 		},
 		{
-			name:             "no changes with DEPLOYING still warns",
-			result:           &Result{HasChanges: false, FileName: "data.json"},
-			deployment:       &aws.DeploymentInfo{DeploymentNumber: 99, ConfigurationVersion: "1", State: "DEPLOYING"},
-			wantStdout:       "",
-			wantDoneSummary:  "no changes",
-			wantWarn:         true,
-			wantWarnText:     "Deployment #99 is currently DEPLOYING",
+			name:            "no changes with DEPLOYING still warns",
+			result:          &Result{HasChanges: false, FileName: "data.json"},
+			deployment:      &aws.DeploymentInfo{DeploymentNumber: 99, ConfigurationVersion: "1", State: "DEPLOYING"},
+			wantStdout:      "",
+			wantDoneSummary: "no changes",
+			wantWarn:        true,
+			wantWarnText:    "Deployment #99 is currently DEPLOYING",
 		},
 	}
 
@@ -207,9 +207,9 @@ func TestFormatDiffSummary(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name          string
+		name           string
 		added, removed int
-		want          string
+		want           string
 	}{
 		{"single line", 1, 0, "diff (1 line changed: +1 -0)"},
 		{"singular removed", 0, 1, "diff (1 line changed: +0 -1)"},
