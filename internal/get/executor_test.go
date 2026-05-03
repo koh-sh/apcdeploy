@@ -177,25 +177,29 @@ region: us-east-1
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Config-load is now an instant operation with no reporter output. The
-	// remaining phases use spinners that emit Step+Done in non-TTY mode.
-	expectedMessages := []string{
-		"Resolving AWS resources",
-		"Resolved resources",
-		"Fetching latest configuration",
-		"Fetched configuration",
+	// In --yes mode, the executor renders one Targets row that transitions
+	// fetching → ✓ fetched, plus the configuration body on stdout. The
+	// pre-Targets resolve step is silent (it incurs no AWS cost).
+	if got := string(reporter.Stdout); got != string(configData) {
+		t.Errorf("expected stdout to equal configuration body; got %q", got)
 	}
-
-	for _, expected := range expectedMessages {
-		found := false
-		for _, msg := range reporter.Messages {
-			if strings.Contains(msg, expected) {
-				found = true
-				break
+	if len(reporter.TargetsCalls) != 1 {
+		t.Fatalf("expected exactly 1 Targets call, got %d", len(reporter.TargetsCalls))
+	}
+	tc := reporter.TargetsCalls[0]
+	if !tc.Closed {
+		t.Errorf("expected Targets to be Close()d")
+	}
+	wantPhases := []string{"phase", "done"}
+	for _, kind := range wantPhases {
+		seen := false
+		for _, tr := range tc.Transitions {
+			if tr.Kind == kind {
+				seen = true
 			}
 		}
-		if !found {
-			t.Errorf("expected message containing %q not found in: %v", expected, reporter.Messages)
+		if !seen {
+			t.Errorf("expected Targets transition %q in: %+v", kind, tc.Transitions)
 		}
 	}
 }

@@ -34,6 +34,12 @@ func NewWithClient(cfg *config.Config, awsClient *aws.Client) *Getter {
 	}
 }
 
+// Region returns the AWS region the underlying client is bound to. This
+// reflects the SDK-resolved region when the config file leaves it blank.
+func (g *Getter) Region() string {
+	return g.awsClient.Region
+}
+
 // ResolveResources resolves resource names to their AWS resource IDs.
 // It resolves application, configuration profile, and environment only.
 // Deployment strategy is intentionally not resolved as it's not needed for the get command.
