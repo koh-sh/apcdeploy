@@ -195,6 +195,39 @@ func MakeBakeTick(s reporter.Spinner) aws.BakeTickFunc {
 	}
 }
 
+// MakeTargetsDeployTick returns an aws.DeploymentTickFunc that drives a
+// Targets row's deploying sub-phase via SetProgress. Once BAKING (or
+// COMPLETE) is observed the percent pins at 1.0 and the eta is cleared so
+// callers can swap the row to a "baking" sub-phase via SetPhase.
+//
+// The "(~N min left)" countdown is derived from wall-clock elapsed time
+// (waitStart) minus the strategy's totalDuration so non-linear strategies
+// (EXPONENTIAL) report honest remaining time.
+func MakeTargetsDeployTick(tg reporter.Targets, id string) aws.DeploymentTickFunc {
+	waitStart := time.Now()
+	return func(state types.DeploymentState, percent float64, totalDuration time.Duration) {
+		if state == types.DeploymentStateBaking || state == types.DeploymentStateComplete {
+			tg.SetProgress(id, 1.0, 0)
+			return
+		}
+		eta := totalDuration - time.Since(waitStart)
+		if eta < 0 {
+			eta = 0
+		}
+		tg.SetProgress(id, percent/100.0, eta)
+	}
+}
+
+// MakeTargetsBakeTick returns an aws.BakeTickFunc that updates a Targets
+// row's baking sub-phase detail with the current "(~N min left)" countdown.
+// The row is expected to already be in the baking sub-phase (the caller
+// invokes SetPhase("baking", "") before starting the bake wait).
+func MakeTargetsBakeTick(tg reporter.Targets, id string) aws.BakeTickFunc {
+	return func(elapsed, total time.Duration) {
+		tg.SetPhase(id, "baking", remainingFromElapsedSuffix(elapsed, total))
+	}
+}
+
 // remainingFromElapsedSuffix renders a "(~N min left)" suffix from total
 // minus locally observed elapsed time. Falls back to "(<1 min left)" when
 // total is zero (e.g. AppConfig.AllAtOnce), when elapsed has already run

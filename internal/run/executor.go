@@ -33,7 +33,22 @@ func NewExecutorWithFactory(rep reporter.Reporter, factory func(context.Context,
 	}
 }
 
-// Execute performs the complete deployment workflow
+// Execute performs the complete deployment workflow.
+//
+// Output shape (docs/design/output.md §7.1):
+//   - wait none:    ✓ started — v<N>, <Strategy>
+//   - wait-deploy:  ✓ deployed (<elapsed>) — v<N>, <Strategy>, baking started
+//   - wait-bake:    ✓ complete  (<elapsed>) — v<N>, <Strategy>
+//   - no changes:   ⊘ skipped (no changes)
+//   - errors:       ✗ failed: <message>
+//
+// Sub-phases (output.md §3.2):
+//   preparing → comparing → creating-version → deploying → baking
+//
+// The deploying sub-phase drives Targets.SetProgress with AppConfig's
+// PercentageComplete so the caller sees a real rollout bar; the baking
+// sub-phase uses Targets.SetPhase("baking", detail) instead because there
+// is no quantified progress to report (it's a monitoring wait).
 func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	if opts.Timeout < 0 {
 		return fmt.Errorf("timeout must be a non-negative value")
@@ -52,147 +67,144 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 		return fmt.Errorf("failed to create deployer: %w", err)
 	}
 
-	// Build the checklist plan additively so the conditional "detect changes"
-	// phase doesn't require remapping indices afterward. idxChanges stays -1
-	// when --force skips the AWS round-trip; the only path that touches
-	// idxChanges is gated by !opts.Force, so the sentinel never reaches the
-	// checklist.
-	var labels []string
-	add := func(name string) int {
-		labels = append(labels, name)
-		return len(labels) - 1
-	}
+	id := config.Identifier(deployer.awsClient.Region, cfg)
+	tg := e.reporter.Targets([]string{id})
+	defer tg.Close()
+	tg.SetPhase(id, "preparing", "")
 
-	idxResolve := add("Resolving AWS resources")
-	idxOngoing := add("Checking for ongoing deployments")
-	idxChanges := -1
-	if !opts.Force {
-		idxChanges = add("Detecting changes")
-	}
-	idxVersion := add("Creating configuration version")
-	idxDeploy := add("Starting deployment")
-
-	chk := e.reporter.Checklist(labels)
-	defer chk.Close()
-
-	chk.Start(idxResolve)
 	resolved, err := deployer.ResolveResources(ctx)
 	if err != nil {
-		chk.Fail(idxResolve, "")
+		tg.Fail(id, err)
 		return fmt.Errorf("failed to resolve resources: %w", err)
 	}
-	chk.Done(idxResolve, fmt.Sprintf("Resolved resources: App=%s, Profile=%s, Env=%s, Strategy=%s",
-		resolved.ApplicationID, resolved.Profile.ID, resolved.EnvironmentID, resolved.DeploymentStrategyID))
 
-	chk.Start(idxOngoing)
-	hasOngoingDeployment, _, err := deployer.CheckOngoingDeployment(ctx, resolved)
+	hasOngoing, _, err := deployer.CheckOngoingDeployment(ctx, resolved)
 	if err != nil {
-		chk.Fail(idxOngoing, "")
+		tg.Fail(id, err)
 		return fmt.Errorf("failed to check ongoing deployments: %w", err)
 	}
-	if hasOngoingDeployment {
-		chk.Fail(idxOngoing, "")
-		return fmt.Errorf("deployment already in progress")
+	if hasOngoing {
+		ongoingErr := fmt.Errorf("deployment already in progress")
+		tg.Fail(id, ongoingErr)
+		return ongoingErr
 	}
-	chk.Done(idxOngoing, "No ongoing deployments")
 
 	contentType, err := deployer.DetermineContentType(resolved.Profile.Type, cfg.DataFile)
 	if err != nil {
+		tg.Fail(id, err)
 		return fmt.Errorf("failed to determine content type: %w", err)
 	}
 
-	// Local validation runs without a checklist row: it's instant and
-	// failures surface as the returned error, which root.go renders.
 	if err := deployer.ValidateLocalData(dataContent, contentType); err != nil {
+		tg.Fail(id, err)
 		return fmt.Errorf("validation failed: %w", err)
 	}
 
 	if !opts.Force {
-		chk.Start(idxChanges)
+		tg.SetPhase(id, "comparing", "")
 		hasChanges, err := deployer.HasConfigurationChanges(ctx, resolved, dataContent, cfg.DataFile, contentType)
 		if err != nil {
-			chk.Fail(idxChanges, "")
+			tg.Fail(id, err)
 			return fmt.Errorf("failed to check for changes: %w", err)
 		}
 		if !hasChanges {
-			chk.Skip(idxChanges, "No changes detected — skipping deployment")
+			tg.Skip(id, "skipped (no changes)")
 			return nil
 		}
-		chk.Done(idxChanges, "Detected changes")
 	}
 
-	chk.Start(idxVersion)
+	tg.SetPhase(id, "creating-version", "")
 	versionNumber, err := deployer.CreateVersion(ctx, resolved, dataContent, contentType, opts.Description)
 	if err != nil {
-		chk.Fail(idxVersion, "")
+		tg.Fail(id, err)
 		if aws.IsValidationError(err) {
 			return fmt.Errorf("%s", aws.FormatValidationError(err))
 		}
 		return fmt.Errorf("failed to create configuration version: %w", err)
 	}
-	chk.Done(idxVersion, fmt.Sprintf("Created configuration version %d", versionNumber))
 
-	chk.Start(idxDeploy)
+	deployStart := time.Now()
+	tg.SetPhase(id, "deploying", "")
 	deploymentNumber, err := deployer.StartDeployment(ctx, resolved, versionNumber, opts.Description)
 	if err != nil {
-		chk.Fail(idxDeploy, "")
+		tg.Fail(id, err)
 		return fmt.Errorf("failed to start deployment: %w", err)
 	}
-	chk.Done(idxDeploy, fmt.Sprintf("Started deployment #%d", deploymentNumber))
 
-	// Supersede the deferred Close above: the wait phase's progress bar
-	// manages its own cursor and would tangle with the checklist's animation
-	// goroutine if both ran concurrently. Close is idempotent, so the deferred
-	// call later becomes a no-op on the success path. The defer remains useful
-	// for the error returns above, where it cleans up before cmd/root.go
-	// renders the error line.
-	chk.Close()
-
+	strategyName := cfg.DeploymentStrategy
 	switch {
 	case opts.WaitDeploy:
-		// Wait for deploy phase only (until BAKING starts)
-		pb := e.reporter.Progress("Deploying...")
-		if err := deployer.WaitForDeploymentPhase(ctx, resolved, deploymentNumber, false, opts.Timeout, MakeDeployTick(pb, "Baking...")); err != nil {
-			pb.Stop()
+		if err := deployer.WaitForDeploymentPhase(ctx, resolved, deploymentNumber, false, opts.Timeout, MakeTargetsDeployTick(tg, id)); err != nil {
+			tg.Fail(id, err)
 			return fmt.Errorf("deployment failed: %w", err)
 		}
-		pb.Done("Deployment phase completed (now baking)")
+		tg.Done(id, formatRunSummary("deployed", deployStart, versionNumber, strategyName, "baking started"))
 
 	case opts.WaitBake:
-		// Two-phase wait. The deploy phase uses a progress bar (AppConfig
-		// reports a real rollout %) and the bake phase uses a spinner with a
-		// "(~N min left)" countdown (no quantified progress is being made —
-		// it's just a monitoring window).
-		//
-		// waitCtx caps total wait at opts.Timeout. The per-phase timeout
-		// passed below is the remaining budget against that deadline so the
-		// inner Wait* timeout reflects "how long this phase may still take",
-		// not the original full budget. This keeps the timed-out error
-		// message ("bake phase timed out after X") meaningful.
+		// waitCtx caps total wait at opts.Timeout. The per-phase timeout passed
+		// below is the remaining budget against that deadline so the inner
+		// Wait* timeout reflects "how long this phase may still take".
 		deadline := time.Now().Add(time.Duration(opts.Timeout) * time.Second)
 		waitCtx, cancel := context.WithDeadline(ctx, deadline)
 		defer cancel()
 
-		pb := e.reporter.Progress("Deploying...")
-		if err := deployer.WaitForDeploymentPhase(waitCtx, resolved, deploymentNumber, false, remainingSeconds(deadline), MakeDeployTick(pb, "Deploying...")); err != nil {
-			pb.Stop()
+		if err := deployer.WaitForDeploymentPhase(waitCtx, resolved, deploymentNumber, false, remainingSeconds(deadline), MakeTargetsDeployTick(tg, id)); err != nil {
+			tg.Fail(id, err)
 			return fmt.Errorf("deployment failed: %w", err)
 		}
-		pb.Done("Deployment phase completed (now baking)")
-
-		bakeSpin := e.reporter.Spin("Baking...")
-		if err := deployer.WaitForBakingComplete(waitCtx, resolved, deploymentNumber, remainingSeconds(deadline), MakeBakeTick(bakeSpin)); err != nil {
-			bakeSpin.Stop()
+		tg.SetPhase(id, "baking", "")
+		if err := deployer.WaitForBakingComplete(waitCtx, resolved, deploymentNumber, remainingSeconds(deadline), MakeTargetsBakeTick(tg, id)); err != nil {
+			tg.Fail(id, err)
 			return fmt.Errorf("deployment failed: %w", err)
 		}
-		bakeSpin.Done("Deployment completed successfully")
+		tg.Done(id, formatRunSummary("complete", deployStart, versionNumber, strategyName, ""))
 
 	default:
-		// No wait requested
-		e.reporter.Warn(fmt.Sprintf("Deployment #%d is in progress. Use 'apcdeploy status' to check the status.", deploymentNumber))
+		tg.Done(id, formatRunSummary("started", deployStart, versionNumber, strategyName, fmt.Sprintf("deployment #%d", deploymentNumber)))
 	}
 
 	return nil
+}
+
+// formatRunSummary builds the post-icon Targets summary for a run completion
+// per output.md §3.3.2: `<verb> (<elapsed>) — v<N>, <Strategy>[, <addendum>]`.
+//
+// elapsed is omitted (i.e. only the verb is shown before "—") when the start
+// time is the zero value or when the verb is "started" without a meaningful
+// elapsed reading. addendum is appended after the strategy when non-empty.
+func formatRunSummary(verb string, start time.Time, version int32, strategy, addendum string) string {
+	out := verb
+	if !start.IsZero() && verb != "started" {
+		out += " (" + formatElapsed(time.Since(start)) + ")"
+	}
+	if version > 0 {
+		out += fmt.Sprintf(" — v%d", version)
+	}
+	if strategy != "" {
+		if version > 0 {
+			out += ", " + strategy
+		} else {
+			out += " — " + strategy
+		}
+	}
+	if addendum != "" {
+		out += ", " + addendum
+	}
+	return out
+}
+
+// formatElapsed renders a duration as compact "Ns" or "Nm Ns".
+func formatElapsed(d time.Duration) string {
+	d = d.Round(time.Second)
+	if d < time.Minute {
+		return fmt.Sprintf("%ds", int(d.Seconds()))
+	}
+	m := int(d.Minutes())
+	s := int(d.Seconds()) - m*60
+	if s == 0 {
+		return fmt.Sprintf("%dm", m)
+	}
+	return fmt.Sprintf("%dm %ds", m, s)
 }
 
 // remainingSeconds returns the seconds remaining until deadline, clamped at

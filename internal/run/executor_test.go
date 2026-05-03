@@ -260,76 +260,83 @@ region: us-east-1
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Run now reports phases through a single Checklist (resolve / ongoing /
-	// detect changes / create version / start deployment) plus a final Warn
-	// when no --wait flag is set.
-	expectedMessages := []string{
-		"checklist: Resolving AWS resources,Checking for ongoing deployments",
-		"Resolved resources",
-		"No ongoing deployments",
-		"Created configuration version 1",
-		"Started deployment #1",
-		"Deployment #1 is in progress",
+	// Run now reports phases through a single Targets row that progresses
+	// through preparing → comparing → creating-version → deploying, then
+	// finalises with Done("started — vN, Strategy, deployment #N") when no
+	// wait flag is set (output.md §7.1).
+	if len(reporter.TargetsCalls) != 1 {
+		t.Fatalf("expected exactly 1 Targets call, got %d", len(reporter.TargetsCalls))
 	}
-
-	for _, expected := range expectedMessages {
-		found := false
-		for _, msg := range reporter.Messages {
-			if strings.Contains(msg, expected) {
-				found = true
-				break
+	tc := reporter.TargetsCalls[0]
+	if !tc.Closed {
+		t.Errorf("expected Targets to be Close()d")
+	}
+	wantPhases := []string{"preparing", "comparing", "creating-version", "deploying"}
+	gotPhases := []string{}
+	for _, tr := range tc.Transitions {
+		if tr.Kind == "phase" {
+			gotPhases = append(gotPhases, tr.Phase)
+		}
+	}
+	for _, want := range wantPhases {
+		seen := false
+		for _, got := range gotPhases {
+			if got == want {
+				seen = true
 			}
 		}
-		if !found {
-			t.Errorf("expected message containing %q not found in: %v", expected, reporter.Messages)
+		if !seen {
+			t.Errorf("expected phase %q in: %v", want, gotPhases)
 		}
+	}
+	foundStarted := false
+	for _, tr := range tc.Transitions {
+		if tr.Kind == "done" && strings.Contains(tr.Summary, "started") && strings.Contains(tr.Summary, "v1") {
+			foundStarted = true
+		}
+	}
+	if !foundStarted {
+		t.Errorf("expected Targets.Done summary mentioning 'started' and 'v1'; got: %+v", tc.Transitions)
 	}
 }
 
 // TestExecutorFullWorkflowWithWait tests deployment with wait options.
-// For --wait-bake we assert that the deploy phase gets a progress bar and
-// the bake phase gets a spinner, since deploy is a quantified rollout
-// (AWS-reported %) and bake is just a monitoring wait.
+// The deploy sub-phase drives Targets.SetProgress (AppConfig-reported %),
+// and the bake sub-phase uses Targets.SetPhase("baking", "(~N min left)")
+// — bake is a monitoring wait so a spinner with countdown is more honest
+// than a progress bar that would imply quantified rollout work.
 func TestExecutorFullWorkflowWithWait(t *testing.T) {
 	tests := []struct {
-		name             string
-		waitDeploy       bool
-		waitBake         bool
-		mockStates       []types.DeploymentState
-		wantMsg          string
-		wantProgressBars int
-		wantSpinners     int
-		wantBakeSpinner  bool
+		name           string
+		waitDeploy     bool
+		waitBake       bool
+		mockStates     []types.DeploymentState
+		wantVerb       string // verb expected in the Targets.Done summary
+		wantBakingPhase bool  // whether SetPhase("baking", ...) is expected
 	}{
 		{
-			name:             "wait for bake: immediate completion",
-			waitDeploy:       false,
-			waitBake:         true,
-			mockStates:       []types.DeploymentState{types.DeploymentStateComplete},
-			wantMsg:          "Deployment completed successfully",
-			wantProgressBars: 1,
-			wantSpinners:     1,
-			wantBakeSpinner:  true,
+			name:            "wait for bake: immediate completion",
+			waitDeploy:      false,
+			waitBake:        true,
+			mockStates:      []types.DeploymentState{types.DeploymentStateComplete},
+			wantVerb:        "complete",
+			wantBakingPhase: true,
 		},
 		{
-			name:             "wait for bake: completion after polling",
-			waitDeploy:       false,
-			waitBake:         true,
-			mockStates:       []types.DeploymentState{types.DeploymentStateDeploying, types.DeploymentStateBaking, types.DeploymentStateComplete},
-			wantMsg:          "Deployment completed successfully",
-			wantProgressBars: 1,
-			wantSpinners:     1,
-			wantBakeSpinner:  true,
+			name:            "wait for bake: completion after polling",
+			waitDeploy:      false,
+			waitBake:        true,
+			mockStates:      []types.DeploymentState{types.DeploymentStateDeploying, types.DeploymentStateBaking, types.DeploymentStateComplete},
+			wantVerb:        "complete",
+			wantBakingPhase: true,
 		},
 		{
-			name:             "wait for deploy: stops at baking",
-			waitDeploy:       true,
-			waitBake:         false,
-			mockStates:       []types.DeploymentState{types.DeploymentStateDeploying, types.DeploymentStateBaking},
-			wantMsg:          "Deployment phase completed (now baking)",
-			wantProgressBars: 1,
-			wantSpinners:     0,
-			wantBakeSpinner:  false,
+			name:            "wait for deploy: stops at baking",
+			waitDeploy:      true,
+			waitBake:        false,
+			mockStates:      []types.DeploymentState{types.DeploymentStateDeploying, types.DeploymentStateBaking},
+			wantVerb:        "deployed",
+			wantBakingPhase: false,
 		},
 	}
 
@@ -426,32 +433,49 @@ region: us-east-1
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			// Verify expected message
-			hasExpectedMsg := false
-			for _, msg := range reporter.Messages {
-				if strings.Contains(msg, tt.wantMsg) {
-					hasExpectedMsg = true
-					break
-				}
+			if len(reporter.TargetsCalls) != 1 {
+				t.Fatalf("expected exactly 1 Targets call, got %d", len(reporter.TargetsCalls))
+			}
+			tc := reporter.TargetsCalls[0]
+			if !tc.Closed {
+				t.Errorf("expected Targets to be Close()d")
 			}
 
-			if !hasExpectedMsg {
-				t.Errorf("expected message containing %q, got messages: %v", tt.wantMsg, reporter.Messages)
+			// SetProgress fires whenever AppConfig reports percentage; the
+			// deploy sub-phase always emits at least one progress transition
+			// even when AppConfig returns COMPLETE on the first poll
+			// (MakeTargetsDeployTick pins to 1.0 in that case).
+			progressCount := 0
+			for _, tr := range tc.Transitions {
+				if tr.Kind == "progress" {
+					progressCount++
+				}
+			}
+			if progressCount == 0 {
+				t.Errorf("expected at least one progress transition; got: %+v", tc.Transitions)
 			}
 
-			if got := len(reporter.ProgressCalls); got != tt.wantProgressBars {
-				t.Errorf("progress bar count = %d, want %d (calls: %+v)", got, tt.wantProgressBars, reporter.ProgressCalls)
-			}
-			if len(reporter.ProgressCalls) > 0 && reporter.ProgressCalls[0].StartMessage != "Deploying..." {
-				t.Errorf("first progress bar start = %q, want %q", reporter.ProgressCalls[0].StartMessage, "Deploying...")
-			}
-			if got := len(reporter.SpinnerCalls); got != tt.wantSpinners {
-				t.Errorf("spinner count = %d, want %d (calls: %+v)", got, tt.wantSpinners, reporter.SpinnerCalls)
-			}
-			if tt.wantBakeSpinner {
-				if len(reporter.SpinnerCalls) == 0 || reporter.SpinnerCalls[0].StartMessage != "Baking..." {
-					t.Errorf("bake spinner start = %+v, want StartMessage=%q", reporter.SpinnerCalls, "Baking...")
+			// The done transition's verb encodes how far we waited.
+			foundDone := false
+			for _, tr := range tc.Transitions {
+				if tr.Kind == "done" && strings.Contains(tr.Summary, tt.wantVerb) {
+					foundDone = true
 				}
+			}
+			if !foundDone {
+				t.Errorf("expected Targets.Done with verb %q; got: %+v", tt.wantVerb, tc.Transitions)
+			}
+
+			// --wait-bake additionally swaps the row to a baking sub-phase
+			// after the deploy reaches BAKING.
+			seenBakingPhase := false
+			for _, tr := range tc.Transitions {
+				if tr.Kind == "phase" && tr.Phase == "baking" {
+					seenBakingPhase = true
+				}
+			}
+			if seenBakingPhase != tt.wantBakingPhase {
+				t.Errorf("baking sub-phase seen = %v, want %v (transitions: %+v)", seenBakingPhase, tt.wantBakingPhase, tc.Transitions)
 			}
 		})
 	}
@@ -574,19 +598,21 @@ region: us-east-1
 		t.Error("StartDeployment should not have been called when there are no changes")
 	}
 
-	// The no-change branch finalizes the changes phase via Skip with the
-	// "No changes detected — skipping deployment" message. Asserting on the
-	// checklist-skip outcome (not just any line containing the text) catches
-	// regressions where the early-exit gets reported as success or warn.
+	// The no-change branch finalises the Targets row via Skip("skipped (no
+	// changes)") so the user sees the early-exit reason inline with the
+	// target identifier. Asserting on the skip transition (not any line
+	// containing the text) catches regressions where the early-exit gets
+	// reported as Done or Fail.
 	found := false
-	for _, msg := range reporter.Messages {
-		if strings.Contains(msg, "checklist-skip") && strings.Contains(msg, "No changes detected") {
-			found = true
-			break
+	for _, call := range reporter.TargetsCalls {
+		for _, tr := range call.Transitions {
+			if tr.Kind == "skip" && strings.Contains(tr.Reason, "no changes") {
+				found = true
+			}
 		}
 	}
 	if !found {
-		t.Errorf("expected checklist-skip with 'No changes detected'; got messages: %v", reporter.Messages)
+		t.Errorf("expected Targets.Skip with 'no changes'; got: %+v", reporter.TargetsCalls)
 	}
 }
 
@@ -707,18 +733,19 @@ region: us-east-1
 		t.Error("StartDeployment should have been called with --force flag")
 	}
 
-	// Verify deployment started message — the new wording is
-	// "Started deployment #N" (subject-first, matching the checklist's
-	// imperative-action labels).
+	// Verify deployment-started outcome on the Targets row. With --force we
+	// skip the comparing phase but still finalise as Done("started …
+	// deployment #2").
 	found := false
-	for _, msg := range reporter.Messages {
-		if strings.Contains(msg, "Started deployment #2") {
-			found = true
-			break
+	for _, call := range reporter.TargetsCalls {
+		for _, tr := range call.Transitions {
+			if tr.Kind == "done" && strings.Contains(tr.Summary, "deployment #2") {
+				found = true
+			}
 		}
 	}
 	if !found {
-		t.Errorf("expected 'Started deployment #2' message, got: %v", reporter.Messages)
+		t.Errorf("expected Targets.Done summary mentioning 'deployment #2'; got: %+v", reporter.TargetsCalls)
 	}
 }
 
