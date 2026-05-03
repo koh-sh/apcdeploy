@@ -178,25 +178,24 @@ region: us-east-1
 		t.Errorf("expected data file to contain new value, got: %s", string(updatedData))
 	}
 
-	// Pull now reports progress via a 2-item Checklist (load + update). Each
-	// item should fire exactly one Done transition in the happy path.
-	expectedMessages := []string{
-		"checklist: Loading deployment data,Updating data file",
-		"Loaded deployment data",
-		"Updated ",
+	// Pull now reports progress via a single Targets row that finalises with
+	// "updated <path>". Verify the Done transition contains the data file
+	// path so we know the row carries the user-actionable detail.
+	if len(reporter.TargetsCalls) != 1 {
+		t.Fatalf("expected exactly 1 Targets call, got %d", len(reporter.TargetsCalls))
 	}
-
-	for _, expected := range expectedMessages {
-		found := false
-		for _, msg := range reporter.Messages {
-			if strings.Contains(msg, expected) {
-				found = true
-				break
-			}
+	tc := reporter.TargetsCalls[0]
+	if !tc.Closed {
+		t.Errorf("expected Targets to be Close()d")
+	}
+	foundDone := false
+	for _, tr := range tc.Transitions {
+		if tr.Kind == "done" && strings.Contains(tr.Summary, "updated") {
+			foundDone = true
 		}
-		if !found {
-			t.Errorf("expected message containing %q not found in: %v", expected, reporter.Messages)
-		}
+	}
+	if !foundDone {
+		t.Errorf("expected Targets done summary to contain 'updated <path>', got: %+v", tc.Transitions)
 	}
 }
 
@@ -656,17 +655,18 @@ region: us-east-1
 		t.Error("expected data file to NOT be modified when no changes exist")
 	}
 
-	// The no-change branch finalizes the update phase via Skip with the
-	// "Local file matches deployment #N" message.
-	foundSkip := false
-	for _, msg := range reporter.Messages {
-		if strings.Contains(msg, "checklist-skip") && strings.Contains(msg, "Local file matches deployment") {
-			foundSkip = true
-			break
+	// The no-change branch finalises the Targets row with Done("no changes")
+	// — pull is idempotent so a no-op is a successful outcome (output.md §7.3).
+	foundDone := false
+	for _, call := range reporter.TargetsCalls {
+		for _, tr := range call.Transitions {
+			if tr.Kind == "done" && strings.Contains(tr.Summary, "no changes") {
+				foundDone = true
+			}
 		}
 	}
-	if !foundSkip {
-		t.Errorf("expected checklist-skip with 'Local file matches deployment' message; got: %v", reporter.Messages)
+	if !foundDone {
+		t.Errorf("expected Targets.Done('no changes'); got: %+v", reporter.TargetsCalls)
 	}
 }
 
