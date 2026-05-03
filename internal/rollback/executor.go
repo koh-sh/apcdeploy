@@ -45,7 +45,14 @@ func NewExecutorWithFactory(rep reporter.Reporter, prom prompt.Prompter, factory
 	}
 }
 
-// Execute performs the rollback workflow
+// Execute performs the rollback workflow.
+//
+// Output shape (docs/design/output.md §7.7):
+//   - has-ongoing path: optional confirmation block, then a single Targets row
+//     transitioning preparing → stopping → ✓ stopped (deployment #N).
+//   - no-ongoing path: a single Targets row finalized as ⊘ no ongoing deployment.
+//   - error path: Targets row finalized as ✗ failed: <message>; the error is
+//     also returned so cmd/root.go sets a non-zero exit code.
 func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	cfg, err := config.LoadConfig(opts.ConfigFile)
 	if err != nil {
@@ -57,41 +64,39 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 		return fmt.Errorf("failed to initialize AWS client: %w", err)
 	}
 
-	// The discovery phase ("find a deployment to roll back") spans resolve +
-	// CheckOngoing + GetDeploymentDetails. They share a single user-facing
-	// step; the actual stop happens after the confirmation prompt as a
-	// separate spinner so the user sees a clear "we acted" line.
-	sp := e.reporter.Spin("Finding ongoing deployment...")
+	id := config.Identifier(awsClient.Region, cfg)
+
 	resolver := aws.NewResolver(awsClient)
 	resources, err := resolver.ResolveAll(ctx, cfg.Application, cfg.ConfigurationProfile, cfg.Environment, cfg.DeploymentStrategy)
 	if err != nil {
-		sp.Stop()
 		return fmt.Errorf("failed to resolve resources: %w", err)
 	}
 
 	hasOngoing, deployment, err := awsClient.CheckOngoingDeployment(ctx, resources.ApplicationID, resources.EnvironmentID)
 	if err != nil {
-		sp.Stop()
 		return fmt.Errorf("failed to check ongoing deployment: %w", err)
 	}
 	if !hasOngoing || deployment == nil {
-		sp.Stop()
+		tg := e.reporter.Targets([]string{id})
+		tg.Skip(id, "no ongoing deployment")
+		tg.Close()
 		return ErrNoOngoingDeployment
 	}
 
 	deploymentNumber := deployment.DeploymentNumber
 	details, err := aws.GetDeploymentDetails(ctx, awsClient, resources.ApplicationID, resources.EnvironmentID, deploymentNumber)
 	if err != nil {
-		sp.Stop()
 		return fmt.Errorf("failed to get deployment details: %w", err)
 	}
-	sp.Done(fmt.Sprintf("Found ongoing deployment #%d (%s)", deploymentNumber, details.State))
 
 	if !opts.SkipConfirmation {
 		if err := e.prompter.CheckTTY(); err != nil {
 			return fmt.Errorf("use --yes to skip confirmation: %w", err)
 		}
 
+		// Render the deployment context (state, version, strategy, etc.) so
+		// the user can decide whether to proceed. Doing this before opening
+		// Targets avoids the in-place renderer fighting with the prompt.
 		display.DeploymentStatus(e.reporter, details, cfg, resources)
 
 		message := fmt.Sprintf("Stop deployment #%d? This will rollback the deployment. (Y/Yes)", deploymentNumber)
@@ -106,12 +111,13 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 		}
 	}
 
-	sp = e.reporter.Spin(fmt.Sprintf("Stopping deployment #%d...", deploymentNumber))
+	tg := e.reporter.Targets([]string{id})
+	defer tg.Close()
+	tg.SetPhase(id, "stopping", "")
 	if err := awsClient.StopDeployment(ctx, resources.ApplicationID, resources.EnvironmentID, deploymentNumber); err != nil {
-		sp.Stop()
+		tg.Fail(id, err)
 		return fmt.Errorf("failed to stop deployment: %w", err)
 	}
-	sp.Done(fmt.Sprintf("Stopped deployment #%d", deploymentNumber))
-
+	tg.Done(id, fmt.Sprintf("stopped (deployment #%d)", deploymentNumber))
 	return nil
 }

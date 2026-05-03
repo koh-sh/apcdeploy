@@ -574,3 +574,151 @@ func TestExecutorCheckOngoingDeploymentError(t *testing.T) {
 		t.Errorf("expected 'failed to check ongoing deployment' error, got: %v", err)
 	}
 }
+
+// findTargetsTransition returns the first transition matching kind on the
+// most recent Targets call, or fails the test with a diagnostic.
+func findTargetsTransition(t *testing.T, calls []reportertest.TargetsCall, kind string) reportertest.TargetsTransition {
+	t.Helper()
+	if len(calls) == 0 {
+		t.Fatalf("no Targets calls recorded")
+	}
+	last := calls[len(calls)-1]
+	for _, tr := range last.Transitions {
+		if tr.Kind == kind {
+			return tr
+		}
+	}
+	t.Fatalf("no %q transition in last Targets call: %+v", kind, last)
+	return reportertest.TargetsTransition{}
+}
+
+func TestExecutorTargetsSkipOnNoOngoing(t *testing.T) {
+	t.Parallel()
+
+	configPath, cleanup := createTestConfig(t)
+	defer cleanup()
+
+	mockClient := createStandardMockClient(
+		func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
+			return &appconfig.ListDeploymentsOutput{
+				Items: []types.DeploymentSummary{
+					{DeploymentNumber: 1, State: types.DeploymentStateComplete},
+				},
+			}, nil
+		},
+		nil, nil,
+	)
+
+	rep := &reportertest.MockReporter{}
+	prompter := &prompttest.MockPrompter{}
+	executor := NewExecutorWithFactory(rep, prompter, func(ctx context.Context, region string) (*awsInternal.Client, error) {
+		return awsInternal.NewTestClient(mockClient), nil
+	})
+
+	err := executor.Execute(context.Background(), &Options{ConfigFile: configPath})
+	if !errors.Is(err, ErrNoOngoingDeployment) {
+		t.Fatalf("expected ErrNoOngoingDeployment, got %v", err)
+	}
+
+	skip := findTargetsTransition(t, rep.TargetsCalls, "skip")
+	if !strings.Contains(skip.Reason, "no ongoing deployment") {
+		t.Errorf("expected skip reason to mention 'no ongoing deployment', got %q", skip.Reason)
+	}
+	if !strings.Contains(skip.ID, "test-app/test-profile/test-env") {
+		t.Errorf("expected identifier in skip transition, got %q", skip.ID)
+	}
+}
+
+func TestExecutorTargetsDoneOnSuccess(t *testing.T) {
+	t.Parallel()
+
+	configPath, cleanup := createTestConfig(t)
+	defer cleanup()
+
+	mockClient := createStandardMockClient(
+		func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
+			return &appconfig.ListDeploymentsOutput{
+				Items: []types.DeploymentSummary{
+					{DeploymentNumber: 7, State: types.DeploymentStateDeploying},
+				},
+			}, nil
+		},
+		func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
+			n := int32(7)
+			return &appconfig.GetDeploymentOutput{
+				DeploymentNumber:       n,
+				ConfigurationProfileId: aws.String("profile-123"),
+				ConfigurationVersion:   aws.String("1"),
+				DeploymentStrategyId:   aws.String("strategy-123"),
+				State:                  types.DeploymentStateDeploying,
+				StartedAt:              aws.Time(time.Now()),
+			}, nil
+		},
+		func(ctx context.Context, params *appconfig.StopDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.StopDeploymentOutput, error) {
+			return &appconfig.StopDeploymentOutput{}, nil
+		},
+	)
+
+	rep := &reportertest.MockReporter{}
+	prompter := &prompttest.MockPrompter{}
+	executor := NewExecutorWithFactory(rep, prompter, func(ctx context.Context, region string) (*awsInternal.Client, error) {
+		return awsInternal.NewTestClient(mockClient), nil
+	})
+
+	err := executor.Execute(context.Background(), &Options{ConfigFile: configPath, SkipConfirmation: true})
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+
+	done := findTargetsTransition(t, rep.TargetsCalls, "done")
+	if !strings.Contains(done.Summary, "stopped (deployment #7)") {
+		t.Errorf("expected summary to mention 'stopped (deployment #7)', got %q", done.Summary)
+	}
+}
+
+func TestExecutorTargetsFailOnStopError(t *testing.T) {
+	t.Parallel()
+
+	configPath, cleanup := createTestConfig(t)
+	defer cleanup()
+
+	mockClient := createStandardMockClient(
+		func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
+			return &appconfig.ListDeploymentsOutput{
+				Items: []types.DeploymentSummary{
+					{DeploymentNumber: 9, State: types.DeploymentStateDeploying},
+				},
+			}, nil
+		},
+		func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
+			n := int32(9)
+			return &appconfig.GetDeploymentOutput{
+				DeploymentNumber:       n,
+				ConfigurationProfileId: aws.String("profile-123"),
+				ConfigurationVersion:   aws.String("1"),
+				DeploymentStrategyId:   aws.String("strategy-123"),
+				State:                  types.DeploymentStateDeploying,
+				StartedAt:              aws.Time(time.Now()),
+			}, nil
+		},
+		func(ctx context.Context, params *appconfig.StopDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.StopDeploymentOutput, error) {
+			return nil, errors.New("ConflictException")
+		},
+	)
+
+	rep := &reportertest.MockReporter{}
+	prompter := &prompttest.MockPrompter{}
+	executor := NewExecutorWithFactory(rep, prompter, func(ctx context.Context, region string) (*awsInternal.Client, error) {
+		return awsInternal.NewTestClient(mockClient), nil
+	})
+
+	err := executor.Execute(context.Background(), &Options{ConfigFile: configPath, SkipConfirmation: true})
+	if err == nil {
+		t.Fatalf("expected error, got nil")
+	}
+
+	fail := findTargetsTransition(t, rep.TargetsCalls, "fail")
+	if fail.Err == nil || !strings.Contains(fail.Err.Error(), "ConflictException") {
+		t.Errorf("expected fail.Err to mention ConflictException, got %v", fail.Err)
+	}
+}
