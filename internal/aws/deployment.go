@@ -455,7 +455,34 @@ type DeploymentDetails struct {
 	CompletedAt            *time.Time
 	PercentageComplete     float32
 	GrowthFactor           float32
+	// DeploymentDurationInMinutes is the strategy's configured deploy
+	// phase duration (integer minutes — AppConfig API constraint).
+	// AppConfig schedules the rollout to fit within this window, so
+	// the actual deploy phase always takes exactly this many minutes
+	// modulo a few seconds of state-machine overhead.
+	DeploymentDurationInMinutes int32
+	// FinalBakeTimeInMinutes is the strategy's configured bake phase
+	// duration (integer minutes — same constraint).
 	FinalBakeTimeInMinutes int32
+}
+
+// BakeTimeStartedAt returns the OccurredAt timestamp of the
+// BAKE_TIME_STARTED event in details.EventLog, or nil if no such event
+// is present (yet). AppConfig records this when the deploy phase ends
+// and the bake phase begins; subtracting StartedAt from it yields the
+// AWS-recorded deploy phase elapsed (jitter included — see
+// docs/design/output.md notes on overhead).
+func BakeTimeStartedAt(details *DeploymentDetails) *time.Time {
+	if details == nil {
+		return nil
+	}
+	for _, e := range details.EventLog {
+		if e.EventType == types.DeploymentEventTypeBakeTimeStarted && e.OccurredAt != nil {
+			t := *e.OccurredAt
+			return &t
+		}
+	}
+	return nil
 }
 
 // GetDeploymentDetails retrieves detailed information about a specific deployment
@@ -482,18 +509,19 @@ func GetDeploymentDetails(ctx context.Context, client *Client, applicationID, en
 	}
 
 	details := &DeploymentDetails{
-		DeploymentNumber:       output.DeploymentNumber,
-		ConfigurationProfileID: aws.ToString(output.ConfigurationProfileId),
-		ConfigurationVersion:   aws.ToString(output.ConfigurationVersion),
-		DeploymentStrategyID:   aws.ToString(output.DeploymentStrategyId),
-		State:                  output.State,
-		Description:            aws.ToString(output.Description),
-		EventLog:               output.EventLog,
-		StartedAt:              output.StartedAt,
-		CompletedAt:            output.CompletedAt,
-		PercentageComplete:     percentageComplete,
-		GrowthFactor:           growthFactor,
-		FinalBakeTimeInMinutes: output.FinalBakeTimeInMinutes,
+		DeploymentNumber:            output.DeploymentNumber,
+		ConfigurationProfileID:      aws.ToString(output.ConfigurationProfileId),
+		ConfigurationVersion:        aws.ToString(output.ConfigurationVersion),
+		DeploymentStrategyID:        aws.ToString(output.DeploymentStrategyId),
+		State:                       output.State,
+		Description:                 aws.ToString(output.Description),
+		EventLog:                    output.EventLog,
+		StartedAt:                   output.StartedAt,
+		CompletedAt:                 output.CompletedAt,
+		PercentageComplete:          percentageComplete,
+		GrowthFactor:                growthFactor,
+		DeploymentDurationInMinutes: output.DeploymentDurationInMinutes,
+		FinalBakeTimeInMinutes:      output.FinalBakeTimeInMinutes,
 	}
 
 	return details, nil

@@ -274,7 +274,7 @@ func (w *workflow) waitIfRequested(ctx context.Context, tg reporter.Targets, id 
 			tg.Fail(id, err)
 			return fmt.Errorf("deployment failed: %w", err)
 		}
-		tg.Done(id, cli.FormatDeploymentSummary("deployed", deployStart, versionNumber, strategyName, "baking started"))
+		tg.Done(id, cli.FormatDeploymentSummary("deployed", awsDeployElapsed(ctx, w.awsClient, t.AppID, t.EnvID, deploymentNumber, deployStart), versionNumber, strategyName, "baking started"))
 	case opts.WaitBake:
 		// waitCtx caps total wait at opts.Timeout. The per-phase timeout
 		// passed below is the remaining budget against that deadline so the
@@ -292,11 +292,36 @@ func (w *workflow) waitIfRequested(ctx context.Context, tg reporter.Targets, id 
 			tg.Fail(id, err)
 			return fmt.Errorf("deployment failed: %w", err)
 		}
-		tg.Done(id, cli.FormatDeploymentSummary("complete", deployStart, versionNumber, strategyName, ""))
+		tg.Done(id, cli.FormatDeploymentSummary("complete", awsBakeElapsed(ctx, w.awsClient, t.AppID, t.EnvID, deploymentNumber, deployStart), versionNumber, strategyName, ""))
 	default:
-		tg.Done(id, cli.FormatDeploymentSummary("started", deployStart, versionNumber, strategyName, fmt.Sprintf("deployment #%d", deploymentNumber)))
+		tg.Done(id, cli.FormatDeploymentSummary("started", 0, versionNumber, strategyName, fmt.Sprintf("deployment #%d", deploymentNumber)))
 	}
 	return nil
+}
+
+// awsDeployElapsed mirrors run.Deployer.AWSElapsedForDeploy for the
+// edit workflow (which doesn't carry a Deployer). Returns
+// BAKE_TIME_STARTED.OccurredAt - StartedAt when both are available;
+// falls back to wall-clock otherwise.
+func awsDeployElapsed(ctx context.Context, client *awsInternal.Client, appID, envID string, deploymentNumber int32, fallback time.Time) time.Duration {
+	details, err := awsInternal.GetDeploymentDetails(ctx, client, appID, envID, deploymentNumber)
+	if err == nil && details.StartedAt != nil {
+		if bakeStart := awsInternal.BakeTimeStartedAt(details); bakeStart != nil {
+			return bakeStart.Sub(*details.StartedAt)
+		}
+	}
+	return time.Since(fallback)
+}
+
+// awsBakeElapsed mirrors run.Deployer.AWSElapsedForBake. Returns
+// CompletedAt - StartedAt when both are available; falls back to
+// wall-clock otherwise.
+func awsBakeElapsed(ctx context.Context, client *awsInternal.Client, appID, envID string, deploymentNumber int32, fallback time.Time) time.Duration {
+	details, err := awsInternal.GetDeploymentDetails(ctx, client, appID, envID, deploymentNumber)
+	if err == nil && details.StartedAt != nil && details.CompletedAt != nil {
+		return details.CompletedAt.Sub(*details.StartedAt)
+	}
+	return time.Since(fallback)
 }
 
 // remainingDuration returns the time until deadline, clamped at 1s to

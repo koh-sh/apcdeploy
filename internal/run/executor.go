@@ -175,7 +175,7 @@ func (e *Executor) runOnTargetWithDeployer(ctx context.Context, t *batch.Target,
 			tr.Fail(err)
 			return fmt.Errorf("deployment failed: %w", err)
 		}
-		tr.Done(cli.FormatDeploymentSummary("deployed", deployStart, versionNumber, strategyName, "baking started"))
+		tr.Done(cli.FormatDeploymentSummary("deployed", deployer.AWSElapsedForDeploy(ctx, resolved, deploymentNumber, deployStart), versionNumber, strategyName, "baking started"))
 
 	case opts.WaitBake:
 		// waitCtx caps total wait at opts.Timeout. The per-phase timeout
@@ -194,10 +194,10 @@ func (e *Executor) runOnTargetWithDeployer(ctx context.Context, t *batch.Target,
 			tr.Fail(err)
 			return fmt.Errorf("deployment failed: %w", err)
 		}
-		tr.Done(cli.FormatDeploymentSummary("complete", deployStart, versionNumber, strategyName, ""))
+		tr.Done(cli.FormatDeploymentSummary("complete", deployer.AWSElapsedForBake(ctx, resolved, deploymentNumber, deployStart), versionNumber, strategyName, ""))
 
 	default:
-		tr.Done(cli.FormatDeploymentSummary("started", deployStart, versionNumber, strategyName, fmt.Sprintf("deployment #%d", deploymentNumber)))
+		tr.Done(cli.FormatDeploymentSummary("started", 0, versionNumber, strategyName, fmt.Sprintf("deployment #%d", deploymentNumber)))
 	}
 
 	return nil

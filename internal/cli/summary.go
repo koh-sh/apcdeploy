@@ -10,17 +10,21 @@ import (
 //
 //	<verb> [(<elapsed>)] [— v<N>[, <Strategy>][, <addendum>]]
 //
-// elapsed is omitted when start is the zero value, or when verb is "started"
-// (no wait flag was set, so there is no meaningful deploy duration to quote).
+// elapsed is the duration to render. Pass 0 to omit it entirely (used for
+// the "started" verb, which has no wait phase to time). The caller is
+// responsible for choosing the right source of elapsed — wall-clock for
+// --wait-deploy, AWS-reported `CompletedAt - StartedAt` for --wait-bake
+// (so the displayed time isn't inflated by the polling tick lag).
+//
 // addendum is appended after the strategy when non-empty (e.g.
 // "baking started", "deployment #42").
 //
 // Centralised here so run and edit cannot drift — both packages were carrying
 // identical implementations before.
-func FormatDeploymentSummary(verb string, start time.Time, version int32, strategy, addendum string) string {
+func FormatDeploymentSummary(verb string, elapsed time.Duration, version int32, strategy, addendum string) string {
 	out := verb
-	if !start.IsZero() && verb != "started" {
-		out += " (" + FormatElapsed(time.Since(start)) + ")"
+	if elapsed > 0 && verb != "started" {
+		out += " (" + FormatElapsed(elapsed) + ")"
 	}
 	if version > 0 {
 		out += fmt.Sprintf(" — v%d", version)
@@ -38,9 +42,15 @@ func FormatDeploymentSummary(verb string, start time.Time, version int32, strate
 	return out
 }
 
-// FormatElapsed renders a duration as compact "Ns" or "Nm Ns" (or "Nm" when
-// the seconds part is zero). Used by FormatDeploymentSummary; exported so
-// callers that build their own summary strings can stay consistent.
+// FormatElapsed renders a duration as compact "Ns" or "Nm Ns" (or "Nm"
+// when the seconds part is zero). Used by FormatDeploymentSummary and
+// by the multi-config aggregate summary.
+//
+// Sub-second precision is dropped via Round (nearest-second), so the
+// displayed value is the closest integer second to the actual
+// duration — consistent with AppConfig's microsecond-precision
+// timestamps shown in the AWS console / event log. Truncate would
+// always under-report by up to 1s and bias the display.
 func FormatElapsed(d time.Duration) string {
 	d = d.Round(time.Second)
 	if d < time.Minute {
