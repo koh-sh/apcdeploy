@@ -14,6 +14,8 @@ import (
 )
 
 func TestNewResolver(t *testing.T) {
+	// Not parallel: this test calls t.Setenv, which is incompatible with
+	// t.Parallel on the same testing.T (Go testing requirement).
 	// Use the actual client since we just need to verify the constructor
 	ctx := context.Background()
 
@@ -33,6 +35,7 @@ func TestNewResolver(t *testing.T) {
 }
 
 func TestResolveApplication(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		appName     string
@@ -132,6 +135,7 @@ func TestResolveApplication(t *testing.T) {
 }
 
 func TestResolveApplicationPagination(t *testing.T) {
+	t.Parallel()
 	t.Run("pagination - application found on second page", func(t *testing.T) {
 		mockClient := &mock.MockAppConfigClient{
 			ListAllApplicationsFunc: func(ctx context.Context) ([]types.Application, error) {
@@ -159,6 +163,7 @@ func TestResolveApplicationPagination(t *testing.T) {
 }
 
 func TestResolveConfigurationProfile(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		appID        string
@@ -301,6 +306,7 @@ func TestResolveConfigurationProfile(t *testing.T) {
 }
 
 func TestResolveConfigurationProfilePagination(t *testing.T) {
+	t.Parallel()
 	t.Run("pagination - profile found on second page", func(t *testing.T) {
 		mockClient := &mock.MockAppConfigClient{
 			ListAllConfigurationProfilesFunc: func(ctx context.Context, appID string) ([]types.ConfigurationProfileSummary, error) {
@@ -335,6 +341,7 @@ func TestResolveConfigurationProfilePagination(t *testing.T) {
 }
 
 func TestResolveEnvironment(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		appID       string
@@ -439,6 +446,7 @@ func TestResolveEnvironment(t *testing.T) {
 }
 
 func TestResolveEnvironmentPagination(t *testing.T) {
+	t.Parallel()
 	t.Run("pagination - environment found on second page", func(t *testing.T) {
 		mockClient := &mock.MockAppConfigClient{
 			ListAllEnvironmentsFunc: func(ctx context.Context, appID string) ([]types.Environment, error) {
@@ -466,6 +474,7 @@ func TestResolveEnvironmentPagination(t *testing.T) {
 }
 
 func TestResolveDeploymentStrategy(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		strategyName   string
@@ -561,6 +570,7 @@ func TestResolveDeploymentStrategy(t *testing.T) {
 }
 
 func TestResolveDeploymentStrategyPagination(t *testing.T) {
+	t.Parallel()
 	t.Run("pagination - strategy found on second page", func(t *testing.T) {
 		mockClient := &mock.MockAppConfigClient{
 			ListAllDeploymentStrategiesFunc: func(ctx context.Context) ([]types.DeploymentStrategy, error) {
@@ -588,6 +598,7 @@ func TestResolveDeploymentStrategyPagination(t *testing.T) {
 }
 
 func TestResolveDeploymentStrategyIDToName(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		strategyID     string
@@ -695,6 +706,7 @@ func TestResolveDeploymentStrategyIDToName(t *testing.T) {
 }
 
 func TestResolveDeploymentStrategyIDToNamePagination(t *testing.T) {
+	t.Parallel()
 	t.Run("pagination - strategy found on second page", func(t *testing.T) {
 		mockClient := &mock.MockAppConfigClient{
 			ListAllDeploymentStrategiesFunc: func(ctx context.Context) ([]types.DeploymentStrategy, error) {
@@ -722,6 +734,7 @@ func TestResolveDeploymentStrategyIDToNamePagination(t *testing.T) {
 }
 
 func TestResolveAll(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name            string
 		appName         string

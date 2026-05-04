@@ -13,6 +13,7 @@ import (
 )
 
 func TestCheckOngoingDeployment(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name            string
 		deployments     []types.DeploymentSummary
@@ -109,6 +110,7 @@ func TestCheckOngoingDeployment(t *testing.T) {
 }
 
 func TestCreateHostedConfigurationVersion(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		content     []byte
@@ -184,6 +186,7 @@ func TestCreateHostedConfigurationVersion(t *testing.T) {
 }
 
 func TestStartDeployment(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		strategyID  string
@@ -250,6 +253,7 @@ func TestStartDeployment(t *testing.T) {
 // covering rollback-reason extraction paths that the parameterized
 // TestWaitForDeploymentPhase does not.
 func TestWaitForDeploymentPhase_FullCompletion(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		deploymentNum int32
@@ -390,6 +394,7 @@ func TestWaitForDeploymentPhase_FullCompletion(t *testing.T) {
 }
 
 func TestGetLatestDeployment(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name              string
 		deployments       []types.DeploymentSummary
@@ -573,6 +578,7 @@ func TestGetLatestDeployment(t *testing.T) {
 // "no prior deployment". The new behavior surfaces the underlying AWS error
 // so the user sees a concrete failure instead.
 func TestGetLatestDeployment_AllGetDeploymentFail(t *testing.T) {
+	t.Parallel()
 	mockClient := &mock.MockAppConfigClient{
 		ListDeploymentsFunc: func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
 			return &appconfig.ListDeploymentsOutput{
@@ -604,6 +610,7 @@ func TestGetLatestDeployment_AllGetDeploymentFail(t *testing.T) {
 // GetDeployment calls fail but others succeed: the function should still find
 // and return the latest deployment from the successful subset, not error out.
 func TestGetLatestDeployment_PartialGetDeploymentFail(t *testing.T) {
+	t.Parallel()
 	mockClient := &mock.MockAppConfigClient{
 		ListDeploymentsFunc: func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
 			return &appconfig.ListDeploymentsOutput{
@@ -640,6 +647,7 @@ func TestGetLatestDeployment_PartialGetDeploymentFail(t *testing.T) {
 }
 
 func TestGetLatestDeploymentIncludingRollback(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name              string
 		deployments       []types.DeploymentSummary
@@ -755,6 +763,7 @@ func TestGetLatestDeploymentIncludingRollback(t *testing.T) {
 }
 
 func TestGetHostedConfigurationVersion(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		versionNumber string
@@ -816,6 +825,7 @@ func TestGetHostedConfigurationVersion(t *testing.T) {
 }
 
 func TestWaitForDeploymentPhase(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		deploymentNum int32
@@ -961,6 +971,7 @@ func TestWaitForDeploymentPhase(t *testing.T) {
 
 // Test that WaitForDeploymentPhase with waitForBaking=false stops at BAKING
 func TestWaitForDeploymentPhase_StopsAtBaking(t *testing.T) {
+	t.Parallel()
 	callCount := 0
 	mockClient := &mock.MockAppConfigClient{
 		GetDeploymentFunc: func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
@@ -1144,6 +1155,7 @@ func TestExtractRollbackReason(t *testing.T) {
 // callback receives the configured FinalBakeTimeInMinutes as the total
 // duration, with elapsed advancing across ticks.
 func TestWaitForBakingComplete(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		mockStates     []types.DeploymentState
@@ -1283,6 +1295,7 @@ func TestWaitForBakingComplete(t *testing.T) {
 // COMPLETE tick reports the full bake duration so callers can render a
 // definitive "done" state.
 func TestWaitForBakingComplete_TickElapsed(t *testing.T) {
+	t.Parallel()
 	calls := 0
 	mockClient := &mock.MockAppConfigClient{
 		GetDeploymentFunc: func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
