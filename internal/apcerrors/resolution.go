@@ -19,10 +19,10 @@ import (
 // Keys are the short ErrorCode() strings returned by smithy APIError values
 // (e.g. "ConflictException"), not full type names.
 var resolutionHints = map[string]string{
-	"ConflictException":         "wait for the current deployment to complete or run 'apcdeploy rollback'.",
-	"BadRequestException":       "check your configuration data, JSON/YAML syntax, and any configured validators (JSON Schema / Lambda).",
-	"ValidationException":       "configuration data failed AppConfig validation; check the JSON Schema / Lambda validators configured on this profile.",
-	"ResourceNotFoundException": "verify the resource names with 'apcdeploy ls-resources' and your AWS region.",
+	"ConflictException":         "wait for the current deployment to complete or run 'apcdeploy rollback'",
+	"BadRequestException":       "check your configuration data, JSON/YAML syntax, and any configured validators (JSON Schema / Lambda)",
+	"ValidationException":       "configuration data failed AppConfig validation; check the JSON Schema / Lambda validators configured on this profile",
+	"ResourceNotFoundException": "verify the resource names with 'apcdeploy ls-resources' and your AWS region",
 }
 
 // Resolution returns the canonical hint for err's AWS error code, or an empty
