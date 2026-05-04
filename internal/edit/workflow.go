@@ -11,10 +11,10 @@ import (
 	"github.com/koh-sh/apcdeploy/internal/batch"
 	"github.com/koh-sh/apcdeploy/internal/cli"
 	"github.com/koh-sh/apcdeploy/internal/config"
+	"github.com/koh-sh/apcdeploy/internal/deploywait"
 	initPkg "github.com/koh-sh/apcdeploy/internal/init"
 	"github.com/koh-sh/apcdeploy/internal/prompt"
 	"github.com/koh-sh/apcdeploy/internal/reporter"
-	"github.com/koh-sh/apcdeploy/internal/run"
 )
 
 // workflow orchestrates the edit command against AWS AppConfig.
@@ -269,11 +269,11 @@ func (w *workflow) waitIfRequested(ctx context.Context, tg reporter.Targets, id 
 	tr := batch.NewTargetReporter(tg, id)
 	switch {
 	case opts.WaitDeploy:
-		if err := w.awsClient.WaitForDeploymentPhase(ctx, t.AppID, t.EnvID, deploymentNumber, false, timeout, run.MakeTargetsDeployTick(tr)); err != nil {
+		if err := w.awsClient.WaitForDeploymentPhase(ctx, t.AppID, t.EnvID, deploymentNumber, false, timeout, deploywait.MakeTargetsDeployTick(tr)); err != nil {
 			tg.Fail(id, err)
 			return fmt.Errorf("deployment failed: %w", err)
 		}
-		tg.Done(id, cli.FormatDeploymentSummary("deployed", awsDeployElapsed(ctx, w.awsClient, t.AppID, t.EnvID, deploymentNumber, deployStart), versionNumber, strategyName, "baking started"))
+		tg.Done(id, cli.FormatDeploymentSummary("deployed", deploywait.AWSElapsedForDeploy(ctx, w.awsClient, t.AppID, t.EnvID, deploymentNumber, deployStart), versionNumber, strategyName, "baking started"))
 	case opts.WaitBake:
 		// waitCtx caps total wait at opts.Timeout. The per-phase timeout
 		// passed below is the remaining budget against that deadline so the
@@ -282,56 +282,18 @@ func (w *workflow) waitIfRequested(ctx context.Context, tg reporter.Targets, id 
 		waitCtx, cancel := context.WithDeadline(ctx, deadline)
 		defer cancel()
 
-		if err := w.awsClient.WaitForDeploymentPhase(waitCtx, t.AppID, t.EnvID, deploymentNumber, false, remainingDuration(deadline), run.MakeTargetsDeployTick(tr)); err != nil {
+		if err := w.awsClient.WaitForDeploymentPhase(waitCtx, t.AppID, t.EnvID, deploymentNumber, false, deploywait.RemainingDuration(deadline), deploywait.MakeTargetsDeployTick(tr)); err != nil {
 			tg.Fail(id, err)
 			return fmt.Errorf("deployment failed: %w", err)
 		}
 		tg.SetPhase(id, "baking", "")
-		if err := w.awsClient.WaitForBakingComplete(waitCtx, t.AppID, t.EnvID, deploymentNumber, remainingDuration(deadline), run.MakeTargetsBakeTick(tr)); err != nil {
+		if err := w.awsClient.WaitForBakingComplete(waitCtx, t.AppID, t.EnvID, deploymentNumber, deploywait.RemainingDuration(deadline), deploywait.MakeTargetsBakeTick(tr)); err != nil {
 			tg.Fail(id, err)
 			return fmt.Errorf("deployment failed: %w", err)
 		}
-		tg.Done(id, cli.FormatDeploymentSummary("complete", awsBakeElapsed(ctx, w.awsClient, t.AppID, t.EnvID, deploymentNumber, deployStart), versionNumber, strategyName, ""))
+		tg.Done(id, cli.FormatDeploymentSummary("complete", deploywait.AWSElapsedForBake(ctx, w.awsClient, t.AppID, t.EnvID, deploymentNumber, deployStart), versionNumber, strategyName, ""))
 	default:
 		tg.Done(id, cli.FormatDeploymentSummary("started", 0, versionNumber, strategyName, fmt.Sprintf("deployment #%d", deploymentNumber)))
 	}
 	return nil
-}
-
-// awsDeployElapsed mirrors run.Deployer.AWSElapsedForDeploy for the
-// edit workflow (which doesn't carry a Deployer). Returns
-// BAKE_TIME_STARTED.OccurredAt - StartedAt when both are available;
-// falls back to wall-clock otherwise.
-func awsDeployElapsed(ctx context.Context, client *awsInternal.Client, appID, envID string, deploymentNumber int32, fallback time.Time) time.Duration {
-	details, err := awsInternal.GetDeploymentDetails(ctx, client, appID, envID, deploymentNumber)
-	if err == nil && details.StartedAt != nil {
-		if bakeStart := awsInternal.BakeTimeStartedAt(details); bakeStart != nil {
-			return bakeStart.Sub(*details.StartedAt)
-		}
-	}
-	return time.Since(fallback)
-}
-
-// awsBakeElapsed mirrors run.Deployer.AWSElapsedForBake. Returns
-// CompletedAt - StartedAt when both are available; falls back to
-// wall-clock otherwise.
-func awsBakeElapsed(ctx context.Context, client *awsInternal.Client, appID, envID string, deploymentNumber int32, fallback time.Time) time.Duration {
-	details, err := awsInternal.GetDeploymentDetails(ctx, client, appID, envID, deploymentNumber)
-	if err == nil && details.StartedAt != nil && details.CompletedAt != nil {
-		return details.CompletedAt.Sub(*details.StartedAt)
-	}
-	return time.Since(fallback)
-}
-
-// remainingDuration returns the time until deadline, clamped at 1s to
-// avoid passing 0/negative values to wait functions that interpret 0 as
-// "no timeout". The actual wait is bounded by the shared waitCtx deadline
-// regardless, so the floor only matters when this helper is called after
-// the budget is already exhausted.
-func remainingDuration(deadline time.Time) time.Duration {
-	remaining := time.Until(deadline)
-	if remaining < time.Second {
-		return time.Second
-	}
-	return remaining
 }

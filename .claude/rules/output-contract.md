@@ -225,9 +225,9 @@ single-target callers — see "Resolution hints" below.
    - Do not emit any phase transition for instant operations (file reads,
      validation, content-type detection). Failures surface via the returned
      error; the absence of an error is the success signal.
-   - For wait phases, use `run.MakeTargetsDeployTick` /
-     `run.MakeTargetsBakeTick` to drive the row from the AWS polling tick
-     callbacks.
+   - For wait phases, use `deploywait.MakeTargetsDeployTick` /
+     `deploywait.MakeTargetsBakeTick` to drive the row from the AWS polling
+     tick callbacks.
 3. For a non-target sequential workflow (`init`-style), use `Step` /
    `Success` / `Info` / `Spin` instead. New commands should justify why they
    need this path rather than `Targets` — most deployment-flavoured commands

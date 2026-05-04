@@ -188,6 +188,16 @@ Multi-config orchestration for `run` / `diff` / `pull`:
 
 Each executor exposes both `Execute(ctx, opts)` (single-config) and `RunOnTarget(ctx, *batch.Target, reporter.TargetReporter, ...)` (orchestrator entry point); both delegate to a shared `runOnTargetWith*` body so the per-target output is bit-identical between paths. `cmd/run.go` / `cmd/diff.go` / `cmd/pull.go` dispatch on `len(configFiles)` — single-config keeps the existing path (so the row identifier still shows the SDK-resolved default region when `cfg.Region` is empty); multi-config goes through the orchestrator and requires region in yml.
 
+#### internal/deploywait
+
+Helpers shared by deploy-shape commands (`run` and `edit`) that wait on AppConfig deployments and surface progress through `Reporter.Targets`:
+
+- `elapsed.go`: `AWSElapsedForDeploy` / `AWSElapsedForBake` — returns the AWS-recorded phase elapsed (BAKE_TIME_STARTED − StartedAt or CompletedAt − StartedAt), with `time.Since(fallback)` as the wall-clock fallback when AWS data is unavailable
+- `tick.go`: `MakeTargetsDeployTick` / `MakeTargetsBakeTick` — adapts AWS polling tick callbacks (`aws.DeploymentTickFunc` / `aws.BakeTickFunc`) into `TargetReporter.SetProgress` / `SetPhase` calls
+- `timeout.go`: `RemainingDuration(deadline)` — returns the time until deadline clamped at 1s for `awsClient.Wait*` invocations
+
+The package sits between `internal/aws` (deployment polling / timestamps) and `internal/reporter` (Targets primitive). Placing it in either parent would introduce a reverse dependency: `aws` would gain a UI dependency on Reporter, or `cli`/`reporter` would gain an AWS-domain dependency on `DeploymentState`.
+
 #### internal/lsresources
 
 Resource listing functionality for discovering AppConfig resources:

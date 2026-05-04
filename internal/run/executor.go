@@ -9,6 +9,7 @@ import (
 	"github.com/koh-sh/apcdeploy/internal/batch"
 	"github.com/koh-sh/apcdeploy/internal/cli"
 	"github.com/koh-sh/apcdeploy/internal/config"
+	"github.com/koh-sh/apcdeploy/internal/deploywait"
 	"github.com/koh-sh/apcdeploy/internal/reporter"
 )
 
@@ -170,11 +171,12 @@ func (e *Executor) runOnTargetWithDeployer(ctx context.Context, t *batch.Target,
 	strategyName := cfg.DeploymentStrategy
 	switch {
 	case opts.WaitDeploy:
-		if err := deployer.WaitForDeploymentPhase(ctx, resolved, deploymentNumber, false, opts.Timeout, MakeTargetsDeployTick(tr)); err != nil {
+		timeout := time.Duration(opts.Timeout) * time.Second
+		if err := deployer.awsClient.WaitForDeploymentPhase(ctx, resolved.ApplicationID, resolved.EnvironmentID, deploymentNumber, false, timeout, deploywait.MakeTargetsDeployTick(tr)); err != nil {
 			tr.Fail(err)
 			return fmt.Errorf("deployment failed: %w", err)
 		}
-		tr.Done(cli.FormatDeploymentSummary("deployed", deployer.AWSElapsedForDeploy(ctx, resolved, deploymentNumber, deployStart), versionNumber, strategyName, "baking started"))
+		tr.Done(cli.FormatDeploymentSummary("deployed", deploywait.AWSElapsedForDeploy(ctx, deployer.awsClient, resolved.ApplicationID, resolved.EnvironmentID, deploymentNumber, deployStart), versionNumber, strategyName, "baking started"))
 
 	case opts.WaitBake:
 		// waitCtx caps total wait at opts.Timeout. The per-phase timeout
@@ -184,16 +186,16 @@ func (e *Executor) runOnTargetWithDeployer(ctx context.Context, t *batch.Target,
 		waitCtx, cancel := context.WithDeadline(ctx, deadline)
 		defer cancel()
 
-		if err := deployer.WaitForDeploymentPhase(waitCtx, resolved, deploymentNumber, false, remainingSeconds(deadline), MakeTargetsDeployTick(tr)); err != nil {
+		if err := deployer.awsClient.WaitForDeploymentPhase(waitCtx, resolved.ApplicationID, resolved.EnvironmentID, deploymentNumber, false, deploywait.RemainingDuration(deadline), deploywait.MakeTargetsDeployTick(tr)); err != nil {
 			tr.Fail(err)
 			return fmt.Errorf("deployment failed: %w", err)
 		}
 		tr.SetPhase("baking", "")
-		if err := deployer.WaitForBakingComplete(waitCtx, resolved, deploymentNumber, remainingSeconds(deadline), MakeTargetsBakeTick(tr)); err != nil {
+		if err := deployer.awsClient.WaitForBakingComplete(waitCtx, resolved.ApplicationID, resolved.EnvironmentID, deploymentNumber, deploywait.RemainingDuration(deadline), deploywait.MakeTargetsBakeTick(tr)); err != nil {
 			tr.Fail(err)
 			return fmt.Errorf("deployment failed: %w", err)
 		}
-		tr.Done(cli.FormatDeploymentSummary("complete", deployer.AWSElapsedForBake(ctx, resolved, deploymentNumber, deployStart), versionNumber, strategyName, ""))
+		tr.Done(cli.FormatDeploymentSummary("complete", deploywait.AWSElapsedForBake(ctx, deployer.awsClient, resolved.ApplicationID, resolved.EnvironmentID, deploymentNumber, deployStart), versionNumber, strategyName, ""))
 
 	default:
 		tr.Done(cli.FormatDeploymentSummary("started", 0, versionNumber, strategyName, fmt.Sprintf("deployment #%d", deploymentNumber)))
@@ -213,17 +215,4 @@ func validateOpts(opts *Options) error {
 		return fmt.Errorf("--wait-deploy and --wait-bake cannot be used together")
 	}
 	return nil
-}
-
-// remainingSeconds returns the seconds remaining until deadline, clamped at
-// 1 to avoid passing 0/negative values to wait functions that interpret 0
-// as "no timeout". The actual wait is bounded by the shared waitCtx
-// deadline regardless, so the floor only matters when this helper is
-// called after the budget is already exhausted.
-func remainingSeconds(deadline time.Time) int {
-	remaining := int(time.Until(deadline).Seconds())
-	if remaining < 1 {
-		return 1
-	}
-	return remaining
 }

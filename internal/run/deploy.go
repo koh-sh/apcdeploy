@@ -3,15 +3,11 @@ package run
 import (
 	"context"
 	"fmt"
-	"math"
 	"path/filepath"
 	"strings"
-	"time"
 
-	"github.com/aws/aws-sdk-go-v2/service/appconfig/types"
 	"github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/config"
-	"github.com/koh-sh/apcdeploy/internal/reporter"
 )
 
 // Deployer handles deployment operations
@@ -129,113 +125,6 @@ func (d *Deployer) CreateVersion(ctx context.Context, resolved *aws.ResolvedReso
 // forwarded to AppConfig and shown in the console / on `apcdeploy status`.
 func (d *Deployer) StartDeployment(ctx context.Context, resolved *aws.ResolvedResources, versionNumber int32, description string) (int32, error) {
 	return d.awsClient.StartDeployment(ctx, resolved.ApplicationID, resolved.EnvironmentID, resolved.Profile.ID, resolved.DeploymentStrategyID, versionNumber, description)
-}
-
-// WaitForDeploymentPhase waits for a deployment to reach a specific phase.
-// onTick is invoked on each polling tick; nil is allowed.
-func (d *Deployer) WaitForDeploymentPhase(ctx context.Context, resolved *aws.ResolvedResources, deploymentNumber int32, waitForBaking bool, timeoutSeconds int, onTick aws.DeploymentTickFunc) error {
-	timeout := time.Duration(timeoutSeconds) * time.Second
-	return d.awsClient.WaitForDeploymentPhase(ctx, resolved.ApplicationID, resolved.EnvironmentID, deploymentNumber, waitForBaking, timeout, onTick)
-}
-
-// WaitForBakingComplete waits for an already-baking deployment to reach
-// COMPLETE. onTick is invoked on each polling tick with bake progress; nil is
-// allowed.
-func (d *Deployer) WaitForBakingComplete(ctx context.Context, resolved *aws.ResolvedResources, deploymentNumber int32, timeoutSeconds int, onTick aws.BakeTickFunc) error {
-	timeout := time.Duration(timeoutSeconds) * time.Second
-	return d.awsClient.WaitForBakingComplete(ctx, resolved.ApplicationID, resolved.EnvironmentID, deploymentNumber, timeout, onTick)
-}
-
-// AWSElapsedForDeploy returns the AWS-recorded deploy phase elapsed:
-// BAKE_TIME_STARTED.OccurredAt - StartedAt. AppConfig records both
-// timestamps at microsecond precision when the corresponding state
-// transitions occur, so this is the authoritative "actual deploy
-// time" — including a few seconds of state-machine overhead that AWS
-// does not document but consistently exhibits (the public
-// GetDeployment example shows ~3.5 s on top of a 15-minute strategy).
-//
-// Falls back to `time.Since(fallback)` when the fetch fails, the
-// EventLog hasn't surfaced BAKE_TIME_STARTED yet, or StartedAt is
-// nil. Best-effort: wall-clock is the only sensible signal when
-// AWS-side data is unavailable.
-func (d *Deployer) AWSElapsedForDeploy(ctx context.Context, resolved *aws.ResolvedResources, deploymentNumber int32, fallback time.Time) time.Duration {
-	details, err := aws.GetDeploymentDetails(ctx, d.awsClient, resolved.ApplicationID, resolved.EnvironmentID, deploymentNumber)
-	if err == nil && details.StartedAt != nil {
-		if bakeStart := aws.BakeTimeStartedAt(details); bakeStart != nil {
-			return bakeStart.Sub(*details.StartedAt)
-		}
-	}
-	return time.Since(fallback)
-}
-
-// AWSElapsedForBake returns the AWS-recorded total elapsed:
-// CompletedAt - StartedAt. AWS does not emit a separate
-// BAKE_TIME_COMPLETED event, so this is the only way to get the
-// authoritative AWS-side total (deploy + bake monitoring + completion
-// overhead).
-//
-// Falls back to `time.Since(fallback)` on fetch failure or when
-// either timestamp is nil.
-func (d *Deployer) AWSElapsedForBake(ctx context.Context, resolved *aws.ResolvedResources, deploymentNumber int32, fallback time.Time) time.Duration {
-	details, err := aws.GetDeploymentDetails(ctx, d.awsClient, resolved.ApplicationID, resolved.EnvironmentID, deploymentNumber)
-	if err == nil && details.StartedAt != nil && details.CompletedAt != nil {
-		return details.CompletedAt.Sub(*details.StartedAt)
-	}
-	return time.Since(fallback)
-}
-
-// MakeTargetsDeployTick returns an aws.DeploymentTickFunc that drives a
-// row's deploying sub-phase via SetProgress. Once BAKING (or COMPLETE)
-// is observed the percent pins at 1.0 and the eta is cleared so callers
-// can swap the row to a "baking" sub-phase via SetPhase.
-//
-// The "(~N min left)" countdown is derived from wall-clock elapsed time
-// (waitStart) minus the strategy's totalDuration so non-linear strategies
-// (EXPONENTIAL) report honest remaining time.
-//
-// Lives in `run` rather than `internal/aws` or `internal/cli` because the
-// only callers are deploy-shape commands (run + edit). Moving it to either
-// neutral location would introduce a UI dependency in `aws` (TargetReporter
-// is a reporter concept) or an AWS-domain dependency in `cli`
-// (DeploymentState is an AWS type). The `edit → run` import is the lesser
-// evil while the caller set stays at two; revisit if a third caller
-// appears.
-func MakeTargetsDeployTick(tr reporter.TargetReporter) aws.DeploymentTickFunc {
-	waitStart := time.Now()
-	return func(state types.DeploymentState, percent float64, totalDuration time.Duration) {
-		if state == types.DeploymentStateBaking || state == types.DeploymentStateComplete {
-			tr.SetProgress(1.0, 0)
-			return
-		}
-		eta := max(totalDuration-time.Since(waitStart), 0)
-		tr.SetProgress(percent/100.0, eta)
-	}
-}
-
-// MakeTargetsBakeTick returns an aws.BakeTickFunc that updates the row's
-// baking sub-phase detail with the current "(~N min left)" countdown.
-// The row is expected to already be in the baking sub-phase (the caller
-// invokes SetPhase("baking", "") before starting the bake wait).
-func MakeTargetsBakeTick(tr reporter.TargetReporter) aws.BakeTickFunc {
-	return func(elapsed, total time.Duration) {
-		tr.SetPhase("baking", remainingFromElapsedSuffix(elapsed, total))
-	}
-}
-
-// remainingFromElapsedSuffix renders a "(~N min left)" suffix from total
-// minus locally observed elapsed time. Falls back to "(<1 min left)" when
-// total is zero (e.g. AppConfig.AllAtOnce), when elapsed has already run
-// past total, or when the remaining is below one minute. The function
-// always returns a non-empty string so the bar always carries a time hint,
-// and the threshold is on the duration itself (not math.Ceil) so 30 s and
-// 59 s render honestly as "<1 min left" instead of being rounded up to
-// "~1 min left".
-func remainingFromElapsedSuffix(elapsed, total time.Duration) string {
-	remaining := total - elapsed
-	if total <= 0 || remaining < time.Minute {
-		return " (<1 min left)"
-	}
-	return fmt.Sprintf(" (~%d min left)", int(math.Ceil(remaining.Minutes())))
 }
 
 // HasConfigurationChanges checks if the local configuration differs from the deployed version
