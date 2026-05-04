@@ -26,12 +26,23 @@ const defaultEditor = "vi"
 // On Windows, $EDITOR is split by whitespace and the first token is exec'd
 // directly. Paths with embedded spaces are not supported there.
 func editBuffer(content []byte, ext string) (editorName string, edited []byte, err error) {
-	tmp, err := os.CreateTemp("", "apcdeploy-edit-*"+ext)
+	// Allocate a private 0700 directory under the system temp root and
+	// place the buffer file inside it. os.CreateTemp alone leaves the
+	// file in a world-traversable location with a predictable
+	// "apcdeploy-edit-*" prefix, so a co-tenant on the same UID can poll
+	// for the buffer while the editor is open. Owning the parent
+	// directory removes both the listability and the predictable name.
+	tmpDir, err := os.MkdirTemp("", "apcdeploy-edit-*")
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to create temp dir: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	tmp, err := os.CreateTemp(tmpDir, "buffer-*"+ext)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to create temp file: %w", err)
 	}
 	tmpPath := tmp.Name()
-	defer os.Remove(tmpPath)
 
 	if _, err := tmp.Write(content); err != nil {
 		tmp.Close()
