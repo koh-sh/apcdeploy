@@ -1,9 +1,12 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 	"unicode/utf8"
 
 	"github.com/koh-sh/apcdeploy/internal/apcerrors"
@@ -16,6 +19,11 @@ import (
 // distinguishable condition that scripts can branch on.
 const (
 	exitNoDeployment = 2
+	// exitInterrupted matches the Unix convention `128 + SIGINT (2)`. Used
+	// for both the graceful-cancellation path (first Ctrl+C → ctx canceled
+	// → command returns context.Canceled) and the force-quit path (second
+	// Ctrl+C → os.Exit straight from the signal-watcher goroutine).
+	exitInterrupted = 130
 )
 
 var (
@@ -74,41 +82,114 @@ func SetVersionInfo(v, c, d string) {
 	date = d
 }
 
-// Execute runs the root command
+// Execute runs the root command. The os.Exit call lives here so the rest
+// of the program can return exit codes through runRoot(), keeping defer'd
+// cleanup (signal handler unregister, watcher goroutine teardown)
+// reachable. Named runRoot rather than run to avoid colliding with the
+// internal/run package alias used elsewhere in cmd/.
 func Execute() {
+	os.Exit(runRoot())
+}
+
+// runRoot drives the root command and returns the process exit code.
+//
+// Signal handling: the first SIGINT/SIGTERM cancels the context so the
+// command can clean up (AWS Wait* polling exits via ctx.Done()). A second
+// signal force-exits with code 130 — matching the kubectl/docker
+// convention — so users can escape if a Go-external operation (DNS lookup,
+// stalled syscall, child editor process) keeps the program from returning
+// after the first Ctrl+C.
+//
+// CLAUDE.md / output-contract.md document the implicit contract that all
+// long-running operations honor ctx.Done(); the second-signal goroutine is
+// the safety net for the Go-external cases where that contract can't reach.
+func runRoot() int {
 	rootCmd := NewRootCommand()
 
 	// Enable custom error formatting
 	rootCmd.SilenceErrors = true
 
-	if err := rootCmd.Execute(); err != nil {
-		// Funnel the top-level error through the Reporter so the styled "✗"
-		// prefix is consistent with the rest of stderr output. Both real and
-		// silent reporters always emit Error.
-		rep := cli.GetReporter(silent)
-		rep.Error(err.Error())
-		// Append a Resolution: <hint> line when the underlying AWS error code
-		// has a documented remediation.
-		// Emitted via Warn (⚠) instead of Error (✗) so the visual hierarchy is
-		// "what failed" first, "how to recover" second. Warn is suppressed by
-		// the silent variant, so the hint surfaces in interactive runs but not
-		// under --silent — automation should rely on the exit code and the
-		// (always-emitted) Error line above instead.
-		if hint := apcerrors.Resolution(err); hint != "" {
-			rep.Warn("Resolution: " + hint)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	// Watch for a second signal once the first one (or an unrelated parent
+	// cancellation) has fired ctx. The done channel terminates this goroutine
+	// when runRoot returns normally so it doesn't leak across test runs.
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		select {
+		case <-ctx.Done():
+		case <-done:
+			return
 		}
-		// Exit 2 when the failure is "no prior deployment" so scripts can
-		// distinguish that condition (e.g. first-time setup) from real errors.
-		if errors.Is(err, awsInternal.ErrNoDeployment) {
-			os.Exit(exitNoDeployment)
+		sigCh := make(chan os.Signal, 1)
+		signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+		defer signal.Stop(sigCh)
+		select {
+		case <-sigCh:
+			// Second signal: bypass deferred cleanup intentionally — the
+			// whole process is going away, so unregistering signal handlers
+			// is moot, and the parent goroutine may already be wedged on a
+			// syscall (the very thing this watcher exists to escape).
+			os.Exit(exitInterrupted)
+		case <-done:
 		}
-		os.Exit(1)
+	}()
+
+	err := rootCmd.ExecuteContext(ctx)
+	if err == nil {
+		return 0
 	}
+
+	// Funnel the top-level error through the Reporter so the styled "✗"
+	// prefix is consistent with the rest of stderr output. Both real and
+	// silent reporters always emit Error.
+	rep := cli.GetReporter(silent)
+	// User-cancelled run (first Ctrl+C). Distinct exit code, friendlier
+	// line via Warn so the visual cue isn't a red ✗ (this isn't a failure
+	// in the AWS sense — the user asked for it).
+	if errors.Is(err, context.Canceled) {
+		rep.Warn("cancelled by user")
+		return exitInterrupted
+	}
+	rep.Error(err.Error())
+	// Append a Resolution: <hint> line when the underlying AWS error code
+	// has a documented remediation.
+	// Emitted via Warn (⚠) instead of Error (✗) so the visual hierarchy is
+	// "what failed" first, "how to recover" second. Warn is suppressed by
+	// the silent variant, so the hint surfaces in interactive runs but not
+	// under --silent — automation should rely on the exit code and the
+	// (always-emitted) Error line above instead.
+	if hint := apcerrors.Resolution(err); hint != "" {
+		rep.Warn("Resolution: " + hint)
+	}
+	// Exit 2 when the failure is "no prior deployment" so scripts can
+	// distinguish that condition (e.g. first-time setup) from real errors.
+	if errors.Is(err, awsInternal.ErrNoDeployment) {
+		return exitNoDeployment
+	}
+	return 1
 }
 
 // isSilent returns whether silent mode is enabled
 func isSilent() bool {
 	return silent
+}
+
+// commandContext returns cmd.Context() with a context.Background() fallback.
+// In production, Execute wires a signal-aware context via ExecuteContext, so
+// every RunE receives a non-nil context. Tests that invoke RunE handlers
+// directly may pass nil for cmd or skip SetContext, where cmd.Context() would
+// panic or return nil — fall back to context.Background() so those tests
+// don't have to know about the signal plumbing.
+func commandContext(cmd *cobra.Command) context.Context {
+	if cmd != nil {
+		if ctx := cmd.Context(); ctx != nil {
+			return ctx
+		}
+	}
+	return context.Background()
 }
 
 // requireSingleConfig enforces that single-config commands receive exactly

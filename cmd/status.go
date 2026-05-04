@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"context"
-
 	"github.com/koh-sh/apcdeploy/internal/cli"
 	"github.com/koh-sh/apcdeploy/internal/status"
 	"github.com/spf13/cobra"
@@ -33,7 +31,7 @@ identified by deployment number.`,
 }
 
 func runStatus(cmd *cobra.Command, args []string) error {
-	ctx := context.Background()
+	ctx := commandContext(cmd)
 
 	cfgFile, err := requireSingleConfig("status")
 	if err != nil {
