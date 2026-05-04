@@ -408,4 +408,11 @@ func TestExecutorTTYErrorFromFactory(t *testing.T) {
 	if !strings.Contains(err.Error(), "interactive mode requires a TTY") {
 		t.Errorf("expected 'interactive mode requires a TTY' error, got: %v", err)
 	}
+
+	// The factory wraps ErrNoTTY with the all-flags hint suffix; this
+	// assertion locks the user-facing message so a future refactor that
+	// strips the suffix gets caught here.
+	if !strings.Contains(err.Error(), "please provide --region, --app, --profile, and --env flags") {
+		t.Errorf("expected helpful message about all required flags, got: %v", err)
+	}
 }

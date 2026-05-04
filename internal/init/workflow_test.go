@@ -2,6 +2,8 @@ package init
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/koh-sh/apcdeploy/internal/prompt"
@@ -91,6 +93,16 @@ func TestNewInitWorkflow(t *testing.T) {
 			validateFunc: func(t *testing.T, workflow *InitWorkflow, err error) {
 				if err == nil {
 					t.Fatal("expected error when TTY check fails")
+				}
+				// NewInitWorkflow wraps prompt.ErrNoTTY with the
+				// all-flags hint suffix; assert both the sentinel
+				// (errors.Is) and the user-facing suffix so a
+				// future refactor can't silently strip either.
+				if !errors.Is(err, prompt.ErrNoTTY) {
+					t.Errorf("expected error to wrap prompt.ErrNoTTY, got: %v", err)
+				}
+				if !strings.Contains(err.Error(), "please provide --region, --app, --profile, and --env flags") {
+					t.Errorf("expected helpful message about all required flags, got: %v", err)
 				}
 			},
 		},
