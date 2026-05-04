@@ -52,3 +52,25 @@ type Targets interface {
 	// exactly once; defer it after construction.
 	Close()
 }
+
+// TargetReporter is a single-row view of a Targets primitive. The multi-config
+// orchestrator (internal/batch) hands one of these to each per-target Execute
+// callback so the callback can drive its own row without knowing its
+// identifier or having to share the global Targets handle.
+//
+// Implementations are NOT goroutine-safe by themselves — each TargetReporter
+// is owned by exactly one goroutine, but multiple TargetReporters may write
+// to the same underlying Targets concurrently (the underlying Targets
+// implementation handles its own synchronisation).
+type TargetReporter interface {
+	// SetPhase advances the row's running sub-phase. See Targets.SetPhase.
+	SetPhase(phase, detail string)
+	// SetProgress updates the row's progress bar. See Targets.SetProgress.
+	SetProgress(percent float64, eta time.Duration)
+	// Done finalises the row as successful. See Targets.Done.
+	Done(summary string)
+	// Fail finalises the row as failed. See Targets.Fail.
+	Fail(err error)
+	// Skip finalises the row as skipped. See Targets.Skip.
+	Skip(reason string)
+}
