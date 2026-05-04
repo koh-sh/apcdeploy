@@ -34,7 +34,7 @@ func TestInitCommand(t *testing.T) {
 			initProfile = ""
 			initEnv = ""
 			initRegion = ""
-			configFile = "apcdeploy.yml"
+			configFiles = []string{"apcdeploy.yml"}
 			initOutputData = ""
 			initForce = false
 
@@ -124,7 +124,7 @@ func TestRunInitWithAllFlags(t *testing.T) {
 			initProfile = tt.profile
 			initEnv = tt.env
 			initRegion = tt.region
-			configFile = tt.config
+			configFiles = []string{tt.config}
 			initOutputData = tt.outputData
 			initForce = tt.force
 

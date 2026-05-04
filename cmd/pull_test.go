@@ -114,7 +114,7 @@ data_file: data.json
 			configPath := tt.setupFiles(t, tmpDir)
 
 			// Reset global flags
-			configFile = configPath
+			configFiles = []string{configPath}
 
 			// Create command
 			cmd := newPullCmd()

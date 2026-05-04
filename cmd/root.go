@@ -24,10 +24,17 @@ var (
 	commit  string
 	date    string
 
-	// Global flags
-	configFile string
-	silent     bool
+	// Global flags. configFiles is a slice so the run/diff/pull commands can
+	// accept `-c` repeatedly (multi-config.md F-01). Single-config commands
+	// (init/get/status/rollback/edit) call requireSingleConfig() to enforce
+	// `len == 1` themselves.
+	configFiles []string
+	silent      bool
 )
+
+// defaultConfigFile is the implicit -c value when the user passes no
+// `-c` flag. Kept as a constant so tests and the flag default agree.
+const defaultConfigFile = "apcdeploy.yml"
 
 // NewRootCommand creates and returns the root command
 func NewRootCommand() *cobra.Command {
@@ -39,8 +46,10 @@ It provides commands to initialize, deploy, diff, and check the status of config
 		Version: fmt.Sprintf("%s (Built on %s from Git SHA %s)", version, date, commit),
 	}
 
-	// Global flags
-	rootCmd.PersistentFlags().StringVarP(&configFile, "config", "c", "apcdeploy.yml", "config file path")
+	// Global flags. `-c` is a string slice so run/diff/pull can accept it
+	// multiple times for multi-config; single-config commands validate
+	// the count via requireSingleConfig().
+	rootCmd.PersistentFlags().StringSliceVarP(&configFiles, "config", "c", []string{defaultConfigFile}, "config file path (run/diff/pull may pass -c multiple times)")
 	rootCmd.PersistentFlags().BoolVarP(&silent, "silent", "s", false, "suppress verbose output, show only essential information")
 
 	// Add subcommands
@@ -100,6 +109,24 @@ func Execute() {
 // isSilent returns whether silent mode is enabled
 func isSilent() bool {
 	return silent
+}
+
+// requireSingleConfig enforces that single-config commands receive exactly
+// one `-c` value. It returns the single path when valid; otherwise it
+// returns an error explaining that the command does not support
+// multi-config (per docs/design/multi-config.md §3 non-goals — only
+// run/diff/pull do).
+func requireSingleConfig(cmdName string) (string, error) {
+	switch len(configFiles) {
+	case 0:
+		// Cobra's default keeps the slice non-empty, but be defensive in
+		// case a test or pre-run hook clears it.
+		return defaultConfigFile, nil
+	case 1:
+		return configFiles[0], nil
+	default:
+		return "", fmt.Errorf("%s does not support multiple -c flags (got %d)", cmdName, len(configFiles))
+	}
 }
 
 // maxDescriptionLength matches the AppConfig API limit on the Description

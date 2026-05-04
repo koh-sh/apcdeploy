@@ -37,9 +37,16 @@ and displays the differences in unified diff format.`,
 func runDiff(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
+	// TODO(multi-config PR-2 next phase): drop requireSingleConfig and route
+	// through batch.Orchestrator so `-c` may be repeated.
+	cfgFile, err := requireSingleConfig("diff")
+	if err != nil {
+		return err
+	}
+
 	// Create options
 	opts := &diff.Options{
-		ConfigFile:  configFile,
+		ConfigFile:  cfgFile,
 		ExitNonzero: diffExitNonzero,
 		Silent:      isSilent(),
 	}
@@ -49,7 +56,7 @@ func runDiff(cmd *cobra.Command, args []string) error {
 
 	// Run diff
 	executor := diff.NewExecutor(reporter)
-	err := executor.Execute(ctx, opts)
+	err = executor.Execute(ctx, opts)
 
 	// Handle exit-nonzero case
 	if errors.Is(err, diff.ErrDiffFound) {

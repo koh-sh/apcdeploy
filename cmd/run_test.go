@@ -37,7 +37,7 @@ func TestRunCommand(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Reset global flags for each test. We touch every flag-bound
 			// global so `go test -shuffle=on` can't expose ordering bugs.
-			configFile = "apcdeploy.yml"
+			configFiles = []string{"apcdeploy.yml"}
 			runWaitDeploy = false
 			runWaitBake = false
 			runTimeout = DefaultDeploymentTimeout
@@ -56,7 +56,7 @@ func TestRunCommand(t *testing.T) {
 }
 
 func TestRunCommandFlags(t *testing.T) {
-	configFile = "apcdeploy.yml"
+	configFiles = []string{"apcdeploy.yml"}
 	runWaitDeploy = false
 	runWaitBake = false
 	runTimeout = DefaultDeploymentTimeout
@@ -93,7 +93,7 @@ func TestRunCommandFlags(t *testing.T) {
 }
 
 func TestRunCommandWaitFlags(t *testing.T) {
-	configFile = "apcdeploy.yml"
+	configFiles = []string{"apcdeploy.yml"}
 	runWaitDeploy = false
 	runWaitBake = false
 	runTimeout = DefaultDeploymentTimeout

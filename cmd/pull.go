@@ -34,9 +34,16 @@ Note: This command does NOT use the AppConfig Data API, so it does not incur per
 func runPull(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
+	// TODO(multi-config PR-2 next phase): drop requireSingleConfig and route
+	// through batch.Orchestrator so `-c` may be repeated.
+	cfgFile, err := requireSingleConfig("pull")
+	if err != nil {
+		return err
+	}
+
 	// Create options
 	opts := &pull.Options{
-		ConfigFile: configFile,
+		ConfigFile: cfgFile,
 	}
 
 	// Create reporter

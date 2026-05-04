@@ -64,8 +64,16 @@ func runRun(cmd *cobra.Command, args []string) error {
 	}
 	description := resolveDescription(cmd, runDescription)
 
+	// TODO(multi-config PR-2 next phase): drop requireSingleConfig and route
+	// through batch.Orchestrator so `-c` may be repeated. For now keep
+	// single-config behaviour while the cmd-flag refactor lands.
+	cfgFile, err := requireSingleConfig("run")
+	if err != nil {
+		return err
+	}
+
 	opts := &run.Options{
-		ConfigFile:  configFile,
+		ConfigFile:  cfgFile,
 		WaitDeploy:  runWaitDeploy,
 		WaitBake:    runWaitBake,
 		Timeout:     runTimeout,

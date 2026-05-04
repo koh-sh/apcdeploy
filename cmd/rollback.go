@@ -36,9 +36,14 @@ It automatically finds the current ongoing deployment and stops it.`,
 func runRollback(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
+	cfgFile, err := requireSingleConfig("rollback")
+	if err != nil {
+		return err
+	}
+
 	// Create options
 	opts := &rollback.Options{
-		ConfigFile:       configFile,
+		ConfigFile:       cfgFile,
 		Silent:           isSilent(),
 		SkipConfirmation: rollbackSkipConfirmation,
 	}

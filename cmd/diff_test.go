@@ -68,7 +68,7 @@ func TestDiffCommandFlags(t *testing.T) {
 
 func TestRunDiffInvalidConfig(t *testing.T) {
 	// Reset flags
-	configFile = "nonexistent.yml"
+	configFiles = []string{"nonexistent.yml"}
 
 	err := runDiff(nil, nil)
 	if err == nil {
@@ -106,7 +106,7 @@ func TestDiffCommandExitNonzeroFlag(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Reset flags
-			configFile = "apcdeploy.yml"
+			configFiles = []string{"apcdeploy.yml"}
 			diffExitNonzero = false
 
 			cmd := newDiffCmd()
