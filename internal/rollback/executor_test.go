@@ -81,15 +81,12 @@ func createStandardMockClient(
 }
 
 // Helper function to create test configuration files
-func createTestConfig(t *testing.T) (configPath string, cleanup func()) {
+func createTestConfig(t *testing.T) string {
 	t.Helper()
 
-	tempDir, err := os.MkdirTemp("", "rollback-test-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
+	tempDir := t.TempDir()
 
-	configPath = filepath.Join(tempDir, "apcdeploy.yml")
+	configPath := filepath.Join(tempDir, "apcdeploy.yml")
 	configContent := `application: test-app
 configuration_profile: test-profile
 environment: test-env
@@ -98,17 +95,15 @@ data_file: data.json
 region: us-east-1
 `
 	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
-		os.RemoveAll(tempDir)
 		t.Fatalf("Failed to write config: %v", err)
 	}
 
 	dataPath := filepath.Join(tempDir, "data.json")
 	if err := os.WriteFile(dataPath, []byte(`{"key": "value"}`), 0o644); err != nil {
-		os.RemoveAll(tempDir)
 		t.Fatalf("Failed to write data: %v", err)
 	}
 
-	return configPath, func() { os.RemoveAll(tempDir) }
+	return configPath
 }
 
 func TestNewExecutor(t *testing.T) {
@@ -157,8 +152,7 @@ func TestExecutorLoadConfigurationError(t *testing.T) {
 func TestExecutorNoOngoingDeployment(t *testing.T) {
 	t.Parallel()
 
-	configPath, cleanup := createTestConfig(t)
-	defer cleanup()
+	configPath := createTestConfig(t)
 
 	// Create mock AWS client that returns no ongoing deployments
 	mockClient := createStandardMockClient(
@@ -200,8 +194,7 @@ func TestExecutorNoOngoingDeployment(t *testing.T) {
 func TestExecutorSuccessWithOngoingDeployment(t *testing.T) {
 	t.Parallel()
 
-	configPath, cleanup := createTestConfig(t)
-	defer cleanup()
+	configPath := createTestConfig(t)
 
 	// Track if StopDeployment was called
 	stopDeploymentCalled := false
@@ -269,8 +262,7 @@ func TestExecutorSuccessWithOngoingDeployment(t *testing.T) {
 func TestExecutorUserDeclined(t *testing.T) {
 	t.Parallel()
 
-	configPath, cleanup := createTestConfig(t)
-	defer cleanup()
+	configPath := createTestConfig(t)
 
 	// Create mock AWS client with ongoing deployment
 	mockClient := createStandardMockClient(
@@ -326,8 +318,7 @@ func TestExecutorUserDeclined(t *testing.T) {
 func TestExecutorSkipConfirmation(t *testing.T) {
 	t.Parallel()
 
-	configPath, cleanup := createTestConfig(t)
-	defer cleanup()
+	configPath := createTestConfig(t)
 
 	stopDeploymentCalled := false
 
@@ -385,8 +376,7 @@ func TestExecutorSkipConfirmation(t *testing.T) {
 func TestExecutorTTYCheckError(t *testing.T) {
 	t.Parallel()
 
-	configPath, cleanup := createTestConfig(t)
-	defer cleanup()
+	configPath := createTestConfig(t)
 
 	// Create mock AWS client with ongoing deployment
 	mockClient := createStandardMockClient(
@@ -443,8 +433,7 @@ func TestExecutorTTYCheckError(t *testing.T) {
 func TestExecutorStopDeploymentError(t *testing.T) {
 	t.Parallel()
 
-	configPath, cleanup := createTestConfig(t)
-	defer cleanup()
+	configPath := createTestConfig(t)
 
 	// Create mock AWS client with ongoing deployment and StopDeployment error
 	mockClient := createStandardMockClient(
@@ -499,8 +488,7 @@ func TestExecutorStopDeploymentError(t *testing.T) {
 func TestExecutorGetDeploymentDetailsError(t *testing.T) {
 	t.Parallel()
 
-	configPath, cleanup := createTestConfig(t)
-	defer cleanup()
+	configPath := createTestConfig(t)
 
 	// Create mock AWS client with ongoing deployment but GetDeployment error
 	mockClient := createStandardMockClient(
@@ -544,8 +532,7 @@ func TestExecutorGetDeploymentDetailsError(t *testing.T) {
 func TestExecutorCheckOngoingDeploymentError(t *testing.T) {
 	t.Parallel()
 
-	configPath, cleanup := createTestConfig(t)
-	defer cleanup()
+	configPath := createTestConfig(t)
 
 	// Create mock AWS client that returns error when checking deployments
 	mockClient := createStandardMockClient(
@@ -596,8 +583,7 @@ func findTargetsTransition(t *testing.T, calls []reportertest.TargetsCall, kind 
 func TestExecutorTargetsSkipOnNoOngoing(t *testing.T) {
 	t.Parallel()
 
-	configPath, cleanup := createTestConfig(t)
-	defer cleanup()
+	configPath := createTestConfig(t)
 
 	mockClient := createStandardMockClient(
 		func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
@@ -633,8 +619,7 @@ func TestExecutorTargetsSkipOnNoOngoing(t *testing.T) {
 func TestExecutorTargetsDoneOnSuccess(t *testing.T) {
 	t.Parallel()
 
-	configPath, cleanup := createTestConfig(t)
-	defer cleanup()
+	configPath := createTestConfig(t)
 
 	mockClient := createStandardMockClient(
 		func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
@@ -680,8 +665,7 @@ func TestExecutorTargetsDoneOnSuccess(t *testing.T) {
 func TestExecutorTargetsFailOnStopError(t *testing.T) {
 	t.Parallel()
 
-	configPath, cleanup := createTestConfig(t)
-	defer cleanup()
+	configPath := createTestConfig(t)
 
 	mockClient := createStandardMockClient(
 		func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
