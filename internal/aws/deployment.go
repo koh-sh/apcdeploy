@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -61,7 +62,7 @@ func (c *Client) StartDeployment(
 	versionNumber int32,
 	description string,
 ) (int32, error) {
-	versionStr := fmt.Sprintf("%d", versionNumber)
+	versionStr := strconv.FormatInt(int64(versionNumber), 10)
 
 	input := &appconfig.StartDeploymentInput{
 		ApplicationId:          aws.String(applicationID),
@@ -436,18 +437,15 @@ func getLatestDeploymentInternal(ctx context.Context, client *Client, applicatio
 
 // GetHostedConfigurationVersion retrieves the content of a specific hosted configuration version
 func GetHostedConfigurationVersion(ctx context.Context, client *Client, applicationID, profileID, versionNumber string) ([]byte, error) {
+	version, err := strconv.ParseInt(versionNumber, 10, 32)
+	if err != nil {
+		return nil, fmt.Errorf("invalid version number: %s", versionNumber)
+	}
 	input := &appconfig.GetHostedConfigurationVersionInput{
 		ApplicationId:          aws.String(applicationID),
 		ConfigurationProfileId: aws.String(profileID),
-		VersionNumber:          aws.Int32(0), // Will be replaced with parsed version
+		VersionNumber:          aws.Int32(int32(version)),
 	}
-
-	// Parse version number
-	var version int32
-	if _, err := fmt.Sscanf(versionNumber, "%d", &version); err != nil {
-		return nil, fmt.Errorf("invalid version number: %s", versionNumber)
-	}
-	input.VersionNumber = aws.Int32(version)
 
 	output, err := client.appConfig.GetHostedConfigurationVersion(ctx, input)
 	if err != nil {
