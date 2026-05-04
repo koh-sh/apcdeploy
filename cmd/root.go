@@ -12,6 +12,7 @@ import (
 	"github.com/koh-sh/apcdeploy/internal/apcerrors"
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/cli"
+	"github.com/koh-sh/apcdeploy/internal/reporter"
 	"github.com/spf13/cobra"
 )
 
@@ -86,7 +87,7 @@ func SetVersionInfo(v, c, d string) {
 // of the program can return exit codes through runRoot(), keeping defer'd
 // cleanup (signal handler unregister, watcher goroutine teardown)
 // reachable. Named runRoot rather than run to avoid colliding with the
-// internal/run package alias used elsewhere in cmd/.
+// `internal/run` package identifier used elsewhere in cmd/.
 func Execute() {
 	os.Exit(runRoot())
 }
@@ -112,9 +113,18 @@ func runRoot() int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// Watch for a second signal once the first one (or an unrelated parent
-	// cancellation) has fired ctx. The done channel terminates this goroutine
-	// when runRoot returns normally so it doesn't leak across test runs.
+	// sigCh is registered up-front (before ctx.Done() can fire) so the
+	// second-signal watcher cannot lose a fast Ctrl+C double-tap to a
+	// race window between ctx cancellation and signal.Notify. Buffer 2
+	// holds both signals if they land back-to-back; we drain the first
+	// one (which corresponds to the ctx-cancel signal) so only signals
+	// arriving AFTER ctx.Done count as "second".
+	sigCh := make(chan os.Signal, 2)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(sigCh)
+
+	// done terminates the watcher goroutine when runRoot returns normally
+	// so it doesn't leak across test runs.
 	done := make(chan struct{})
 	defer close(done)
 	go func() {
@@ -123,9 +133,14 @@ func runRoot() int {
 		case <-done:
 			return
 		}
-		sigCh := make(chan os.Signal, 1)
-		signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-		defer signal.Stop(sigCh)
+		// Discard the signal that triggered ctx.Done (it landed in sigCh
+		// too because signal.Notify was already registered). Non-blocking:
+		// when ctx was cancelled by something other than a signal (parent
+		// cancellation, test) sigCh is empty and we fall through.
+		select {
+		case <-sigCh:
+		default:
+		}
 		select {
 		case <-sigCh:
 			// Second signal: bypass deferred cleanup intentionally — the
@@ -137,15 +152,20 @@ func runRoot() int {
 		}
 	}()
 
-	err := rootCmd.ExecuteContext(ctx)
+	return classifyAndReport(rootCmd.ExecuteContext(ctx), cli.GetReporter(silent))
+}
+
+// classifyAndReport renders the top-level error through the Reporter and
+// returns the process exit code. Split out from runRoot so the exit-code
+// branches (context.Canceled → 130, ErrNoDeployment → 2, generic → 1) can
+// be unit-tested without exercising the cobra/signal plumbing.
+//
+// nil err returns 0 so callers can pass rootCmd.ExecuteContext(ctx)
+// directly without a special case.
+func classifyAndReport(err error, rep reporter.Reporter) int {
 	if err == nil {
 		return 0
 	}
-
-	// Funnel the top-level error through the Reporter so the styled "✗"
-	// prefix is consistent with the rest of stderr output. Both real and
-	// silent reporters always emit Error.
-	rep := cli.GetReporter(silent)
 	// User-cancelled run (first Ctrl+C). Distinct exit code, friendlier
 	// line via Warn so the visual cue isn't a red ✗ (this isn't a failure
 	// in the AWS sense — the user asked for it).
@@ -153,6 +173,9 @@ func runRoot() int {
 		rep.Warn("cancelled by user")
 		return exitInterrupted
 	}
+	// Funnel the top-level error through the Reporter so the styled "✗"
+	// prefix is consistent with the rest of stderr output. Both real and
+	// silent reporters always emit Error.
 	rep.Error(err.Error())
 	// Append a Resolution: <hint> line when the underlying AWS error code
 	// has a documented remediation.
