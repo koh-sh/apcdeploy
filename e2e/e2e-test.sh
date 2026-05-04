@@ -13,7 +13,7 @@ WORKDIR="./e2e/"
 use_strategy() { sed -i '' "s/deployment_strategy:.*/deployment_strategy: ${STRATEGY}/" apcdeploy.yml; }
 use_slow_strategy() { sed -i '' "s/deployment_strategy:.*/deployment_strategy: E2E-Slow-Strategy/" apcdeploy.yml; }
 
-# Fake editor used by S7/E3/E5. Reads content from $APCDEPLOY_EDIT_CONTENT
+# Fake editor used by S8/E3/E5. Reads content from $APCDEPLOY_EDIT_CONTENT
 # rather than embedding it, so callers can vary the bytes safely without
 # re-writing the fixture or worrying about shell-quote escaping.
 FAKE_EDITOR=./edit-fixture.sh
@@ -81,8 +81,77 @@ sed -i '' 's/data.json/data.txt/' apcdeploy.yml
 echo "text" > data.txt
 $APCDEPLOY run --wait-bake --silent
 
+echo "Multi-config: -c repeated for run/diff/pull (multi-config.md)"
+title "========== S3: Multi-config =========="
+# Placed right after S2 so the json-freeform/dev + json-freeform/staging
+# pair is exercised before any later section perturbs their AWS state
+# (S7 rollback, E3 in-flight slow deploys, etc.). Build self-contained
+# fixtures under ./multi-config/{dev,stg}/ so the trailing rm in the
+# success path covers them via `rm -rf` below.
+MC_DIR=multi-config
+rm -rf "$MC_DIR"
+mkdir -p "$MC_DIR/dev" "$MC_DIR/stg"
+
+# init populates apcdeploy.yml + (if a prior deployment exists) data.json.
+# We then overwrite the strategy and data so each target deploys fresh
+# content via S3's run; staging starts with no prior deployment on the
+# very first e2e run, in which case init creates only the yml.
+( cd "$MC_DIR/dev" && ../../apcdeploy init --silent --app "$APP" --profile json-freeform --env dev --region "$REGION" --force )
+sed -i '' "s/deployment_strategy:.*/deployment_strategy: ${STRATEGY}/" "$MC_DIR/dev/apcdeploy.yml"
+echo '{"mc":"dev-1"}' > "$MC_DIR/dev/data.json"
+
+( cd "$MC_DIR/stg" && ../../apcdeploy init --silent --app "$APP" --profile json-freeform --env staging --region "$REGION" --force )
+sed -i '' "s/deployment_strategy:.*/deployment_strategy: ${STRATEGY}/" "$MC_DIR/stg/apcdeploy.yml"
+echo '{"mc":"stg-1"}' > "$MC_DIR/stg/data.json"
+
+# Multi-config run deploys both targets in parallel; --wait-bake makes
+# the orchestrator wait until both reach COMPLETE before returning.
+$APCDEPLOY run -c "$MC_DIR/dev/apcdeploy.yml" -c "$MC_DIR/stg/apcdeploy.yml" --wait-bake --silent
+$APCDEPLOY get --silent --yes -c "$MC_DIR/dev/apcdeploy.yml" | jq -e '.mc == "dev-1"' > /dev/null
+$APCDEPLOY get --silent --yes -c "$MC_DIR/stg/apcdeploy.yml" | jq -e '.mc == "stg-1"' > /dev/null
+
+# Multi-config diff: both targets report no changes against the deploy
+# we just made. Without --silent the per-target rows show on stderr.
+$APCDEPLOY diff -c "$MC_DIR/dev/apcdeploy.yml" -c "$MC_DIR/stg/apcdeploy.yml" 2>&1 | grep -qE "no changes"
+
+# Modify only the dev target's data; the multi-target diff stdout must
+# contain the `=== <id> ===` header for dev only (output.md §7.2).
+echo '{"mc":"dev-2"}' > "$MC_DIR/dev/data.json"
+diff_out=$($APCDEPLOY diff -c "$MC_DIR/dev/apcdeploy.yml" -c "$MC_DIR/stg/apcdeploy.yml" 2>/dev/null || true)
+echo "$diff_out" | grep -q "=== ${REGION}/${APP}/json-freeform/dev ==="
+if echo "$diff_out" | grep -q "=== ${REGION}/${APP}/json-freeform/staging ==="; then
+    echo "ERROR: staging had no changes — its === header should not appear"
+    exit 1
+fi
+
+# Multi-config pull: rewriting the changed local file restores the
+# deployed content, then both files report no changes.
+$APCDEPLOY pull -c "$MC_DIR/dev/apcdeploy.yml" -c "$MC_DIR/stg/apcdeploy.yml" --silent
+jq -e '.mc == "dev-1"' "$MC_DIR/dev/data.json" > /dev/null
+jq -e '.mc == "stg-1"' "$MC_DIR/stg/data.json" > /dev/null
+
+# Path-level dedup: the same -c twice must be silently collapsed.
+$APCDEPLOY diff -c "$MC_DIR/dev/apcdeploy.yml" -c "$MC_DIR/dev/apcdeploy.yml" --silent
+# Identifier-level dedup: two distinct paths pointing at the same
+# region/app/profile/env 4-tuple must error before any AWS work.
+mkdir -p "$MC_DIR/dup"
+cp "$MC_DIR/dev/apcdeploy.yml" "$MC_DIR/dup/apcdeploy.yml"
+cp "$MC_DIR/dev/data.json" "$MC_DIR/dup/data.json"
+if $APCDEPLOY diff -c "$MC_DIR/dev/apcdeploy.yml" -c "$MC_DIR/dup/apcdeploy.yml" --silent; then
+    echo "ERROR: duplicate identifier should have failed"
+    exit 1
+fi
+
+# Single-config commands reject multi -c with a clear error.
+if $APCDEPLOY status -c "$MC_DIR/dev/apcdeploy.yml" -c "$MC_DIR/stg/apcdeploy.yml" --silent 2>/dev/null; then
+    echo "ERROR: status must reject multi -c"
+    exit 1
+fi
+
+rm -rf "$MC_DIR"
+
 echo "Deployment control: skip unchanged, force deploy, async run"
-title "========== S3: Deployment Control =========="
+title "========== S4: Deployment Control =========="
 $APCDEPLOY init --silent --app "$APP" --profile json-freeform --env staging --region "$REGION" --force
 use_strategy
 echo '{"t":"1"}' > data.json
@@ -93,7 +162,7 @@ echo '{"t":"2"}' > data.json
 $APCDEPLOY run --silent
 
 echo "Config file generation and deployment strategy verification"
-title "========== S4: Config =========="
+title "========== S5: Config =========="
 $APCDEPLOY init --silent --app "$APP" --profile yaml-config --env dev --region "$REGION" --force
 grep -q "region: $REGION" apcdeploy.yml
 use_strategy
@@ -103,7 +172,7 @@ $APCDEPLOY run --wait-bake --silent
 $APCDEPLOY status --silent | grep -q "COMPLETE"
 
 echo "CI mode: diff --exit-nonzero for detecting changes"
-title "========== S5: CI =========="
+title "========== S6: CI =========="
 $APCDEPLOY init --silent --app "$APP" --profile text-config --env dev --region "$REGION" --force
 use_strategy
 sed -i '' 's/data.json/data.txt/' apcdeploy.yml
@@ -114,7 +183,7 @@ $APCDEPLOY run --wait-bake --timeout 300 --silent
 $APCDEPLOY diff --silent --exit-nonzero
 
 echo "Rollback: stop ongoing deployment with slow strategy"
-title "========== S6: Rollback =========="
+title "========== S7: Rollback =========="
 $APCDEPLOY init --silent --app "$APP" --profile json-freeform --env dev --region "$REGION" --force
 use_slow_strategy
 echo '{"r":"1"}' > data.json
@@ -124,7 +193,7 @@ $APCDEPLOY status --silent | grep -q "ROLLED_BACK"
 if $APCDEPLOY rollback --silent --yes; then exit 1; fi
 
 echo "Edit: $EDITOR-driven workflow (happy, no-op, invalid)"
-title "========== S7: Edit =========="
+title "========== S8: Edit =========="
 $APCDEPLOY init --silent --app "$APP" --profile json-freeform --env dev --region "$REGION" --force
 use_strategy
 echo '{"e":"seed"}' > data.json
@@ -136,7 +205,7 @@ EDITOR=$FAKE_EDITOR APCDEPLOY_EDIT_CONTENT='{"e":"new"}' $APCDEPLOY edit --regio
 if EDITOR=$FAKE_EDITOR APCDEPLOY_EDIT_CONTENT='not-json' $APCDEPLOY edit --region "$REGION" --app "$APP" --profile json-freeform --env dev --silent; then exit 1; fi
 
 echo "Description: default marker, explicit value, opt-out, length cap, edit"
-title "========== S8: Description =========="
+title "========== S9: Description =========="
 $APCDEPLOY init --silent --app "$APP" --profile json-freeform --env dev --region "$REGION" --force
 use_strategy
 echo '{"d":"1"}' > data.json
@@ -213,70 +282,5 @@ rc=0; EDITOR=$FAKE_EDITOR APCDEPLOY_EDIT_CONTENT='{"e":"x"}' $APCDEPLOY edit --r
 echo '{"e":"1"}' > data.json
 if $APCDEPLOY run --wait-bake --timeout -1 --silent; then exit 1; fi
 
-# Reset working state before multi-config: the previous sections leave
-# whatever apcdeploy.yml the last init produced; the multi-config block
-# below builds its own fixtures from scratch.
-rm -f data.txt data.yaml data.json apcdeploy.yml
-
-echo "Multi-config: -c repeated for run/diff/pull (multi-config.md)"
-title "========== S9: Multi-config =========="
-MC_DIR=multi-config
-rm -rf "$MC_DIR"
-mkdir -p "$MC_DIR/dev" "$MC_DIR/stg"
-
-# Build two independent fixtures via init, one per environment so each
-# resolves to a distinct (region/app/profile/env) identifier.
-( cd "$MC_DIR/dev" && ../../apcdeploy init --silent --app "$APP" --profile json-freeform --env dev --region "$REGION" --force )
-sed -i '' "s/deployment_strategy:.*/deployment_strategy: ${STRATEGY}/" "$MC_DIR/dev/apcdeploy.yml"
-echo '{"mc":"dev-1"}' > "$MC_DIR/dev/data.json"
-
-( cd "$MC_DIR/stg" && ../../apcdeploy init --silent --app "$APP" --profile json-freeform --env staging --region "$REGION" --force )
-sed -i '' "s/deployment_strategy:.*/deployment_strategy: ${STRATEGY}/" "$MC_DIR/stg/apcdeploy.yml"
-echo '{"mc":"stg-1"}' > "$MC_DIR/stg/data.json"
-
-# Multi-config run deploys both targets; --wait-bake ensures we exit
-# only after both have COMPLETE.
-$APCDEPLOY run -c "$MC_DIR/dev/apcdeploy.yml" -c "$MC_DIR/stg/apcdeploy.yml" --wait-bake --silent
-$APCDEPLOY get --silent --yes -c "$MC_DIR/dev/apcdeploy.yml" | jq -e '.mc == "dev-1"' > /dev/null
-$APCDEPLOY get --silent --yes -c "$MC_DIR/stg/apcdeploy.yml" | jq -e '.mc == "stg-1"' > /dev/null
-
-# Multi-config diff: no changes for either target.
-$APCDEPLOY diff -c "$MC_DIR/dev/apcdeploy.yml" -c "$MC_DIR/stg/apcdeploy.yml" 2>&1 | grep -qE "no changes"
-
-# Modify one target's data; multi-config diff stdout must include the
-# `=== <id> ===` header for the changed target only.
-echo '{"mc":"dev-2"}' > "$MC_DIR/dev/data.json"
-diff_out=$($APCDEPLOY diff -c "$MC_DIR/dev/apcdeploy.yml" -c "$MC_DIR/stg/apcdeploy.yml" 2>/dev/null || true)
-echo "$diff_out" | grep -q "=== ${REGION}/${APP}/json-freeform/dev ==="
-if echo "$diff_out" | grep -q "=== ${REGION}/${APP}/json-freeform/staging ==="; then
-    echo "ERROR: staging had no changes — its === header should not appear"
-    exit 1
-fi
-
-# Multi-config pull: rewriting the changed local file restores the
-# deployed content, then both files report no changes.
-$APCDEPLOY pull -c "$MC_DIR/dev/apcdeploy.yml" -c "$MC_DIR/stg/apcdeploy.yml" --silent
-jq -e '.mc == "dev-1"' "$MC_DIR/dev/data.json" > /dev/null
-jq -e '.mc == "stg-1"' "$MC_DIR/stg/data.json" > /dev/null
-
-# Duplicate-target detection: pointing the same -c twice must be
-# silently deduplicated; pointing two configs at the same identifier
-# (different paths) must error.
-$APCDEPLOY diff -c "$MC_DIR/dev/apcdeploy.yml" -c "$MC_DIR/dev/apcdeploy.yml" --silent
-mkdir -p "$MC_DIR/dup"
-cp "$MC_DIR/dev/apcdeploy.yml" "$MC_DIR/dup/apcdeploy.yml"
-cp "$MC_DIR/dev/data.json" "$MC_DIR/dup/data.json"
-if $APCDEPLOY diff -c "$MC_DIR/dev/apcdeploy.yml" -c "$MC_DIR/dup/apcdeploy.yml" --silent; then
-    echo "ERROR: duplicate target should have failed"
-    exit 1
-fi
-
-# Single-config commands reject multi -c with a clear error.
-if $APCDEPLOY status -c "$MC_DIR/dev/apcdeploy.yml" -c "$MC_DIR/stg/apcdeploy.yml" --silent 2>/dev/null; then
-    echo "ERROR: status must reject multi -c"
-    exit 1
-fi
-
-rm -rf "$MC_DIR"
-rm -f apcdeploy
+rm data.txt data.yaml data.json apcdeploy.yml apcdeploy
 echo "✅ All tests passed"
