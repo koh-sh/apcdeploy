@@ -133,9 +133,16 @@ func summarizeDeployment(d *aws.DeploymentDetails) string {
 
 // relativeTime renders a time.Time as a coarse "Xs/Xm/Xh/Xd ago" label so
 // the Targets summary stays compact. Future timestamps (clock skew) collapse
-// to "just now".
+// to "just now". Delegates to relativeTimeFrom with a real clock so the
+// boundary logic stays testable without time-dependent flakiness.
 func relativeTime(t time.Time) string {
-	d := time.Since(t)
+	return relativeTimeFrom(t, time.Now())
+}
+
+// relativeTimeFrom is the testable form of relativeTime: callers supply
+// "now" so unit tests can pin the elapsed duration deterministically.
+func relativeTimeFrom(t time.Time, now time.Time) string {
+	d := now.Sub(t)
 	if d < 0 {
 		return "just now"
 	}

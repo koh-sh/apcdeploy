@@ -70,7 +70,7 @@ is per-target, not global.`,
 }
 
 func runRun(cmd *cobra.Command, args []string) error {
-	ctx := context.Background()
+	ctx := commandContext(cmd)
 
 	if err := validateDescription(runDescription); err != nil {
 		return err

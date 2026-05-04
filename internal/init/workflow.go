@@ -77,16 +77,16 @@ func NewInitWorkflowWithClient(awsClient *awsInternal.Client, prompter prompt.Pr
 	}
 }
 
-// Run executes the initialization workflow
+// Run executes the initialization workflow.
+//
+// TTY checking lives in NewInitWorkflow (it covers all four targeting
+// flags up-front), not here, so the production path performs exactly one
+// CheckTTY. NewInitWorkflowWithClient deliberately skips the check —
+// today its only callers are tests using MockPrompter. If a future
+// production caller wires NewInitWorkflowWithClient directly, it MUST
+// run prompter.CheckTTY itself before calling Run, otherwise interactive
+// prompts can hang in non-TTY environments.
 func (w *InitWorkflow) Run(ctx context.Context, opts *Options) error {
-	// Check TTY availability if any interactive prompts will be needed
-	needsInteractive := opts.Application == "" || opts.Profile == "" || opts.Environment == ""
-	if needsInteractive {
-		if err := w.prompter.CheckTTY(); err != nil {
-			return fmt.Errorf("%w: please provide --region, --app, --profile, and --env flags", err)
-		}
-	}
-
 	// Step 3: Application selection (selector short-circuits when name provided)
 	selectedApp, err := w.selector.SelectApplication(ctx, w.awsClient, opts.Application)
 	if err != nil {

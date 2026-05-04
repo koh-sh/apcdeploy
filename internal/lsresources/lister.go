@@ -1,9 +1,10 @@
 package lsresources
 
 import (
+	"cmp"
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
 )
@@ -74,8 +75,8 @@ func (l *Lister) ListResources(ctx context.Context) (*ResourcesTree, error) {
 	}
 
 	// Sort applications by name for consistent output
-	sort.Slice(tree.Applications, func(i, j int) bool {
-		return tree.Applications[i].Name < tree.Applications[j].Name
+	slices.SortFunc(tree.Applications, func(a, b Application) int {
+		return cmp.Compare(a.Name, b.Name)
 	})
 
 	return tree, nil
@@ -99,8 +100,8 @@ func (l *Lister) listProfiles(ctx context.Context, appID string) ([]Configuratio
 	}
 
 	// Sort profiles by name
-	sort.Slice(profiles, func(i, j int) bool {
-		return profiles[i].Name < profiles[j].Name
+	slices.SortFunc(profiles, func(a, b ConfigurationProfile) int {
+		return cmp.Compare(a.Name, b.Name)
 	})
 
 	return profiles, nil
@@ -124,8 +125,8 @@ func (l *Lister) listEnvironments(ctx context.Context, appID string) ([]Environm
 	}
 
 	// Sort environments by name
-	sort.Slice(environments, func(i, j int) bool {
-		return environments[i].Name < environments[j].Name
+	slices.SortFunc(environments, func(a, b Environment) int {
+		return cmp.Compare(a.Name, b.Name)
 	})
 
 	return environments, nil
@@ -170,8 +171,8 @@ func (l *Lister) listDeploymentStrategies(ctx context.Context) ([]DeploymentStra
 	}
 
 	// Sort strategies by name
-	sort.Slice(strategies, func(i, j int) bool {
-		return strategies[i].Name < strategies[j].Name
+	slices.SortFunc(strategies, func(a, b DeploymentStrategy) int {
+		return cmp.Compare(a.Name, b.Name)
 	})
 
 	return strategies, nil

@@ -22,39 +22,18 @@ import (
 func TestNewExecutor(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name         string
-		validateFunc func(*testing.T, *Executor)
-	}{
-		{
-			name: "creates executor with reporter and prompter",
-			validateFunc: func(t *testing.T, executor *Executor) {
-				if executor == nil {
-					t.Fatal("expected non-nil Executor")
-				}
-			},
-		},
+	mockReporter := &reporterTesting.MockReporter{}
+	mockPrompter := &promptTesting.MockPrompter{}
+
+	executor := NewExecutor(mockReporter, mockPrompter)
+	if executor == nil {
+		t.Fatal("expected non-nil Executor")
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			mockReporter := &reporterTesting.MockReporter{}
-			mockPrompter := &promptTesting.MockPrompter{}
-
-			executor := NewExecutor(mockReporter, mockPrompter)
-
-			if executor.reporter != mockReporter {
-				t.Error("expected reporter to be set")
-			}
-			if executor.prompter != mockPrompter {
-				t.Error("expected prompter to be set")
-			}
-
-			if tt.validateFunc != nil {
-				tt.validateFunc(t, executor)
-			}
-		})
+	if executor.reporter != mockReporter {
+		t.Error("expected reporter to be set")
+	}
+	if executor.prompter != mockPrompter {
+		t.Error("expected prompter to be set")
 	}
 }
 
@@ -429,50 +408,10 @@ func TestExecutorTTYErrorFromFactory(t *testing.T) {
 	if !strings.Contains(err.Error(), "interactive mode requires a TTY") {
 		t.Errorf("expected 'interactive mode requires a TTY' error, got: %v", err)
 	}
-}
 
-// TestExecutorTTYErrorFromWorkflowRun tests that TTY errors from workflow.Run are returned as-is
-func TestExecutorTTYErrorFromWorkflowRun(t *testing.T) {
-	t.Parallel()
-
-	mockReporter := &reporterTesting.MockReporter{}
-	mockPrompter := &promptTesting.MockPrompter{
-		CheckTTYFunc: func() error {
-			return prompt.ErrNoTTY
-		},
-	}
-
-	// Create mock AWS client
-	mockClient := &awsMock.MockAppConfigClient{}
-
-	// Create workflow factory that uses the mock client
-	workflowFactory := func(ctx context.Context, opts *Options, prompter prompt.Prompter, rep reporter.Reporter) (*InitWorkflow, error) {
-		awsClient := awsInternal.NewTestClient(mockClient)
-		return NewInitWorkflowWithClient(awsClient, prompter, rep), nil
-	}
-
-	executor := NewExecutorWithFactory(mockReporter, mockPrompter, workflowFactory)
-
-	// Empty flags to trigger TTY check in workflow.Run
-	opts := &Options{
-		Application: "", // Empty to trigger interactive mode check
-		Profile:     "test-profile",
-		Environment: "test-env",
-		Region:      "us-east-1",
-		ConfigFile:  "apcdeploy.yml",
-	}
-
-	err := executor.Execute(context.Background(), opts)
-
-	if err == nil {
-		t.Fatal("expected error from workflow.Run")
-	}
-
-	// TTY error should be returned as-is without wrapping
-	if !strings.Contains(err.Error(), "interactive mode requires a TTY") {
-		t.Errorf("expected 'interactive mode requires a TTY' error, got: %v", err)
-	}
-
+	// The factory wraps ErrNoTTY with the all-flags hint suffix; this
+	// assertion locks the user-facing message so a future refactor that
+	// strips the suffix gets caught here.
 	if !strings.Contains(err.Error(), "please provide --region, --app, --profile, and --env flags") {
 		t.Errorf("expected helpful message about all required flags, got: %v", err)
 	}

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -59,5 +60,23 @@ func TestRollbackCommand(t *testing.T) {
 			t.Parallel()
 			tt.check(t, cmd)
 		})
+	}
+}
+
+// TestRunRollback_RejectsMultipleConfigs covers the requireSingleConfig
+// branch in runRollback: the rollback command does not support -c repeated,
+// and that's the only path through runRollback that doesn't require AWS
+// credentials, so this is the meaningful unit-level coverage we can add
+// without invoking real AWS.
+func TestRunRollback_RejectsMultipleConfigs(t *testing.T) {
+	configFiles = []string{"a.yml", "b.yml"}
+	t.Cleanup(func() { configFiles = []string{defaultConfigFile} })
+
+	err := runRollback(newRollbackCmd(), nil)
+	if err == nil {
+		t.Fatal("expected error from runRollback when -c is repeated, got nil")
+	}
+	if !strings.Contains(err.Error(), "rollback does not support multiple -c flags") {
+		t.Errorf("err = %q, want substring 'rollback does not support multiple -c flags'", err.Error())
 	}
 }

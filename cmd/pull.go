@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/koh-sh/apcdeploy/internal/batch"
@@ -44,7 +43,7 @@ Note: This command does NOT use the AppConfig Data API, so it does not incur per
 }
 
 func runPull(cmd *cobra.Command, args []string) error {
-	ctx := context.Background()
+	ctx := commandContext(cmd)
 	rep := cli.GetReporter(isSilent())
 
 	// Single-config keeps the existing path so the row identifier still

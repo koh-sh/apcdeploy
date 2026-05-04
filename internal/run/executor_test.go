@@ -18,6 +18,7 @@ import (
 )
 
 func TestNewExecutor(t *testing.T) {
+	t.Parallel()
 	reporter := &reportertest.MockReporter{}
 	executor := NewExecutor(reporter)
 
@@ -32,6 +33,7 @@ func TestNewExecutor(t *testing.T) {
 }
 
 func TestExecutorValidateTimeout(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		timeout     int
@@ -88,6 +90,7 @@ func TestExecutorValidateTimeout(t *testing.T) {
 }
 
 func TestExecutorValidateWaitFlags(t *testing.T) {
+	t.Parallel()
 	reporter := &reportertest.MockReporter{}
 	executor := NewExecutor(reporter)
 
@@ -111,6 +114,7 @@ func TestExecutorValidateWaitFlags(t *testing.T) {
 }
 
 func TestExecutorLoadConfigurationError(t *testing.T) {
+	t.Parallel()
 	reporter := &reportertest.MockReporter{}
 	executor := NewExecutor(reporter)
 
@@ -141,6 +145,7 @@ func TestExecutorLoadConfigurationError(t *testing.T) {
 
 // TestExecutorFullWorkflowWithMock tests the complete deployment workflow with mocked AWS
 func TestExecutorFullWorkflowWithMock(t *testing.T) {
+	t.Parallel()
 	// Create temporary test files
 	tempDir, err := os.MkdirTemp("", "executor-full-*")
 	if err != nil {
@@ -306,6 +311,7 @@ region: us-east-1
 // — bake is a monitoring wait so a spinner with countdown is more honest
 // than a progress bar that would imply quantified rollout work.
 func TestExecutorFullWorkflowWithWait(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name            string
 		waitDeploy      bool
@@ -483,6 +489,7 @@ region: us-east-1
 
 // TestExecutorSkipsDeploymentWhenNoDiff tests that deployment is skipped when there are no changes
 func TestExecutorSkipsDeploymentWhenNoDiff(t *testing.T) {
+	t.Parallel()
 	tempDir, err := os.MkdirTemp("", "executor-nodiff-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
@@ -618,6 +625,7 @@ region: us-east-1
 
 // TestExecutorForceDeploymentWithNoDiff tests that --force flag bypasses diff check
 func TestExecutorForceDeploymentWithNoDiff(t *testing.T) {
+	t.Parallel()
 	tempDir, err := os.MkdirTemp("", "executor-force-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
@@ -751,6 +759,7 @@ region: us-east-1
 
 // TestExecutorWithOngoingDeployment tests error when deployment is in progress
 func TestExecutorWithOngoingDeployment(t *testing.T) {
+	t.Parallel()
 	tempDir, err := os.MkdirTemp("", "executor-ongoing-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)

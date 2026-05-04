@@ -19,6 +19,7 @@ import (
 )
 
 func TestNewExecutor(t *testing.T) {
+	t.Parallel()
 	reporter := &reportertest.MockReporter{}
 	executor := NewExecutor(reporter)
 
@@ -33,6 +34,7 @@ func TestNewExecutor(t *testing.T) {
 }
 
 func TestExecutorLoadConfigurationError(t *testing.T) {
+	t.Parallel()
 	reporter := &reportertest.MockReporter{}
 	executor := NewExecutor(reporter)
 
@@ -52,6 +54,7 @@ func TestExecutorLoadConfigurationError(t *testing.T) {
 }
 
 func TestExecutorNoDeployment(t *testing.T) {
+	t.Parallel()
 	// Create temporary test files
 	tempDir, err := os.MkdirTemp("", "executor-nodeploy-*")
 	if err != nil {
@@ -172,6 +175,7 @@ region: us-east-1
 }
 
 func TestExecutorWithDeployment(t *testing.T) {
+	t.Parallel()
 	// Create temporary test files
 	tempDir, err := os.MkdirTemp("", "executor-deploy-*")
 	if err != nil {
@@ -294,6 +298,7 @@ region: us-east-1
 }
 
 func TestGetDeploymentByIDInvalidID(t *testing.T) {
+	t.Parallel()
 	reporter := &reportertest.MockReporter{}
 	executor := NewExecutor(reporter)
 
@@ -314,6 +319,7 @@ func TestGetDeploymentByIDInvalidID(t *testing.T) {
 }
 
 func TestGetDeploymentByIDWrongProfile(t *testing.T) {
+	t.Parallel()
 	deploymentNumber := int32(1)
 	now := time.Now()
 
@@ -364,6 +370,7 @@ func TestGetDeploymentByIDWrongProfile(t *testing.T) {
 }
 
 func TestGetDeploymentByIDSuccess(t *testing.T) {
+	t.Parallel()
 	deploymentNumber := int32(1)
 	now := time.Now()
 
@@ -428,6 +435,7 @@ func TestGetDeploymentByIDSuccess(t *testing.T) {
 }
 
 func TestGetLatestDeploymentSuccess(t *testing.T) {
+	t.Parallel()
 	deploymentNumber := int32(5)
 	now := time.Now()
 
@@ -505,6 +513,7 @@ func TestGetLatestDeploymentSuccess(t *testing.T) {
 }
 
 func TestExecutorWithDeploymentID(t *testing.T) {
+	t.Parallel()
 	// Create temporary test files
 	tempDir, err := os.MkdirTemp("", "executor-deployid-*")
 	if err != nil {
@@ -632,6 +641,7 @@ region: us-east-1
 }
 
 func TestExecutorAWSClientError(t *testing.T) {
+	t.Parallel()
 	// Create temporary test files
 	tempDir, err := os.MkdirTemp("", "executor-aws-error-*")
 	if err != nil {
@@ -678,6 +688,7 @@ region: us-east-1
 }
 
 func TestExecutorResolveResourcesError(t *testing.T) {
+	t.Parallel()
 	// Create temporary test files
 	tempDir, err := os.MkdirTemp("", "executor-resolve-error-*")
 	if err != nil {
@@ -731,6 +742,7 @@ region: us-east-1
 }
 
 func TestGetDeploymentByIDGetDetailsError(t *testing.T) {
+	t.Parallel()
 	mockClient := &mock.MockAppConfigClient{
 		GetDeploymentFunc: func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
 			return nil, fmt.Errorf("failed to get deployment")
@@ -764,6 +776,7 @@ func TestGetDeploymentByIDGetDetailsError(t *testing.T) {
 }
 
 func TestGetLatestDeploymentListError(t *testing.T) {
+	t.Parallel()
 	mockClient := &mock.MockAppConfigClient{
 		ListDeploymentsFunc: func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
 			return nil, fmt.Errorf("failed to list deployments")
@@ -796,6 +809,7 @@ func TestGetLatestDeploymentListError(t *testing.T) {
 }
 
 func TestGetLatestDeploymentNoMatchingProfile(t *testing.T) {
+	t.Parallel()
 	deploymentNumber := int32(1)
 	now := time.Now()
 
@@ -852,5 +866,37 @@ func TestGetLatestDeploymentNoMatchingProfile(t *testing.T) {
 	// Should return nil when no matching profile is found
 	if deployment != nil {
 		t.Error("expected nil deployment when no matching profile found")
+	}
+}
+
+func TestRelativeTimeFrom(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name string
+		at   time.Time
+		want string
+	}{
+		{"future timestamp clamps to just now", now.Add(5 * time.Second), "just now"},
+		{"zero seconds renders as 0s ago", now, "0s ago"},
+		{"sub-minute renders seconds", now.Add(-30 * time.Second), "30s ago"},
+		{"exactly one minute renders 1m ago", now.Add(-1 * time.Minute), "1m ago"},
+		{"sub-hour renders minutes (truncates)", now.Add(-90 * time.Second), "1m ago"},
+		{"mid-hour renders minutes", now.Add(-45 * time.Minute), "45m ago"},
+		{"exactly one hour renders 1h ago", now.Add(-1 * time.Hour), "1h ago"},
+		{"sub-day renders hours (truncates)", now.Add(-90 * time.Minute), "1h ago"},
+		{"mid-day renders hours", now.Add(-12 * time.Hour), "12h ago"},
+		{"exactly one day renders 1d ago", now.Add(-24 * time.Hour), "1d ago"},
+		{"multi-day renders days (truncates)", now.Add(-72 * time.Hour), "3d ago"},
+		{"week boundary renders as days", now.Add(-7 * 24 * time.Hour), "7d ago"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := relativeTimeFrom(tt.at, now); got != tt.want {
+				t.Errorf("relativeTimeFrom(%v, %v) = %q, want %q", tt.at, now, got, tt.want)
+			}
+		})
 	}
 }

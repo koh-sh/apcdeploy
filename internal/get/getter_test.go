@@ -286,9 +286,7 @@ func TestGetConfigurationSuccess(t *testing.T) {
 		},
 	}
 
-	awsClient := &awsInternal.Client{
-		AppConfigData: mockAppConfigDataClient,
-	}
+	awsClient := awsInternal.NewTestClientWithData(nil, mockAppConfigDataClient)
 
 	getter := NewWithClient(cfg, awsClient)
 

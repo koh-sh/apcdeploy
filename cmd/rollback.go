@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"context"
-
 	"github.com/koh-sh/apcdeploy/internal/cli"
 	"github.com/koh-sh/apcdeploy/internal/prompt"
 	"github.com/koh-sh/apcdeploy/internal/rollback"
@@ -34,7 +32,7 @@ It automatically finds the current ongoing deployment and stops it.`,
 }
 
 func runRollback(cmd *cobra.Command, args []string) error {
-	ctx := context.Background()
+	ctx := commandContext(cmd)
 
 	cfgFile, err := requireSingleConfig("rollback")
 	if err != nil {
@@ -44,7 +42,6 @@ func runRollback(cmd *cobra.Command, args []string) error {
 	// Create options
 	opts := &rollback.Options{
 		ConfigFile:       cfgFile,
-		Silent:           isSilent(),
 		SkipConfirmation: rollbackSkipConfirmation,
 	}
 

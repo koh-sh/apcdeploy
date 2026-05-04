@@ -32,7 +32,7 @@ func TestResolution(t *testing.T) {
 				Code:    "ConflictException",
 				Message: "There is already a deployment in progress",
 			},
-			want: "wait for the current deployment to complete or run 'apcdeploy rollback'.",
+			want: "wait for the current deployment to complete or run 'apcdeploy rollback'",
 		},
 		{
 			name: "BadRequestException maps to validator hint",
@@ -40,7 +40,7 @@ func TestResolution(t *testing.T) {
 				Code:    "BadRequestException",
 				Message: "validation failed",
 			},
-			want: "check your configuration data, JSON/YAML syntax, and any configured validators (JSON Schema / Lambda).",
+			want: "check your configuration data, JSON/YAML syntax, and any configured validators (JSON Schema / Lambda)",
 		},
 		{
 			name: "ResourceNotFoundException maps to ls-resources hint",
@@ -48,7 +48,7 @@ func TestResolution(t *testing.T) {
 				Code:    "ResourceNotFoundException",
 				Message: "application not found",
 			},
-			want: "verify the resource names with 'apcdeploy ls-resources' and your AWS region.",
+			want: "verify the resource names with 'apcdeploy ls-resources' and your AWS region",
 		},
 		{
 			name: "ValidationException maps to validator hint",
@@ -56,7 +56,7 @@ func TestResolution(t *testing.T) {
 				Code:    "ValidationException",
 				Message: "validator failed",
 			},
-			want: "configuration data failed AppConfig validation; check the JSON Schema / Lambda validators configured on this profile.",
+			want: "configuration data failed AppConfig validation; check the JSON Schema / Lambda validators configured on this profile",
 		},
 		{
 			name: "unknown AWS error code returns empty hint",
@@ -69,7 +69,7 @@ func TestResolution(t *testing.T) {
 		{
 			name: "wrapped ConflictException is still resolved",
 			err:  fmt.Errorf("StartDeployment failed: %w", &smithy.GenericAPIError{Code: "ConflictException"}),
-			want: "wait for the current deployment to complete or run 'apcdeploy rollback'.",
+			want: "wait for the current deployment to complete or run 'apcdeploy rollback'",
 		},
 	}
 

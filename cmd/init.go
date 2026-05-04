@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"context"
-
 	"github.com/koh-sh/apcdeploy/internal/cli"
 	initPkg "github.com/koh-sh/apcdeploy/internal/init"
 	"github.com/koh-sh/apcdeploy/internal/prompt"
@@ -47,7 +45,7 @@ to select from available resources.`,
 }
 
 func runInit(cmd *cobra.Command, args []string) error {
-	ctx := context.Background()
+	ctx := commandContext(cmd)
 
 	cfgFile, err := requireSingleConfig("init")
 	if err != nil {
@@ -63,7 +61,6 @@ func runInit(cmd *cobra.Command, args []string) error {
 		ConfigFile:  cfgFile,
 		OutputData:  initOutputData,
 		Force:       initForce,
-		Silent:      isSilent(),
 	}
 
 	// Create reporter and prompter

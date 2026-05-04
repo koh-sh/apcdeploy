@@ -5,6 +5,9 @@ import "errors"
 // ErrUserCancelled is returned when the user cancels the prompt
 var ErrUserCancelled = errors.New("operation cancelled")
 
+// ErrUserDeclined is returned when the user declines to proceed with the operation
+var ErrUserDeclined = errors.New("operation declined by user")
+
 // Prompter provides an interface for prompting users for input
 type Prompter interface {
 	// Select displays a list of options and returns the selected value

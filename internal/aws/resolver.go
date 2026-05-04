@@ -16,7 +16,7 @@ type Resolver struct {
 }
 
 // NewResolver creates a new resolver with the given client
-func NewResolver(client *Client) *Resolver {
+func NewResolver(client AppConfigAPI) *Resolver {
 	return &Resolver{
 		client: client,
 	}

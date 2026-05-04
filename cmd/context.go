@@ -22,6 +22,10 @@ func ContextCommand() *cobra.Command {
 This command outputs the contents of llms.md, which provides guidelines
 for AI assistants when using the apcdeploy command.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// CONTRACT EXCEPTION: context is a self-contained utility that
+			// emits embedded llms.md to stdout with no Reporter primitives
+			// involved (see CLAUDE.md "Command Structure" — context has no
+			// internal/context package). Direct fmt.Print is intentional.
 			fmt.Print(llmsContent)
 			return nil
 		},

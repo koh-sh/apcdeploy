@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/koh-sh/apcdeploy/internal/cli"
@@ -58,7 +57,7 @@ JSON/YAML syntax checks).`,
 }
 
 func runEdit(cmd *cobra.Command, args []string) error {
-	ctx := context.Background()
+	ctx := commandContext(cmd)
 
 	if err := validateDescription(editDescription); err != nil {
 		return err

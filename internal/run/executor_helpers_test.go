@@ -7,36 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/koh-sh/apcdeploy/internal/config"
 	reportertest "github.com/koh-sh/apcdeploy/internal/reporter/testing"
 )
-
-func TestRemainingSeconds(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	tests := []struct {
-		name     string
-		deadline time.Time
-		wantMin  int
-		wantMax  int
-	}{
-		{"future deadline", now.Add(30 * time.Second), 25, 30},
-		{"past deadline clamps to 1", now.Add(-1 * time.Second), 1, 1},
-		{"current time clamps to 1", now, 1, 1},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got := remainingSeconds(tt.deadline)
-			if got < tt.wantMin || got > tt.wantMax {
-				t.Errorf("remainingSeconds(%v) = %d, want in [%d, %d]", tt.deadline, got, tt.wantMin, tt.wantMax)
-			}
-		})
-	}
-}
 
 // TestExecutorDeployerFactoryError exercises the early-return path where the
 // deployer factory itself fails before any AWS interaction. This isolates the

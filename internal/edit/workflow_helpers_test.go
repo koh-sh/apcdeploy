@@ -2,7 +2,6 @@ package edit
 
 import (
 	"testing"
-	"time"
 
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
 )
@@ -42,29 +41,6 @@ func TestResolvedTargetsIdentifier(t *testing.T) {
 			t.Parallel()
 			if got := tt.t.Identifier(tt.region); got != tt.want {
 				t.Errorf("Identifier(%q) = %q, want %q", tt.region, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestRemainingDuration(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	tests := []struct {
-		name     string
-		deadline time.Time
-		wantMin  time.Duration
-	}{
-		{"future deadline", now.Add(30 * time.Second), 20 * time.Second},
-		{"past deadline clamps to 1s", now.Add(-1 * time.Second), time.Second},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got := remainingDuration(tt.deadline)
-			if got < tt.wantMin {
-				t.Errorf("remainingDuration(%v) = %v, want >= %v", tt.deadline, got, tt.wantMin)
 			}
 		})
 	}

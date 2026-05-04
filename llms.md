@@ -454,7 +454,7 @@ Behavior:
 
 - Each `-c` is loaded and validated up-front; any single load failure aborts the batch before any AWS call.
 - Targets are identified by the 4-tuple `region/app/profile/env`. Two configs that resolve to the same identifier produce `ErrDuplicateTarget`.
-- Default execution is fully parallel. Use `--parallel N` to cap concurrency or `--parallel 1` for strict serial order.
+- Default execution is fully parallel (equivalent to `--parallel 0`). Use `--parallel N` to cap concurrency or `--parallel 1` for strict serial order.
 - Default failure mode is fail-fast: queued targets that haven't started yet are reported as `⊘ skipped (fail-fast)`. Use `--continue-on-error` to run every target regardless of failures.
 - Each target's `--timeout` is independent (it is per-target, not a global wall-clock cap).
 - After all targets settle, a single aggregate line is printed: `N ok, N no-op, N failed [(elapsed)]`. Failed targets are also expanded into an `Errors:` section with optional `Resolution:` hints.
@@ -1187,7 +1187,7 @@ apcdeploy edit --description "ticket-123: tweak retry limit"
 - **AWS credentials required**: Required to fetch and deploy configuration
 - **Initial deployment required**: The profile/environment must have at least one prior deployment
   - Error message: `no deployment found for this configuration profile: run 'apcdeploy run' to create the first deployment`
-- **`$EDITOR` resolution**: Uses the `$EDITOR` environment variable; falls back to `vi`
+- **`$EDITOR` resolution**: Uses the `$EDITOR` environment variable; falls back to `vi`. Invoked through `sh -c` (matching `git`'s `GIT_EDITOR` behavior), so the value is shell-evaluated — avoid passing values that contain shell metacharacters in CI environments.
 - **TTY required**: Both for interactive target selection and for the editor itself
 - **Safe on invalid edits**: Syntax or size errors abort before any AWS write
 - **Exit codes**:

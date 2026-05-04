@@ -2,7 +2,6 @@ package get
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -10,9 +9,6 @@ import (
 	"github.com/koh-sh/apcdeploy/internal/prompt"
 	"github.com/koh-sh/apcdeploy/internal/reporter"
 )
-
-// ErrUserDeclined is returned when the user declines to proceed with the operation
-var ErrUserDeclined = errors.New("operation declined by user")
 
 // Executor handles the configuration retrieval orchestration
 type Executor struct {
@@ -86,7 +82,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 		}
 		normalized := strings.ToLower(strings.TrimSpace(response))
 		if normalized != "y" && normalized != "yes" {
-			return ErrUserDeclined
+			return prompt.ErrUserDeclined
 		}
 
 		// Fetch silently after acceptance: the user already sees the

@@ -50,7 +50,7 @@ header so it can be piped into patch/git apply.`,
 }
 
 func runDiff(cmd *cobra.Command, args []string) error {
-	ctx := context.Background()
+	ctx := commandContext(cmd)
 	rep := cli.GetReporter(isSilent())
 
 	// Single-config keeps the existing path so the row identifier still
@@ -64,7 +64,6 @@ func runDiff(cmd *cobra.Command, args []string) error {
 		opts := &diff.Options{
 			ConfigFile:  path,
 			ExitNonzero: diffExitNonzero,
-			Silent:      isSilent(),
 		}
 		err := diff.NewExecutor(rep).Execute(ctx, opts)
 		if errors.Is(err, diff.ErrDiffFound) {

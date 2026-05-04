@@ -16,7 +16,7 @@ func NewTestClient(mockClient AppConfigSDKAPI) *Client {
 func NewTestClientWithData(mockAppConfig AppConfigSDKAPI, mockAppConfigData AppConfigDataAPI) *Client {
 	return &Client{
 		appConfig:     mockAppConfig,
-		AppConfigData: mockAppConfigData,
+		appConfigData: mockAppConfigData,
 		Region:        "us-east-1", // Default test region
 	}
 }
@@ -26,7 +26,7 @@ func NewTestClientWithData(mockAppConfig AppConfigSDKAPI, mockAppConfigData AppC
 func NewTestClientFull(mockAppConfig AppConfigSDKAPI, mockAppConfigData AppConfigDataAPI, region string, pollingInterval time.Duration) *Client {
 	return &Client{
 		appConfig:       mockAppConfig,
-		AppConfigData:   mockAppConfigData,
+		appConfigData:   mockAppConfigData,
 		Region:          region,
 		PollingInterval: pollingInterval,
 	}

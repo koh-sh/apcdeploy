@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"context"
-
 	"github.com/koh-sh/apcdeploy/internal/cli"
 	"github.com/koh-sh/apcdeploy/internal/lsresources"
 	"github.com/spf13/cobra"
@@ -43,7 +41,7 @@ especially for AI agents that cannot use interactive prompts.`,
 }
 
 func runLsResources(cmd *cobra.Command, args []string) error {
-	ctx := context.Background()
+	ctx := commandContext(cmd)
 
 	// Create options
 	opts := &lsresources.Options{

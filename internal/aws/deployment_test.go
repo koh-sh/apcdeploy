@@ -7,12 +7,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/appconfig"
 	"github.com/aws/aws-sdk-go-v2/service/appconfig/types"
 	"github.com/koh-sh/apcdeploy/internal/aws/mock"
 )
 
 func TestCheckOngoingDeployment(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name            string
 		deployments     []types.DeploymentSummary
@@ -109,6 +111,7 @@ func TestCheckOngoingDeployment(t *testing.T) {
 }
 
 func TestCreateHostedConfigurationVersion(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		content     []byte
@@ -184,6 +187,7 @@ func TestCreateHostedConfigurationVersion(t *testing.T) {
 }
 
 func TestStartDeployment(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		strategyID  string
@@ -250,6 +254,7 @@ func TestStartDeployment(t *testing.T) {
 // covering rollback-reason extraction paths that the parameterized
 // TestWaitForDeploymentPhase does not.
 func TestWaitForDeploymentPhase_FullCompletion(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		deploymentNum int32
@@ -390,6 +395,7 @@ func TestWaitForDeploymentPhase_FullCompletion(t *testing.T) {
 }
 
 func TestGetLatestDeployment(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name              string
 		deployments       []types.DeploymentSummary
@@ -573,6 +579,7 @@ func TestGetLatestDeployment(t *testing.T) {
 // "no prior deployment". The new behavior surfaces the underlying AWS error
 // so the user sees a concrete failure instead.
 func TestGetLatestDeployment_AllGetDeploymentFail(t *testing.T) {
+	t.Parallel()
 	mockClient := &mock.MockAppConfigClient{
 		ListDeploymentsFunc: func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
 			return &appconfig.ListDeploymentsOutput{
@@ -604,6 +611,7 @@ func TestGetLatestDeployment_AllGetDeploymentFail(t *testing.T) {
 // GetDeployment calls fail but others succeed: the function should still find
 // and return the latest deployment from the successful subset, not error out.
 func TestGetLatestDeployment_PartialGetDeploymentFail(t *testing.T) {
+	t.Parallel()
 	mockClient := &mock.MockAppConfigClient{
 		ListDeploymentsFunc: func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
 			return &appconfig.ListDeploymentsOutput{
@@ -640,6 +648,7 @@ func TestGetLatestDeployment_PartialGetDeploymentFail(t *testing.T) {
 }
 
 func TestGetLatestDeploymentIncludingRollback(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name              string
 		deployments       []types.DeploymentSummary
@@ -755,6 +764,7 @@ func TestGetLatestDeploymentIncludingRollback(t *testing.T) {
 }
 
 func TestGetHostedConfigurationVersion(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		versionNumber string
@@ -816,6 +826,7 @@ func TestGetHostedConfigurationVersion(t *testing.T) {
 }
 
 func TestWaitForDeploymentPhase(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		deploymentNum int32
@@ -961,6 +972,7 @@ func TestWaitForDeploymentPhase(t *testing.T) {
 
 // Test that WaitForDeploymentPhase with waitForBaking=false stops at BAKING
 func TestWaitForDeploymentPhase_StopsAtBaking(t *testing.T) {
+	t.Parallel()
 	callCount := 0
 	mockClient := &mock.MockAppConfigClient{
 		GetDeploymentFunc: func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
@@ -1144,6 +1156,7 @@ func TestExtractRollbackReason(t *testing.T) {
 // callback receives the configured FinalBakeTimeInMinutes as the total
 // duration, with elapsed advancing across ticks.
 func TestWaitForBakingComplete(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		mockStates     []types.DeploymentState
@@ -1283,6 +1296,7 @@ func TestWaitForBakingComplete(t *testing.T) {
 // COMPLETE tick reports the full bake duration so callers can render a
 // definitive "done" state.
 func TestWaitForBakingComplete_TickElapsed(t *testing.T) {
+	t.Parallel()
 	calls := 0
 	mockClient := &mock.MockAppConfigClient{
 		GetDeploymentFunc: func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
@@ -1338,5 +1352,130 @@ func TestWaitForBakingComplete_TickElapsed(t *testing.T) {
 	}
 	if ticks[len(ticks)-1].elapsed != wantTotal {
 		t.Errorf("final tick elapsed = %v, want %v (full bake duration)", ticks[len(ticks)-1].elapsed, wantTotal)
+	}
+}
+
+func TestGetDeploymentDetails(t *testing.T) {
+	t.Parallel()
+
+	startedAt := time.Date(2024, 1, 2, 10, 0, 0, 0, time.UTC)
+	completedAt := time.Date(2024, 1, 2, 10, 12, 0, 0, time.UTC)
+
+	tests := []struct {
+		name        string
+		mockFunc    func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error)
+		wantErr     bool
+		errContains string
+		check       func(t *testing.T, d *DeploymentDetails)
+	}{
+		{
+			name: "returns details with all fields populated",
+			mockFunc: func(_ context.Context, params *appconfig.GetDeploymentInput, _ ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
+				if aws.ToString(params.ApplicationId) != "app-123" {
+					t.Errorf("ApplicationId = %q, want %q", aws.ToString(params.ApplicationId), "app-123")
+				}
+				if aws.ToString(params.EnvironmentId) != "env-123" {
+					t.Errorf("EnvironmentId = %q, want %q", aws.ToString(params.EnvironmentId), "env-123")
+				}
+				if params.DeploymentNumber == nil || *params.DeploymentNumber != 7 {
+					t.Errorf("DeploymentNumber = %v, want 7", params.DeploymentNumber)
+				}
+				return &appconfig.GetDeploymentOutput{
+					DeploymentNumber:            7,
+					ConfigurationProfileId:      aws.String("profile-123"),
+					ConfigurationVersion:        aws.String("3"),
+					DeploymentStrategyId:        aws.String("strategy-123"),
+					State:                       types.DeploymentStateComplete,
+					Description:                 aws.String("hotfix"),
+					StartedAt:                   &startedAt,
+					CompletedAt:                 &completedAt,
+					PercentageComplete:          aws.Float32(100),
+					GrowthFactor:                aws.Float32(20),
+					DeploymentDurationInMinutes: 30,
+					FinalBakeTimeInMinutes:      10,
+				}, nil
+			},
+			check: func(t *testing.T, d *DeploymentDetails) {
+				if d.DeploymentNumber != 7 {
+					t.Errorf("DeploymentNumber = %d, want 7", d.DeploymentNumber)
+				}
+				if d.ConfigurationProfileID != "profile-123" {
+					t.Errorf("ConfigurationProfileID = %q, want %q", d.ConfigurationProfileID, "profile-123")
+				}
+				if d.State != types.DeploymentStateComplete {
+					t.Errorf("State = %q, want %q", d.State, types.DeploymentStateComplete)
+				}
+				if d.Description != "hotfix" {
+					t.Errorf("Description = %q, want %q", d.Description, "hotfix")
+				}
+				if d.StartedAt == nil || !d.StartedAt.Equal(startedAt) {
+					t.Errorf("StartedAt = %v, want %v", d.StartedAt, startedAt)
+				}
+				if d.CompletedAt == nil || !d.CompletedAt.Equal(completedAt) {
+					t.Errorf("CompletedAt = %v, want %v", d.CompletedAt, completedAt)
+				}
+				if d.PercentageComplete != 100 {
+					t.Errorf("PercentageComplete = %v, want 100", d.PercentageComplete)
+				}
+				if d.GrowthFactor != 20 {
+					t.Errorf("GrowthFactor = %v, want 20", d.GrowthFactor)
+				}
+				if d.DeploymentDurationInMinutes != 30 {
+					t.Errorf("DeploymentDurationInMinutes = %d, want 30", d.DeploymentDurationInMinutes)
+				}
+				if d.FinalBakeTimeInMinutes != 10 {
+					t.Errorf("FinalBakeTimeInMinutes = %d, want 10", d.FinalBakeTimeInMinutes)
+				}
+			},
+		},
+		{
+			name: "nil pointer fields default to zero values",
+			mockFunc: func(_ context.Context, _ *appconfig.GetDeploymentInput, _ ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
+				return &appconfig.GetDeploymentOutput{
+					DeploymentNumber: 1,
+					State:            types.DeploymentStateDeploying,
+				}, nil
+			},
+			check: func(t *testing.T, d *DeploymentDetails) {
+				if d.PercentageComplete != 0 {
+					t.Errorf("PercentageComplete = %v, want 0", d.PercentageComplete)
+				}
+				if d.GrowthFactor != 0 {
+					t.Errorf("GrowthFactor = %v, want 0", d.GrowthFactor)
+				}
+				if d.ConfigurationProfileID != "" {
+					t.Errorf("ConfigurationProfileID = %q, want empty", d.ConfigurationProfileID)
+				}
+			},
+		},
+		{
+			name: "GetDeployment error is wrapped",
+			mockFunc: func(_ context.Context, _ *appconfig.GetDeploymentInput, _ ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
+				return nil, errors.New("api boom")
+			},
+			wantErr:     true,
+			errContains: "failed to get deployment details",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			m := &mock.MockAppConfigClient{GetDeploymentFunc: tt.mockFunc}
+			client := NewTestClient(m)
+			got, err := GetDeploymentDetails(context.Background(), client, "app-123", "env-123", 7)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("GetDeploymentDetails() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantErr {
+				if tt.errContains != "" && !strings.Contains(err.Error(), tt.errContains) {
+					t.Errorf("error = %v, want to contain %q", err, tt.errContains)
+				}
+				return
+			}
+			if tt.check != nil {
+				tt.check(t, got)
+			}
+		})
 	}
 }

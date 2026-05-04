@@ -83,7 +83,7 @@ func TestGetConfiguration(t *testing.T) {
 			}
 
 			client := &Client{
-				AppConfigData: mockAppConfigData,
+				appConfigData: mockAppConfigData,
 			}
 
 			content, err := client.GetConfiguration(context.Background(), tt.applicationID, tt.environmentID, tt.profileID)

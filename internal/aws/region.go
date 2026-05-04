@@ -2,7 +2,7 @@ package aws
 
 import (
 	"context"
-	"sort"
+	"slices"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/account"
@@ -37,6 +37,6 @@ func ListEnabledRegions(ctx context.Context, client AccountAPI) ([]string, error
 		}
 	}
 
-	sort.Strings(regions)
+	slices.Sort(regions)
 	return regions, nil
 }
