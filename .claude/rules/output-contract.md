@@ -8,9 +8,8 @@ The contract is enforced by the `internal/reporter` interface and its
 `internal/cli` implementations. Executors MUST NOT call `fmt.Fprint*` directly;
 all output flows through the `Reporter`.
 
-The visual model and per-command screen designs live in
-`docs/design/output.md`. This file is the implementation-level contract — the
-"rules" — while `output.md` is the "picture".
+This file is the implementation-level contract — the "rules" for how
+commands produce output.
 
 ## Channels
 
@@ -45,13 +44,12 @@ silent-mode behavior, and visual treatment.
 | `Data(p []byte)` | **stdout** | **always shown** | none | Machine-readable payload |
 | `Diff(p []byte)` | **stdout** | **always shown** | colorized when TTY | Unified diff payload |
 
-`Targets` is the primary primitive (see `docs/design/output.md` §4). Every
-deployment-target command tracks its lifecycle through a `Targets` block where
-each `id` is one row and the row's state icon, phase label, and optional
-progress bar are driven from the executor. `Step` / `Success` / `Info` /
-`Spin` are retained only for `init`, which is fundamentally a sequential
-interactive workflow that does not fit the target-centric model
-(`docs/design/output.md` §11 Q-1).
+`Targets` is the primary primitive. Every deployment-target command tracks
+its lifecycle through a `Targets` block where each `id` is one row and the
+row's state icon, phase label, and optional progress bar are driven from
+the executor. `Step` / `Success` / `Info` / `Spin` are retained only for
+`init`, which is fundamentally a sequential interactive workflow that does
+not fit the target-centric model.
 
 `Targets` is `interface { SetPhase(id, phase, detail string); SetProgress(id
 string, percent float64, eta time.Duration); Done(id, summary string);
@@ -70,7 +68,7 @@ emits a `Success`-equivalent line; `Fail` emits an `Error`-equivalent line;
 
 ## Phases and state icons (Targets)
 
-Each Targets row progresses through these states (`docs/design/output.md` §3):
+Each Targets row progresses through these states:
 
 | State | Icon | Color | Meaning |
 |---|---|---|---|
@@ -82,8 +80,7 @@ Each Targets row progresses through these states (`docs/design/output.md` §3):
 | skipped | `→` | dim | terminal early-exit / no-op (`Targets.Skip`) |
 
 Phase verbs are limited to: `preparing`, `comparing`, `creating-version`,
-`deploying`, `baking`, `fetching`, `stopping`. New verbs require an entry in
-`output.md` §3.2.
+`deploying`, `baking`, `fetching`, `stopping`.
 
 ## Confirmations
 
@@ -162,9 +159,8 @@ notice bypasses the Reporter for this single case.
 ### Multi-config aggregate summary and Errors section
 
 `cmd/batch_render.go::renderBatchSummary` writes the post-run aggregate
-line (`N ok, N no-op, N failed [(elapsed)]` per `docs/design/output.md`
-§8.2) and the `Errors:` section (§8.3) directly to `os.Stderr` instead
-of routing through Reporter.
+line (`N ok, N no-op, N failed [(elapsed)]`) and the `Errors:` section
+directly to `os.Stderr` instead of routing through Reporter.
 
 Why: Reporter has no "plain stderr line" primitive — `Header` / `Box` /
 `Info` would over-format these short lines. The renderer honours
@@ -179,12 +175,11 @@ introduce more without adding a similar entry here.
 
 ## Multi-config orchestration
 
-`run`, `diff`, and `pull` accept `-c` repeatedly (see
-`docs/design/multi-config.md`). The plumbing lives in `internal/batch`:
+`run`, `diff`, and `pull` accept `-c` repeatedly. The plumbing lives in
+`internal/batch`:
 
 - `batch.LoadAll(paths)` pre-loads and validates every `-c` before any
-  AWS work; load failures abort the batch as a single "事前エラー"
-  (multi-config.md §10.1).
+  AWS work; load failures abort the batch before any AWS call is made.
 - `batch.Orchestrator` opens a single `Reporter.Targets` handle for all
   rows, drives executor callbacks in argument order under a worker
   pool, and aggregates per-target outcomes into `batch.Summary`.
@@ -200,8 +195,7 @@ two paths. `cmd/{run,diff,pull}.go` dispatch on
 `len(configFiles)`: single-config keeps the existing `Execute` path
 (so the row identifier still shows the SDK-resolved default region
 when `cfg.Region` is empty); multi-config flows through
-`batch.Orchestrator` and requires region in yml
-(multi-config.md §6.2).
+`batch.Orchestrator` and requires region in yml.
 
 Failed targets are surfaced both as `Targets.Fail` rows (during the
 run) and as `Errors:` entries in the post-run section (after Close).
@@ -249,5 +243,4 @@ short user-facing remediation hint (e.g. "wait for the current deployment to
 complete or run 'apcdeploy rollback'"). Hints exist only for the small set of
 AWS error codes documented in `internal/errors/resolution.go`; callers MUST
 NOT invent new hints inline. To add a hint, add an entry to
-`resolutionHints` and document the rationale in
-`docs/design/output.md` §8.3.
+`resolutionHints`.

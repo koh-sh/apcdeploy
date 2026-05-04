@@ -34,11 +34,10 @@ func newDiffCmd() *cobra.Command {
 This command compares your local configuration file with the latest deployed version
 and displays the differences in unified diff format.
 
-Pass -c multiple times to diff several configurations in one invocation
-(see docs/design/multi-config.md). Multi-target diffs prefix each body
-with "=== <region>/<app>/<profile>/<env> ===" so the combined stream
-stays unambiguous; single-target output omits the header so it can be
-piped into patch/git apply.`,
+Pass -c multiple times to diff several configurations in one invocation.
+Multi-target diffs prefix each body with "=== <region>/<app>/<profile>/<env> ==="
+so the combined stream stays unambiguous; single-target output omits the
+header so it can be piped into patch/git apply.`,
 		RunE:         runDiff,
 		SilenceUsage: true, // Don't show usage on runtime errors
 	}
@@ -56,7 +55,7 @@ func runDiff(cmd *cobra.Command, args []string) error {
 
 	// Single-config keeps the existing path so the row identifier still
 	// shows the SDK-resolved default region when cfg.Region is empty
-	// (multi-config requires region in yml — multi-config.md §6.2).
+	// (multi-config requires region in yml).
 	if len(configFiles) <= 1 {
 		path := defaultConfigFile
 		if len(configFiles) == 1 {
@@ -81,10 +80,9 @@ func runDiff(cmd *cobra.Command, args []string) error {
 
 	executor := diff.NewExecutor(rep)
 	// Per-target stdout payloads are collected in argument order so the
-	// combined stdout stays deterministic regardless of completion order
-	// (output.md §10.4). Indexed by target slot — distinct goroutines
-	// write to distinct slots so a sync.Mutex around the slice header
-	// is sufficient.
+	// combined stdout stays deterministic regardless of completion order.
+	// Indexed by target slot — distinct goroutines write to distinct
+	// slots so a sync.Mutex around the slice header is sufficient.
 	payloads := make([][]byte, len(targets))
 	hasChanges := make([]bool, len(targets))
 	indexByID := make(map[string]int, len(targets))
@@ -115,8 +113,8 @@ func runDiff(cmd *cobra.Command, args []string) error {
 	renderBatchSummary(rep, summary, len(targets), summaryConfig{noopVerb: "no-op"})
 
 	// --exit-nonzero collapses "any change" across all targets, matching
-	// the single-target contract (output.md §7.2 (e)). Even if some
-	// targets failed we still exit 1 — both conditions yield non-zero.
+	// the single-target contract. Even if some targets failed we still
+	// exit 1 — both conditions yield non-zero.
 	if diffExitNonzero {
 		for _, c := range hasChanges {
 			if c {
@@ -128,11 +126,10 @@ func runDiff(cmd *cobra.Command, args []string) error {
 }
 
 // flushDiffPayloads writes per-target diff bodies to stdout in argument
-// order with a `=== <id> ===` header per target (output.md §7.2 stdout
-// header rules — N>=2 always carries headers). Empty payloads (no-op
-// targets / failed targets) are skipped. A blank line is inserted
-// before every non-first non-empty payload so the stream stays
-// readable when piped through `less`.
+// order with a `=== <id> ===` header per target (N>=2 always carries
+// headers). Empty payloads (no-op targets / failed targets) are
+// skipped. A blank line is inserted before every non-first non-empty
+// payload so the stream stays readable when piped through `less`.
 func flushDiffPayloads(rep reporter.Reporter, targets []*batch.Target, payloads [][]byte) {
 	first := true
 	for i, t := range targets {

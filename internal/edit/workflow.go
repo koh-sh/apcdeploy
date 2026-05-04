@@ -83,9 +83,9 @@ func (t *resolvedTargets) Identifier(region string) string {
 
 // Run executes the edit workflow.
 //
-// Output shape (docs/design/output.md §7.6):
+// Output shape:
 //   - resolve / fetch / ongoing-check are silent unless they fail
-//   - $EDITOR launches without a "launching $EDITOR" spinner (§7.6)
+//   - $EDITOR launches without a "launching $EDITOR" spinner
 //   - after the editor closes, a single Targets row carries the deployment
 //     lifecycle: creating-version → deploying → ✓ deployed/complete (...)
 //     or ⊘ skipped (no changes) when the edit was a no-op.
@@ -185,9 +185,9 @@ func (w *workflow) prepareDeployment(ctx context.Context, t *resolvedTargets, op
 func (w *workflow) editAndDeploy(ctx context.Context, t *resolvedTargets, deployed *awsInternal.DeployedConfigInfo, strategyID, strategyName string, opts *Options) error {
 	ext := config.ExtensionForContentType(deployed.ContentType)
 
-	// No "launching $EDITOR" spinner per output.md §7.6 — short-lived
-	// spinners on instant operations create flicker, and the editor itself
-	// is the user-facing signal that a hand-off is happening.
+	// No "launching $EDITOR" spinner — short-lived spinners on instant
+	// operations create flicker, and the editor itself is the user-facing
+	// signal that a hand-off is happening.
 	_, edited, err := editBuffer(deployed.Content, ext)
 	if err != nil {
 		return fmt.Errorf("failed to edit configuration: %w", err)
@@ -263,8 +263,7 @@ func resolveStrategy(ctx context.Context, resolver *awsInternal.Resolver, provid
 
 // waitIfRequested optionally blocks for the deploy or bake phase to complete,
 // driving the same Targets row through the deploying/baking sub-phases that
-// run uses. The done summary follows the output.md §3.3.2 format and
-// distinguishes the verb by wait mode (output.md §7.1.0).
+// run uses. The done summary distinguishes the verb by wait mode.
 func (w *workflow) waitIfRequested(ctx context.Context, tg reporter.Targets, id string, t *resolvedTargets, deploymentNumber, versionNumber int32, strategyName string, deployStart time.Time, opts *Options) error {
 	timeout := time.Duration(opts.Timeout) * time.Second
 	tr := batch.NewTargetReporter(tg, id)

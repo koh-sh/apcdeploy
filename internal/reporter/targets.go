@@ -5,7 +5,7 @@ import "time"
 // Targets is the single Reporter primitive used to render the lifecycle of
 // one or more deployment targets (1 target = 1 line). It replaces the older
 // Step / Success / Spin / Checklist / Progress kinds for command-level
-// output — see docs/design/output.md §4.1.
+// output.
 //
 // Identifiers passed via NewTargets fix the row order; subsequent calls
 // reference each row by that identifier. The implementation MUST tolerate

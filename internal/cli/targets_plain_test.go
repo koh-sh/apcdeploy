@@ -149,7 +149,7 @@ func TestPlainTargets_EtaIgnoredInSetProgress(t *testing.T) {
 	t.Parallel()
 
 	// SetProgress's eta is intentionally ignored in non-TTY mode (CI logs
-	// stay clean — output.md §6.2 keeps lines to the threshold percent only).
+	// stay clean — lines are kept to the threshold percent only).
 	pt, buf := newTestPlainTargets(t, []string{"id"})
 	defer pt.Close()
 

@@ -47,7 +47,7 @@ func NewExecutorWithFactory(rep reporter.Reporter, prom prompt.Prompter, factory
 
 // Execute performs the rollback workflow.
 //
-// Output shape (docs/design/output.md §7.7):
+// Output shape:
 //   - has-ongoing path: optional confirmation block, then a single Targets row
 //     transitioning preparing → stopping → ✓ stopped (deployment #N).
 //   - no-ongoing path: a single Targets row finalized as ⊘ no ongoing deployment.

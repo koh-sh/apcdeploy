@@ -32,7 +32,7 @@ var terminalEscapeRE = regexp.MustCompile(
 
 // sanitizeIdentifier strips ANSI / DEC escape sequences from id. Used at the
 // Targets boundary so caller-supplied identifiers cannot inject terminal
-// control codes (output.md §10.3 — identifier integrity).
+// control codes.
 func sanitizeIdentifier(id string) string {
 	if !strings.ContainsRune(id, '\x1b') {
 		return id
@@ -41,13 +41,13 @@ func sanitizeIdentifier(id string) string {
 }
 
 // targetsBarWidth is the fixed visual width of the deploying-phase progress
-// bar (output.md §5.4). Bars do not adapt to terminal width — they print at
-// 20 cells regardless.
+// bar. Bars do not adapt to terminal width — they print at 20 cells
+// regardless.
 const targetsBarWidth = 20
 
 // targetsIDGap is the minimum gap between the identifier column and the
-// state icon (output.md §5.2). Implementations pad shorter identifiers with
-// spaces so the icon column lines up across rows.
+// state icon. Implementations pad shorter identifiers with spaces so the
+// icon column lines up across rows.
 const targetsIDGap = 3
 
 // targetsRowState captures the lifecycle stage of a single Targets row.

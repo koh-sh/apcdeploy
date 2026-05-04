@@ -80,9 +80,9 @@ func TestRenderBatchSummary_SkippedFoldedIntoNoOp(t *testing.T) {
 	silent = false
 	t.Cleanup(func() { silent = false })
 
-	// Fail-fast skip is "no-op" from the user's perspective (output.md
-	// §8.2): the target didn't change anything because the batch
-	// short-circuited it. Counter 2 (NoOp) collapses NoOp + Skipped.
+	// Fail-fast skip is "no-op" from the user's perspective: the target
+	// didn't change anything because the batch short-circuited it.
+	// Counter 2 (NoOp) collapses NoOp + Skipped.
 	out := captureStderr(t, func() {
 		renderBatchSummary(&reportertest.MockReporter{},
 			batch.Summary{OK: 1, NoOp: 1, Skipped: 1, Failed: 1},

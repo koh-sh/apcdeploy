@@ -81,7 +81,7 @@ sed -i '' 's/data.json/data.txt/' apcdeploy.yml
 echo "text" > data.txt
 $APCDEPLOY run --wait-bake --silent
 
-echo "Multi-config: -c repeated for run/diff/pull (multi-config.md)"
+echo "Multi-config: -c repeated for run/diff/pull"
 title "========== S3: Multi-config =========="
 # Placed right after S2 so the json-freeform/dev + json-freeform/staging
 # pair is exercised before any later section perturbs their AWS state
@@ -115,7 +115,7 @@ $APCDEPLOY get --silent --yes -c "$MC_DIR/stg/apcdeploy.yml" | jq -e '.mc == "st
 $APCDEPLOY diff -c "$MC_DIR/dev/apcdeploy.yml" -c "$MC_DIR/stg/apcdeploy.yml" 2>&1 | grep -qE "no changes"
 
 # Modify only the dev target's data; the multi-target diff stdout must
-# contain the `=== <id> ===` header for dev only (output.md §7.2).
+# contain the `=== <id> ===` header for dev only.
 echo '{"mc":"dev-2"}' > "$MC_DIR/dev/data.json"
 diff_out=$($APCDEPLOY diff -c "$MC_DIR/dev/apcdeploy.yml" -c "$MC_DIR/stg/apcdeploy.yml" 2>/dev/null || true)
 echo "$diff_out" | grep -q "=== ${REGION}/${APP}/json-freeform/dev ==="

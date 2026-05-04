@@ -7,9 +7,8 @@ import (
 )
 
 // plainTargets is the non-TTY Targets implementation. Without in-place
-// updates, each phase transition emits a new line in `<id>: <body>` form
-// (output.md §6.2). Progress is decimated to 25/50/75/100% so CI logs
-// stay clean.
+// updates, each phase transition emits a new line in `<id>: <body>` form.
+// Progress is decimated to 25/50/75/100% so CI logs stay clean.
 type plainTargets struct {
 	targetsBase
 	w io.Writer

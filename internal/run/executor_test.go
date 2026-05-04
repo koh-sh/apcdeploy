@@ -263,7 +263,7 @@ region: us-east-1
 	// Run now reports phases through a single Targets row that progresses
 	// through preparing → comparing → creating-version → deploying, then
 	// finalises with Done("started — vN, Strategy, deployment #N") when no
-	// wait flag is set (output.md §7.1).
+	// wait flag is set.
 	if len(reporter.TargetsCalls) != 1 {
 		t.Fatalf("expected exactly 1 Targets call, got %d", len(reporter.TargetsCalls))
 	}

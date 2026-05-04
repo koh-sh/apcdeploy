@@ -25,7 +25,7 @@ var (
 	date    string
 
 	// Global flags. configFiles is a slice so the run/diff/pull commands can
-	// accept `-c` repeatedly (multi-config.md F-01). Single-config commands
+	// accept `-c` repeatedly. Single-config commands
 	// (init/get/status/rollback/edit) call requireSingleConfig() to enforce
 	// `len == 1` themselves.
 	configFiles []string
@@ -88,7 +88,7 @@ func Execute() {
 		rep := cli.GetReporter(silent)
 		rep.Error(err.Error())
 		// Append a Resolution: <hint> line when the underlying AWS error code
-		// has a documented remediation (output.md §8.3 / internal/errors).
+		// has a documented remediation.
 		// Emitted via Warn (⚠) instead of Error (✗) so the visual hierarchy is
 		// "what failed" first, "how to recover" second; both lines reach
 		// stderr even under --silent because Warn-via-the-real-reporter is
@@ -114,8 +114,7 @@ func isSilent() bool {
 // requireSingleConfig enforces that single-config commands receive exactly
 // one `-c` value. It returns the single path when valid; otherwise it
 // returns an error explaining that the command does not support
-// multi-config (per docs/design/multi-config.md §3 non-goals — only
-// run/diff/pull do).
+// multi-config (only run/diff/pull do).
 func requireSingleConfig(cmdName string) (string, error) {
 	switch len(configFiles) {
 	case 0:

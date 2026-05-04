@@ -147,7 +147,7 @@ region: us-east-1
 
 	err = executor.Execute(context.Background(), opts)
 	// Status returns aws.ErrNoDeployment for the no-deployment case so
-	// cmd/root.go can map it to exit code 2 (output.md §7.4 (d) / §8.6).
+	// cmd/root.go can map it to exit code 2.
 	if !errors.Is(err, awsInternal.ErrNoDeployment) {
 		t.Fatalf("expected aws.ErrNoDeployment, got: %v", err)
 	}

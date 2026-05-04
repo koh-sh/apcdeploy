@@ -470,8 +470,7 @@ type DeploymentDetails struct {
 // BAKE_TIME_STARTED event in details.EventLog, or nil if no such event
 // is present (yet). AppConfig records this when the deploy phase ends
 // and the bake phase begins; subtracting StartedAt from it yields the
-// AWS-recorded deploy phase elapsed (jitter included — see
-// docs/design/output.md notes on overhead).
+// AWS-recorded deploy phase elapsed (jitter included).
 func BakeTimeStartedAt(details *DeploymentDetails) *time.Time {
 	if details == nil {
 		return nil

@@ -450,7 +450,7 @@ apcdeploy run  -c environments/*.yml --parallel 3 --wait-bake
 apcdeploy pull -c environments/*.yml --continue-on-error
 ```
 
-Behavior (defined in `docs/design/multi-config.md`):
+Behavior:
 
 - Each `-c` is loaded and validated up-front; any single load failure aborts the batch before any AWS call.
 - Targets are identified by the 4-tuple `region/app/profile/env`. Two configs that resolve to the same identifier produce `ErrDuplicateTarget`.

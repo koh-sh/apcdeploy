@@ -39,8 +39,8 @@ func NewExecutorWithFactory(rep reporter.Reporter, factory func(context.Context,
 
 // Execute performs the diff workflow for a single config file. Stdout
 // emission (the unified diff body) happens inline so the single-target
-// output matches the existing single-config behaviour: no
-// `=== <id> ===` header (output.md §7.2 stdout header rules).
+// output matches the existing single-config behaviour: no `=== <id> ===`
+// header.
 //
 // The multi-config path uses RunOnTarget instead and is responsible for
 // buffering and reordering the diff bodies; see cmd/diff.go.
@@ -93,8 +93,8 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 //
 // The orchestrator path in cmd/diff.go collects payloads per target
 // and flushes them to Reporter.Diff in argument order with a
-// `=== <id> ===` header (output.md §7.2). The single-target Execute
-// emits payload directly without a header.
+// `=== <id> ===` header. The single-target Execute emits payload
+// directly without a header.
 func (e *Executor) RunOnTarget(ctx context.Context, t *batch.Target, tr reporter.TargetReporter) ([]byte, bool, error) {
 	awsClient, err := e.clientFactory(ctx, t.Config.Region)
 	if err != nil {

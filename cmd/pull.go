@@ -30,8 +30,7 @@ This command retrieves the currently deployed configuration and overwrites your 
 Useful when configuration changes are made directly in the AWS Console and you want to sync
 your local files with the deployed state.
 
-Pass -c multiple times to pull several configurations in one invocation
-(see docs/design/multi-config.md for details).
+Pass -c multiple times to pull several configurations in one invocation.
 
 Note: This command does NOT use the AppConfig Data API, so it does not incur per-call charges.`,
 		RunE:         runPull,
@@ -50,8 +49,8 @@ func runPull(cmd *cobra.Command, args []string) error {
 
 	// Single-config keeps the existing path so the row identifier still
 	// shows the SDK-resolved default region when cfg.Region is empty.
-	// Multi-config requires region in yml (multi-config.md §6.2) and
-	// flows through the orchestrator.
+	// Multi-config requires region in yml and flows through the
+	// orchestrator.
 	if len(configFiles) <= 1 {
 		path := defaultConfigFile
 		if len(configFiles) == 1 {

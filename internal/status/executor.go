@@ -38,7 +38,7 @@ func NewExecutorWithFactory(rep reporter.Reporter, factory func(context.Context,
 
 // Execute performs the status check workflow.
 //
-// Output shape (docs/design/output.md §7.4):
+// Output shape:
 //   - found: ✓ <STATE> — v<N> [(deployed/started X ago)] on the Targets row,
 //     followed by display.DeploymentStatus's Header + Table on stderr and the
 //     state name on stdout.
@@ -85,8 +85,8 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 
 	if deploymentInfo == nil {
 		tg.Skip(id, "no deployment")
-		// stdout payload is fixed at "NONE\n" so scripts can branch on it
-		// (output.md §7.4 (b)). Always emitted, even under --silent.
+		// stdout payload is fixed at "NONE\n" so scripts can branch on it.
+		// Always emitted, even under --silent.
 		e.reporter.Data([]byte("NONE\n"))
 		e.reporter.Box("", []string{
 			"No deployment has been created yet for this profile/environment.",
@@ -96,22 +96,19 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	}
 
 	tg.Done(id, summarizeDeployment(deploymentInfo))
-	// Two output systems intentionally coexist on the success path
-	// (output.md §11 Q-2 — to be revisited when status grows multi-target
-	// support). The Targets row is the at-a-glance summary
-	// ("✓ COMPLETE — v42 (2h ago)"); display.DeploymentStatus follows with
-	// the structured Header + Table that surfaces the full deployment
-	// metadata (Deployment Number, strategy, started/completed timestamps).
-	// In TTY mode the Targets renderer has already finalised by the time
-	// the table prints, so the two views stack cleanly without competing
-	// for the cursor.
+	// Two output systems intentionally coexist on the success path. The
+	// Targets row is the at-a-glance summary ("✓ COMPLETE — v42 (2h ago)");
+	// display.DeploymentStatus follows with the structured Header + Table
+	// that surfaces the full deployment metadata (Deployment Number,
+	// strategy, started/completed timestamps). In TTY mode the Targets
+	// renderer has already finalised by the time the table prints, so the
+	// two views stack cleanly without competing for the cursor.
 	display.DeploymentStatus(e.reporter, deploymentInfo, cfg, resources)
 	return nil
 }
 
 // summarizeDeployment renders the post-icon Targets summary for a deployment.
-// Format: "<STATE> [<percent>%] — v<ConfigVersion>[ (<verb> <relative-time>)]"
-// per docs/design/output.md §7.4 (a)/(a').
+// Format: "<STATE> [<percent>%] — v<ConfigVersion>[ (<verb> <relative-time>)]".
 func summarizeDeployment(d *aws.DeploymentDetails) string {
 	state := string(d.State)
 	summary := state

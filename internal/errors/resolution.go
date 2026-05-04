@@ -2,8 +2,8 @@
 // hints rendered in the Errors: section of CLI output.
 //
 // The map is intentionally minimal: only the most frequent failure codes are
-// covered (see docs/design/output.md §8.3). New entries are added on demand
-// when a real failure shows up — no speculative hints.
+// covered. New entries are added on demand when a real failure shows up —
+// no speculative hints.
 package errors
 
 import (
@@ -26,7 +26,7 @@ var resolutionHints = map[string]string{
 // known set.
 //
 // Callers print "Resolution: <hint>" only when the returned string is
-// non-empty (do not invent hints for unknown codes — see output.md §8.3).
+// non-empty.
 func Resolution(err error) string {
 	if err == nil {
 		return ""

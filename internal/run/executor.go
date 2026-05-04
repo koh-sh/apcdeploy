@@ -40,14 +40,14 @@ func NewExecutorWithFactory(rep reporter.Reporter, factory func(context.Context,
 // per-target body is shared with the multi-config orchestrator path
 // (RunOnTarget) so both routes produce identical Targets output.
 //
-// Output shape (docs/design/output.md §7.1):
+// Output shape:
 //   - wait none:    ✓ started — v<N>, <Strategy>
 //   - wait-deploy:  ✓ deployed (<elapsed>) — v<N>, <Strategy>, baking started
 //   - wait-bake:    ✓ complete  (<elapsed>) — v<N>, <Strategy>
 //   - no changes:   ⊘ skipped (no changes)
 //   - errors:       ✗ failed: <message>
 //
-// Sub-phases (output.md §3.2):
+// Sub-phases:
 //
 //	preparing → comparing → creating-version → deploying → baking
 func (e *Executor) Execute(ctx context.Context, opts *Options) error {

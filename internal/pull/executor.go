@@ -38,7 +38,7 @@ func NewExecutorWithFactory(rep reporter.Reporter, factory func(context.Context,
 // per-target body is shared with the multi-config orchestrator path
 // (RunOnTarget) so both routes produce identical Targets output.
 //
-// Output shape (docs/design/output.md §7.3):
+// Output shape:
 //   - updated:        ✓ updated <data-file-path>
 //   - no changes:     ✓ no changes
 //   - no deployment:  ✗ failed: no deployment found  (returns aws.ErrNoDeployment)
@@ -51,7 +51,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 
 	// Resolve the AWS client first so the row identifier reflects the
 	// SDK-default region when cfg.Region was omitted (multi-config users
-	// are expected to set region in yml — see multi-config.md §6.2).
+	// are expected to set region in yml).
 	awsClient, err := e.clientFactory(ctx, cfg.Region)
 	if err != nil {
 		return fmt.Errorf("failed to initialize AWS client: %w", err)

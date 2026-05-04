@@ -6,7 +6,7 @@ import (
 )
 
 // FormatDeploymentSummary builds the post-icon Targets summary line for a
-// run / edit deployment per docs/design/output.md §3.3.2:
+// run / edit deployment:
 //
 //	<verb> [(<elapsed>)] [— v<N>[, <Strategy>][, <addendum>]]
 //

@@ -19,20 +19,19 @@ import (
 //
 // The context is the parent passed to Orchestrator.Run; per-target
 // timeouts (e.g. run's --timeout) are the executor's responsibility, not
-// the orchestrator's (multi-config.md §7.4).
+// the orchestrator's.
 type ExecuteFunc func(ctx context.Context, t *Target, tr reporter.TargetReporter) error
 
 // TargetError pairs a failed Target with the underlying error so the
-// command layer can render the post-run "Errors:" section
-// (docs/design/output.md §8.3).
+// command layer can render the post-run "Errors:" section.
 type TargetError struct {
 	Identifier string
 	Path       string
 	Err        error
 }
 
-// Summary aggregates per-target outcomes for the post-run line described
-// in docs/design/output.md §8.2 (`N ok, N no-op, N failed [(elapsed)]`).
+// Summary aggregates per-target outcomes for the post-run line:
+// `N ok, N no-op, N failed [(elapsed)]`.
 //
 // Skipped is broken out from NoOp so that callers (and tests) can tell
 // fail-fast skips from "no changes" no-ops. The aggregate "no-op" column
@@ -48,7 +47,7 @@ type Summary struct {
 
 // Orchestrator drives a slice of pre-loaded Targets through one shared
 // Reporter.Targets handle, in parallel, with optional fail-fast or
-// continue-on-error semantics (multi-config.md §7).
+// continue-on-error semantics.
 //
 // The zero value is not usable — Targets, Reporter, and Execute MUST be
 // set. Parallel <= 0 means "all at once" (i.e. len(Targets)).
@@ -62,18 +61,16 @@ type Orchestrator struct {
 
 // Run drives every Target through Execute and returns a Summary plus an
 // aggregate error (non-nil if any target failed, regardless of
-// ContinueOnError — exit code 1 is the contract for any failure,
-// multi-config.md §10.1).
+// ContinueOnError — exit code 1 is the contract for any failure).
 //
 // Concurrency model:
 //   - One goroutine per Target, gated by a buffered semaphore of size
 //     `parallel` so at most `parallel` targets execute simultaneously.
 //   - Argument start order is preserved: Targets[i] is launched before
-//     Targets[i+1]. With Parallel=1 this produces strict serial order
-//     (multi-config.md §7.2).
-//   - Fail-fast does NOT cancel running targets (§7.3). It only prevents
-//     further targets from starting; queued targets are reported via
-//     Targets.Skip with reason "skipped (fail-fast)".
+//     Targets[i+1]. With Parallel=1 this produces strict serial order.
+//   - Fail-fast does NOT cancel running targets. It only prevents further
+//     targets from starting; queued targets are reported via Targets.Skip
+//     with reason "skipped (fail-fast)".
 func (o *Orchestrator) Run(ctx context.Context) (Summary, error) {
 	if len(o.Targets) == 0 {
 		return Summary{}, errors.New("orchestrator: no targets")
@@ -121,7 +118,7 @@ func (o *Orchestrator) Run(ctx context.Context) (Summary, error) {
 	// channel up-front and rely on `for range work` for clean worker
 	// shutdown. The channel is FIFO, so workers pull targets in
 	// argument order even though completion order is undefined under
-	// parallel >= 2 (multi-config.md §7.2).
+	// parallel >= 2.
 	work := make(chan workItem, len(o.Targets))
 	for i, t := range o.Targets {
 		work <- workItem{idx: i, target: t}

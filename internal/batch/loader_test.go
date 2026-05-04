@@ -91,10 +91,9 @@ func TestLoadAll_DeduplicatesEquivalentPaths(t *testing.T) {
 	writeYML(t, dir, "data.json", `{}`)
 
 	// Same file referenced via three syntactically different absolute
-	// forms — the loader must collapse them to one Target
-	// (multi-config.md F-08). We avoid t.Chdir/os.Chdir here on purpose
-	// because t.Parallel() makes process-global cwd mutation hostile to
-	// neighbouring tests.
+	// forms — the loader must collapse them to one Target. We avoid
+	// t.Chdir/os.Chdir here on purpose because t.Parallel() makes
+	// process-global cwd mutation hostile to neighbouring tests.
 	withDot := filepath.Join(filepath.Dir(cfg), ".", filepath.Base(cfg))
 	withDotDot := filepath.Join(filepath.Dir(cfg), "..", filepath.Base(filepath.Dir(cfg)), filepath.Base(cfg))
 
@@ -126,7 +125,7 @@ func TestLoadAll_DuplicateIdentifierIsError(t *testing.T) {
 		t.Errorf("err = %v, want errors.Is(ErrDuplicateTarget)", err)
 	}
 	// Both paths should appear in the message so the user can locate
-	// the conflict (multi-config.md §6.4).
+	// the conflict.
 	msg := err.Error()
 	if !strings.Contains(msg, a) || !strings.Contains(msg, b) {
 		t.Errorf("err message must mention both paths, got: %s", msg)
@@ -185,7 +184,7 @@ func TestLoadAll_DuplicateRespectsRegionDifference(t *testing.T) {
 	t.Parallel()
 
 	// Same app/profile/env in different regions are distinct targets;
-	// dedup must NOT collapse them (multi-config.md §6.2).
+	// dedup must NOT collapse them.
 	dir := t.TempDir()
 	a := writeYML(t, dir, "a/apcdeploy.yml", goodYML("us-east-1", "app", "profile", "prod", "data.json"))
 	b := writeYML(t, dir, "b/apcdeploy.yml", goodYML("eu-west-1", "app", "profile", "prod", "data.json"))

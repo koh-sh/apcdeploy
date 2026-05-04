@@ -19,7 +19,7 @@ const (
 	// AppConfig.Linear20PercentEvery6Minutes) require an explicit --timeout.
 	//
 	// In the multi-config path the same value applies INDEPENDENTLY to each
-	// target (multi-config.md §7.4) — it is not a global wall-clock cap.
+	// target — it is not a global wall-clock cap.
 	DefaultDeploymentTimeout = 1800
 )
 
@@ -51,9 +51,9 @@ This command will:
 4. Start a deployment to the specified environment
 5. Optionally wait for the deployment phase (--wait-deploy) or full completion (--wait-bake)
 
-Pass -c multiple times to run several deployments in one invocation
-(see docs/design/multi-config.md). Multi-target runs honour --parallel
-and --continue-on-error; --timeout is per-target, not global.`,
+Pass -c multiple times to run several deployments in one invocation.
+Multi-target runs honour --parallel and --continue-on-error; --timeout
+is per-target, not global.`,
 		RunE:         runRun,
 		SilenceUsage: true, // Don't show usage on runtime errors
 	}
@@ -81,7 +81,7 @@ func runRun(cmd *cobra.Command, args []string) error {
 
 	// Single-config keeps the existing path so the row identifier still
 	// shows the SDK-resolved default region when cfg.Region is empty
-	// (multi-config requires region in yml — multi-config.md §6.2).
+	// (multi-config requires region in yml).
 	if len(configFiles) <= 1 {
 		path := defaultConfigFile
 		if len(configFiles) == 1 {
