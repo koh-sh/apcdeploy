@@ -192,6 +192,17 @@ func (o *Orchestrator) Run(ctx context.Context) (Summary, error) {
 	return summary, nil
 }
 
+// NewTargetReporter returns a TargetReporter that drives a single row of
+// an existing Targets handle. Used by single-target executor entry points
+// (e.g. pull.Executor.Execute) that share their per-target body with the
+// orchestrator path — both routes need the same TargetReporter shape.
+//
+// The returned view is NOT goroutine-safe by itself, but the underlying
+// Targets handle is — each caller should own its own view.
+func NewTargetReporter(tg reporter.Targets, id string) reporter.TargetReporter {
+	return &targetView{inner: tg, id: id}
+}
+
 // targetView is a per-target wrapper around the shared reporter.Targets
 // handle. Each goroutine owns one view, so no synchronisation is required
 // inside the view itself.
