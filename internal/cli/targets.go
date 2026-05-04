@@ -110,6 +110,29 @@ func idColumnWidth(ids []string) int {
 	return w + targetsIDGap
 }
 
+// truncateRunes shortens s to at most max runes, appending an ellipsis (…)
+// when truncation actually happens. Returns "" for max <= 0 and "…" for
+// max == 1 — at one rune of budget the ellipsis itself is the only thing
+// that fits.
+//
+// Used by the TTY Targets renderer to keep each row within terminal
+// width: row contents that wrap to a second visual line break the redraw
+// math (\033[NA assumes one terminal line per row), and either accumulate
+// stale fragments or eat earlier rows.
+func truncateRunes(s string, max int) string {
+	if max <= 0 {
+		return ""
+	}
+	runes := []rune(s)
+	if len(runes) <= max {
+		return s
+	}
+	if max == 1 {
+		return "…"
+	}
+	return string(runes[:max-1]) + "…"
+}
+
 // padID returns id padded with spaces to width.
 func padID(id string, width int) string {
 	pad := max(width-visibleWidth(id), 0)

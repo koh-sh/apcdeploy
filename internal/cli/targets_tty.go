@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"io"
+	"os"
 	"time"
 
 	bspinner "github.com/charmbracelet/bubbles/spinner"
@@ -13,9 +14,18 @@ import (
 // or animation tick. Pre-printing once and then moving the cursor up by
 // len(rows) for each redraw keeps the cursor math trivial — the same trick
 // ttyChecklist uses.
+//
+// cols is the terminal column width captured at construction; 0 means
+// "unknown — do not truncate". When non-zero, formatLine truncates the
+// row's variable-length payload (errMsg / summary / detail / reason) so
+// each rendered row fits within one terminal line. The redraw assumes
+// one visual line per row (`\033[NA` moves up N logical rows); a wrapped
+// row would shift the cursor and cause earlier output to bleed into
+// subsequent frames.
 type ttyTargets struct {
 	targetsBase
 	w        io.Writer
+	cols     int
 	frames   []string
 	fps      time.Duration
 	frameIdx int
@@ -35,6 +45,7 @@ func newTTYTargets(r *Reporter, ids []string) *ttyTargets {
 	t := &ttyTargets{
 		targetsBase: newTargetsBase(ids),
 		w:           r.errW,
+		cols:        terminalColsOf(r.errW),
 		frames:      bspinner.MiniDot.Frames,
 		fps:         fps,
 		stop:        make(chan struct{}),
@@ -49,6 +60,17 @@ func newTTYTargets(r *Reporter, ids []string) *ttyTargets {
 	return t
 }
 
+// terminalColsOf returns the column width of w when w is an *os.File
+// connected to a TTY; otherwise 0 (used by callers as "do not truncate").
+// Imported into a thin helper rather than inlined so tests can pass an
+// io.Writer (e.g. *bytes.Buffer) without provoking a nil-deref.
+func terminalColsOf(w io.Writer) int {
+	if f, ok := w.(*os.File); ok {
+		return TerminalCols(f)
+	}
+	return 0
+}
+
 // renderInitial prints every row once. After this the cursor sits on the
 // line directly below the last row; subsequent redraws move up by len(order)
 // to reach the top of the block.
@@ -59,16 +81,45 @@ func (t *ttyTargets) renderInitial() {
 }
 
 // redraw rewrites the entire block in place. Caller MUST hold t.mu.
+//
+// `\033[%dA` moves the cursor up by len(order) logical rows. formatLine
+// truncates each row to one terminal line so this stays in sync; on top
+// of that, `\033[J` (clear from cursor to end of screen) runs once after
+// the cursor returns to the top of the block as a safety net for any
+// previous frame that may have overflowed (e.g. a frame written before
+// the terminal width was knowable, or after a SIGWINCH narrowed it).
 func (t *ttyTargets) redraw() {
 	frame := t.frames[t.frameIdx%len(t.frames)]
-	fmt.Fprintf(t.w, "\033[%dA", len(t.order))
+	fmt.Fprintf(t.w, "\033[%dA\r\033[J", len(t.order))
 	for _, id := range t.order {
-		fmt.Fprintf(t.w, "\r\033[K%s\n", t.formatLine(t.rows[id], frame))
+		fmt.Fprintln(t.w, t.formatLine(t.rows[id], frame))
 	}
 }
 
+// formatLine builds one rendered row, truncating long payload fields so
+// the result fits within one terminal line. The fields fed into
+// renderRow are the only variable-length inputs — the icon, "failed: "
+// prefix, and progress bar are fixed-width, so a per-field rune budget
+// is sufficient and avoids ANSI-aware string truncation.
 func (t *ttyTargets) formatLine(row *targetsRow, frame string) string {
-	return padID(row.id, t.idWidth) + renderRow(row, frame)
+	r := *row
+	if t.cols > 0 {
+		// Reserve fixed budget for: identifier column, gap, state icon,
+		// space, common prefixes ("failed: " etc.), and a 1-col safety
+		// margin so the cursor never sits exactly at the right edge
+		// (some terminals wrap on column-0 of the next line in that
+		// case). Floor at 10 so very narrow terminals still get
+		// something visible rather than a string of just ellipses.
+		budget := t.cols - t.idWidth - 12
+		if budget < 10 {
+			budget = 10
+		}
+		r.errMsg = truncateRunes(r.errMsg, budget)
+		r.summary = truncateRunes(r.summary, budget)
+		r.detail = truncateRunes(r.detail, budget)
+		r.reason = truncateRunes(r.reason, budget)
+	}
+	return padID(r.id, t.idWidth) + renderRow(&r, frame)
 }
 
 func (t *ttyTargets) animate() {
