@@ -84,6 +84,7 @@ func TestOrchestrator_FailFastSkipsRemaining(t *testing.T) {
 	// still queued. Parallel=2 means at most a+b run concurrently;
 	// c/d should never start.
 	gateA := make(chan struct{})
+	bFailed := make(chan struct{})
 	var executed atomic.Int32
 
 	o := &Orchestrator{
@@ -100,6 +101,7 @@ func TestOrchestrator_FailFastSkipsRemaining(t *testing.T) {
 			case "b":
 				err := errors.New("boom")
 				tr.Fail(err)
+				close(bFailed)
 				return err
 			default:
 				t.Errorf("target %s should not have executed under fail-fast", tgt.Identifier)
@@ -117,10 +119,12 @@ func TestOrchestrator_FailFastSkipsRemaining(t *testing.T) {
 		close(doneCh)
 	}()
 
-	// Wait for "b" to fail.
-	deadline := time.Now().Add(2 * time.Second)
-	for executed.Load() < 2 && time.Now().Before(deadline) {
-		time.Sleep(5 * time.Millisecond)
+	// Wait for "b" to actually finish failing — ensures the orchestrator
+	// has set the fail-fast flag before we release "a".
+	select {
+	case <-bFailed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for target b to fail")
 	}
 	// Release "a" so the orchestrator can finish.
 	close(gateA)
@@ -240,31 +244,58 @@ func TestOrchestrator_DefaultParallelIsAll(t *testing.T) {
 	rep := &reportertesting.MockReporter{}
 	targets := makeTargets("a", "b", "c", "d")
 
-	var concurrent atomic.Int32
-	var maxSeen atomic.Int32
+	var startBarrier sync.WaitGroup
+	releaseGate := make(chan struct{})
+	startBarrier.Add(len(targets))
 
 	o := &Orchestrator{
 		Targets:  targets,
 		Reporter: rep,
 		// Parallel left as 0 → defaults to len(Targets).
 		Execute: func(ctx context.Context, tgt *Target, tr reporter.TargetReporter) error {
-			cur := concurrent.Add(1)
-			defer concurrent.Add(-1)
-			for {
-				prev := maxSeen.Load()
-				if cur <= prev || maxSeen.CompareAndSwap(prev, cur) {
-					break
-				}
-			}
-			time.Sleep(20 * time.Millisecond)
+			// Each goroutine signals it has started, then blocks on a shared
+			// gate. The gate is only released after all len(targets) goroutines
+			// have signalled — so if the orchestrator failed to launch all of
+			// them concurrently, the test deadlocks (and times out via the
+			// watchdog below) instead of passing on a weak `>= 2` threshold.
+			startBarrier.Done()
+			<-releaseGate
 			tr.Done("ok")
 			return nil
 		},
 	}
-	if _, err := o.Run(context.Background()); err != nil {
-		t.Fatalf("Run: %v", err)
+
+	runDone := make(chan struct {
+		summary Summary
+		err     error
+	}, 1)
+	go func() {
+		summary, err := o.Run(context.Background())
+		runDone <- struct {
+			summary Summary
+			err     error
+		}{summary, err}
+	}()
+
+	// Wait until every target has reached Execute. The watchdog catches
+	// the case where the orchestrator only fanned out to a subset.
+	allStarted := make(chan struct{})
+	go func() {
+		startBarrier.Wait()
+		close(allStarted)
+	}()
+	select {
+	case <-allStarted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for all targets to start concurrently — default Parallel did not fan out to len(Targets)")
 	}
-	if maxSeen.Load() < 2 {
-		t.Errorf("maxSeen = %d, want >= 2 (default Parallel should run targets concurrently)", maxSeen.Load())
+	close(releaseGate)
+
+	res := <-runDone
+	if res.err != nil {
+		t.Fatalf("Run: %v", res.err)
+	}
+	if res.summary.OK != len(targets) {
+		t.Errorf("summary.OK = %d, want %d", res.summary.OK, len(targets))
 	}
 }

@@ -308,31 +308,6 @@ func TestNew(t *testing.T) {
 	}
 }
 
-func TestDeployer_ResolveResources(t *testing.T) {
-	// This is a placeholder test - actual resource resolution will use AWS mocks
-	// For now, we just verify the structure exists
-	ctx := context.Background()
-	cfg := &config.Config{
-		Application:          "test-app",
-		ConfigurationProfile: "test-profile",
-		Environment:          "test-env",
-		DeploymentStrategy:   "AppConfig.AllAtOnce",
-		Region:               "us-east-1",
-		DataFile:             "data.json",
-	}
-
-	d, err := New(ctx, cfg)
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
-	}
-
-	// We can't test actual AWS resolution without mocks
-	// This test just verifies the deployer has the AWS client
-	if d.awsClient == nil {
-		t.Error("Expected awsClient to be non-nil")
-	}
-}
-
 func TestNewWithClient(t *testing.T) {
 	cfg := &config.Config{
 		Application:          "test-app",

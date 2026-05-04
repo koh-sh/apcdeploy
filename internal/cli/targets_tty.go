@@ -211,6 +211,12 @@ func (t *ttyTargets) Close() {
 	t.closed = true
 	t.mu.Unlock()
 	if len(t.order) > 0 {
+		// Order matters: setting t.closed under mu prevents new mutations
+		// from scheduling redraws, close(t.stop) tells animate() to exit,
+		// and <-t.done blocks until that goroutine has actually returned.
+		// Only after that fence is the final redraw safe without extra
+		// synchronisation — the animate ticker can no longer fire and no
+		// other writer can race with us.
 		close(t.stop)
 		<-t.done
 		// Final redraw with the resting frame so any lingering spinner
