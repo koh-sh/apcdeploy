@@ -3,7 +3,6 @@ package run
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/koh-sh/apcdeploy/internal/aws"
@@ -86,7 +85,7 @@ func (e *Executor) RunOnTarget(ctx context.Context, t *batch.Target, tr reporter
 		return err
 	}
 
-	dataContent, err := os.ReadFile(t.Config.DataFile)
+	dataContent, err := config.LoadDataFile(t.Config.DataFile)
 	if err != nil {
 		tr.Fail(err)
 		return fmt.Errorf("failed to read data file %s: %w", t.Config.DataFile, err)

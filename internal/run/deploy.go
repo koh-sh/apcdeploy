@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -60,7 +59,7 @@ func loadConfiguration(configPath string) (*config.Config, []byte, error) {
 	}
 
 	// Read data file (path is already resolved by LoadConfig)
-	dataContent, err := os.ReadFile(cfg.DataFile)
+	dataContent, err := config.LoadDataFile(cfg.DataFile)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to read data file %s: %w", cfg.DataFile, err)
 	}
