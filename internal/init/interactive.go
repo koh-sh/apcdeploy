@@ -25,22 +25,11 @@ func NewInteractiveSelector(p prompt.Prompter, r reporter.Reporter) *Interactive
 	}
 }
 
-// handlePromptError wraps prompt errors with user-friendly messages
-func handlePromptError(err error) error {
-	if err == nil {
-		return nil
-	}
-	if errors.Is(err, prompt.ErrUserCancelled) {
-		return err
-	}
-	return err
-}
-
 // promptAndReport handles the common pattern of prompting user and reporting success
 func (s *InteractiveSelector) promptAndReport(promptMsg string, options []string, successTemplate string) (string, error) {
 	selected, err := s.prompter.Select(promptMsg, options)
 	if err != nil {
-		return "", handlePromptError(err)
+		return "", err
 	}
 
 	s.reporter.Success(fmt.Sprintf(successTemplate, selected))
