@@ -566,6 +566,79 @@ func TestGetLatestDeployment(t *testing.T) {
 	}
 }
 
+// TestGetLatestDeployment_AllGetDeploymentFail covers the failure-mode added
+// when GetDeployment returns errors for every deployment in the list. Before
+// the fix the loop silently swallowed every error and returned (nil, nil),
+// which callers (pull / edit / run skip-unchanged) would then misread as
+// "no prior deployment". The new behavior surfaces the underlying AWS error
+// so the user sees a concrete failure instead.
+func TestGetLatestDeployment_AllGetDeploymentFail(t *testing.T) {
+	mockClient := &mock.MockAppConfigClient{
+		ListDeploymentsFunc: func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
+			return &appconfig.ListDeploymentsOutput{
+				Items: []types.DeploymentSummary{
+					{DeploymentNumber: 1},
+					{DeploymentNumber: 2},
+				},
+			}, nil
+		},
+		GetDeploymentFunc: func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
+			return nil, errors.New("AccessDeniedException: caller not allowed to GetDeployment")
+		},
+	}
+
+	client := &Client{appConfig: mockClient}
+	deployment, err := GetLatestDeployment(context.Background(), client, "app-123", "env-123", "profile-123")
+	if err == nil {
+		t.Fatal("expected error when every GetDeployment fails, got nil")
+	}
+	if deployment != nil {
+		t.Errorf("expected nil deployment on full failure, got %+v", deployment)
+	}
+	if !strings.Contains(err.Error(), "AccessDeniedException") {
+		t.Errorf("expected wrapped underlying AWS error, got %q", err.Error())
+	}
+}
+
+// TestGetLatestDeployment_PartialGetDeploymentFail covers the case where some
+// GetDeployment calls fail but others succeed: the function should still find
+// and return the latest deployment from the successful subset, not error out.
+func TestGetLatestDeployment_PartialGetDeploymentFail(t *testing.T) {
+	mockClient := &mock.MockAppConfigClient{
+		ListDeploymentsFunc: func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
+			return &appconfig.ListDeploymentsOutput{
+				Items: []types.DeploymentSummary{
+					{DeploymentNumber: 1},
+					{DeploymentNumber: 2},
+				},
+			}, nil
+		},
+		GetDeploymentFunc: func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
+			if *params.DeploymentNumber == 1 {
+				return nil, errors.New("transient throttle on deployment 1")
+			}
+			return &appconfig.GetDeploymentOutput{
+				DeploymentNumber:       *params.DeploymentNumber,
+				ConfigurationProfileId: new("profile-123"),
+				ConfigurationVersion:   new("9"),
+				State:                  types.DeploymentStateComplete,
+			}, nil
+		},
+	}
+
+	client := &Client{appConfig: mockClient}
+	deployment, err := GetLatestDeployment(context.Background(), client, "app-123", "env-123", "profile-123")
+	if err != nil {
+		t.Fatalf("expected partial failure to be tolerated, got %v", err)
+	}
+	if deployment == nil {
+		t.Fatal("expected deployment from successful subset, got nil")
+	}
+	if deployment.DeploymentNumber != 2 {
+		t.Errorf("DeploymentNumber = %d, want 2", deployment.DeploymentNumber)
+	}
+}
+
 func TestGetLatestDeploymentIncludingRollback(t *testing.T) {
 	tests := []struct {
 		name              string

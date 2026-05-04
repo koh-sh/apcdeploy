@@ -75,6 +75,6 @@ func runPull(cmd *cobra.Command, args []string) error {
 		Execute:         executor.RunOnTarget,
 	}
 	summary, runErr := o.Run(ctx)
-	renderBatchSummary(summary, len(targets), summaryConfig{noopVerb: "no-op"})
+	renderBatchSummary(summary, len(targets), summaryConfig{noopVerb: "no-op"}, isSilent())
 	return runErr
 }

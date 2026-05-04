@@ -380,7 +380,11 @@ func getLatestDeploymentInternal(ctx context.Context, client *Client, applicatio
 
 	// Find the latest deployment for this configuration profile
 	// We need to get full deployment details to access ConfigurationProfileId
-	var latestDeployment *DeploymentInfo
+	var (
+		latestDeployment *DeploymentInfo
+		lastErr          error
+		fetchedCount     int
+	)
 	for i := range deployments {
 		summary := &deployments[i]
 
@@ -393,8 +397,12 @@ func getLatestDeploymentInternal(ctx context.Context, client *Client, applicatio
 
 		deployment, err := client.appConfig.GetDeployment(ctx, getInput)
 		if err != nil {
-			continue // Skip this deployment if we can't get details
+			// Track the failure but keep going — a single transient error
+			// shouldn't hide an otherwise-discoverable deployment.
+			lastErr = err
+			continue
 		}
+		fetchedCount++
 
 		// Check if this is for the target configuration profile
 		if aws.ToString(deployment.ConfigurationProfileId) == profileID {
@@ -413,6 +421,14 @@ func getLatestDeploymentInternal(ctx context.Context, client *Client, applicatio
 				}
 			}
 		}
+	}
+
+	// If every GetDeployment failed (e.g. throttling, IAM regression),
+	// surface the underlying error rather than returning nil — a nil
+	// result is the "no deployment" signal and would be misinterpreted
+	// as "first-time setup" by callers (pull / edit / run skip-unchanged).
+	if latestDeployment == nil && fetchedCount == 0 && lastErr != nil {
+		return nil, wrapAWSError(lastErr, "failed to fetch any deployment details")
 	}
 
 	return latestDeployment, nil

@@ -599,7 +599,7 @@ apcdeploy run -c apcdeploy.yml --description "ticket-123: tweak feature flag"
 - `--wait-bake`: Wait for complete deployment including baking phase
 - `--force`: Deploy even when content is unchanged
 - `--timeout <seconds>`: Timeout in seconds for deployment wait (default: 1800)
-- `--description <text>`: Description attached to the configuration version and deployment. Visible in the AppConfig console and in `apcdeploy status` output. Defaults to `"Deployed by apcdeploy"` when the flag is omitted, so AppConfig deployments are distinguishable from manual console edits. Pass `--description ""` to clear the description entirely. Maximum 1024 characters (AppConfig API limit); rejected client-side when exceeded.
+- `--description <text>`: Description attached to the configuration version and deployment. Visible in the AppConfig console and in `apcdeploy status` output. Defaults to `"Deployed by apcdeploy"` when the flag is omitted, so AppConfig deployments are distinguishable from manual console edits. Pass `--description ""` to clear the description entirely. Maximum 1024 Unicode characters (counted by rune; AppConfig API limit); rejected client-side when exceeded.
 
 **Important**: `--wait-deploy` and `--wait-bake` are mutually exclusive and cannot be used together.
 
@@ -1155,7 +1155,7 @@ apcdeploy edit --description "ticket-123: tweak retry limit"
 - `--wait-deploy`: Wait for deployment phase to complete (until baking starts)
 - `--wait-bake`: Wait for complete deployment including baking phase
 - `--timeout <seconds>`: Timeout in seconds for deployment wait (default: 1800)
-- `--description <text>`: Description attached to the configuration version and deployment (max 1024 chars). Defaults to `"Deployed by apcdeploy"`; pass `--description ""` to clear it.
+- `--description <text>`: Description attached to the configuration version and deployment (max 1024 Unicode characters, counted by rune). Defaults to `"Deployed by apcdeploy"`; pass `--description ""` to clear it.
 
 **Important**: `--wait-deploy` and `--wait-bake` are mutually exclusive.
 

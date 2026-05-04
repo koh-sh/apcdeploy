@@ -1,4 +1,4 @@
-package errors
+package apcerrors
 
 import (
 	"errors"
@@ -49,6 +49,14 @@ func TestResolution(t *testing.T) {
 				Message: "application not found",
 			},
 			want: "verify the resource names with 'apcdeploy ls-resources' and your AWS region.",
+		},
+		{
+			name: "ValidationException maps to validator hint",
+			err: &smithy.GenericAPIError{
+				Code:    "ValidationException",
+				Message: "validator failed",
+			},
+			want: "configuration data failed AppConfig validation; check the JSON Schema / Lambda validators configured on this profile.",
 		},
 		{
 			name: "unknown AWS error code returns empty hint",

@@ -246,7 +246,7 @@ Deploy configuration changes:
 apcdeploy run -c apcdeploy.yml [--wait-deploy|--wait-bake] [--force]
 ```
 
-Pass `-c` multiple times to deploy several configs in one invocation:
+Pass `-c` multiple times to deploy several configs in one invocation. Each YAML must specify `region:` explicitly when using multiple `-c` (otherwise targets without a region collide on identifier).
 
 ```bash
 apcdeploy run -c environments/dev.yml -c environments/stg.yml -c environments/prod.yml --wait-bake
@@ -258,7 +258,7 @@ Options:
 - `--wait-bake`: Wait for complete deployment including baking phase
 - `--timeout`: Per-target timeout in seconds for deployment wait (default: 1800)
 - `--force`: Deploy even if content hasn't changed
-- `--description`: Description attached to the configuration version and deployment (max 1024 chars). Defaults to `"Deployed by apcdeploy"`; pass `--description ""` to clear it.
+- `--description`: Description attached to the configuration version and deployment (max 1024 Unicode characters, counted by rune). Defaults to `"Deployed by apcdeploy"`; pass `--description ""` to clear it.
 - `--parallel`: Maximum concurrent targets when `-c` is repeated (default: all in parallel)
 - `--continue-on-error`: Run remaining targets after one fails (default: fail-fast)
 
@@ -288,9 +288,9 @@ Options:
 - `--wait-deploy`: Wait for deployment phase to complete (until baking starts)
 - `--wait-bake`: Wait for complete deployment including baking phase
 - `--timeout`: Timeout in seconds for deployment wait (default: 1800)
-- `--description`: Description attached to the configuration version and deployment (max 1024 chars). Defaults to `"Deployed by apcdeploy"`; pass `--description ""` to clear it.
+- `--description`: Description attached to the configuration version and deployment (max 1024 Unicode characters, counted by rune). Defaults to `"Deployed by apcdeploy"`; pass `--description ""` to clear it.
 
-**Note:** This command does not use `apcdeploy.yml`.
+**Note:** This command does not use `apcdeploy.yml`. `$EDITOR` is invoked through `sh -c` (matching `git`'s `GIT_EDITOR` behavior), so its value is shell-evaluated — avoid passing values that contain shell metacharacters in CI environments.
 
 ### diff
 
@@ -300,7 +300,7 @@ Preview configuration changes:
 apcdeploy diff -c apcdeploy.yml [--exit-nonzero]
 ```
 
-Pass `-c` multiple times to diff several configs in one invocation. Each target's diff is prefixed with `=== <region>/<app>/<profile>/<env> ===`; the single-target form omits the header so it can be piped into `patch` / `git apply`.
+Pass `-c` multiple times to diff several configs in one invocation. Each YAML must specify `region:` explicitly. Each target's diff is prefixed with `=== <region>/<app>/<profile>/<env> ===`; the single-target form omits the header so it can be piped into `patch` / `git apply`.
 
 ```bash
 apcdeploy diff -c environments/dev.yml -c environments/stg.yml -c environments/prod.yml
@@ -342,7 +342,7 @@ Pull the latest deployed configuration and update your local data file:
 apcdeploy pull -c apcdeploy.yml
 ```
 
-Pass `-c` multiple times to pull several configurations in one invocation:
+Pass `-c` multiple times to pull several configurations in one invocation. Each YAML must specify `region:` explicitly:
 
 ```bash
 apcdeploy pull -c environments/dev.yml -c environments/stg.yml -c environments/prod.yml

@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/koh-sh/apcdeploy/internal/apcerrors"
 	"github.com/koh-sh/apcdeploy/internal/batch"
 	"github.com/koh-sh/apcdeploy/internal/cli"
-	apcerrors "github.com/koh-sh/apcdeploy/internal/errors"
 )
 
 // summaryConfig describes how to render a batch.Summary line for one
@@ -31,16 +31,19 @@ type summaryConfig struct {
 // line" primitive, and using Header/Box/Info would over-format the bare
 // summary.
 //
-// Suppressed under --silent to match the rest of stderr summary output.
-// The Errors: section is also suppressed because failed targets are
-// already surfaced through Targets.Fail before this point and through
-// the top-level Error in cmd/root.go.
-func renderBatchSummary(summary batch.Summary, n int, cfg summaryConfig) {
-	if isSilent() {
+// silent suppresses both the summary and the Errors: section to match
+// the rest of stderr summary output. (Failed targets are already
+// surfaced through Targets.Fail before this point and through the
+// top-level Error in cmd/root.go, so the Errors: section is redundant
+// under --silent.) Callers in cmd/ pass isSilent(); tests pass an
+// explicit bool, which removes the package-global mutation that used to
+// race under -race.
+func renderBatchSummary(summary batch.Summary, n int, cfg summaryConfig, silent bool) {
+	if silent {
 		return
 	}
 	if n < 2 {
-		renderErrorsSection(summary)
+		renderErrorsSection(summary, silent)
 		return
 	}
 	noOp := summary.NoOp + summary.Skipped
@@ -50,16 +53,15 @@ func renderBatchSummary(summary batch.Summary, n int, cfg summaryConfig) {
 	}
 	_, _ = fmt.Fprintln(os.Stderr)
 	_, _ = fmt.Fprintln(os.Stderr, line)
-	renderErrorsSection(summary)
+	renderErrorsSection(summary, silent)
 }
 
 // renderErrorsSection prints the Errors: block beneath the summary when
-// any target failed. Resolution hints come from internal/errors so the
-// list stays curated; unknown error types omit the
-// Resolution line entirely. Caller is responsible for honouring
-// --silent — this helper does not check.
-func renderErrorsSection(summary batch.Summary) {
-	if len(summary.Errors) == 0 {
+// any target failed. Resolution hints come from internal/apcerrors so the
+// list stays curated; unknown error types omit the Resolution line
+// entirely. silent has the same meaning as in renderBatchSummary.
+func renderErrorsSection(summary batch.Summary, silent bool) {
+	if silent || len(summary.Errors) == 0 {
 		return
 	}
 	_, _ = fmt.Fprintln(os.Stderr)

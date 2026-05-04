@@ -15,17 +15,18 @@ func TestSetLLMsContent(t *testing.T) {
 	}
 }
 
-func TestContextCommand_OutputsLLMsContent(t *testing.T) {
+func TestContextCommand_ExecutesWithoutError(t *testing.T) {
 	prev := llmsContent
 	t.Cleanup(func() { llmsContent = prev })
 
 	SetLLMsContent("# llms\n")
 	cmd := ContextCommand()
 
-	// fmt.Print writes to stdout, which Cobra does not redirect via
-	// SetOut. We verify the command runs without error and that
-	// llmsContent is set; capturing stdout would need pipe wiring that
-	// isn't worth the maintenance burden for a one-line command.
+	// The command writes llmsContent via fmt.Print to os.Stdout, which
+	// Cobra does not redirect via SetOut, so we cannot easily capture it
+	// here. This test exercises the wiring (cobra args, RunE, content
+	// flow) and trusts the embed/print path; the actual rendered string
+	// is covered by the e2e harness.
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)

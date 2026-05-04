@@ -19,8 +19,8 @@ import (
 // write directly to os.Stderr (no Reporter primitive carries plain
 // summary lines — see batch_render.go for the rationale).
 //
-// Tests run sequentially around the swap because os.Stderr is process
-// global; callers must not use t.Parallel().
+// os.Stderr is process-global, so tests serialise around the swap with
+// captureMu and must not call t.Parallel().
 var captureMu sync.Mutex
 
 func captureStderr(t *testing.T, fn func()) string {
@@ -49,11 +49,8 @@ func captureStderr(t *testing.T, fn func()) string {
 }
 
 func TestRenderBatchSummary_HiddenForSingleTarget(t *testing.T) {
-	silent = false
-	t.Cleanup(func() { silent = false })
-
 	out := captureStderr(t, func() {
-		renderBatchSummary(batch.Summary{OK: 1}, 1, summaryConfig{noopVerb: "no-op"})
+		renderBatchSummary(batch.Summary{OK: 1}, 1, summaryConfig{noopVerb: "no-op"}, false)
 	})
 	if out != "" {
 		t.Errorf("N=1 should not emit a summary line; got %q", out)
@@ -61,14 +58,12 @@ func TestRenderBatchSummary_HiddenForSingleTarget(t *testing.T) {
 }
 
 func TestRenderBatchSummary_RendersForMultipleTargets(t *testing.T) {
-	silent = false
-	t.Cleanup(func() { silent = false })
-
 	out := captureStderr(t, func() {
 		renderBatchSummary(
 			batch.Summary{OK: 2, NoOp: 1, Failed: 0, Elapsed: 12 * time.Second},
 			3,
 			summaryConfig{noopVerb: "no-op", withElapsed: true},
+			false,
 		)
 	})
 	if !strings.Contains(out, "2 ok, 1 no-op, 0 failed (12s)") {
@@ -77,9 +72,6 @@ func TestRenderBatchSummary_RendersForMultipleTargets(t *testing.T) {
 }
 
 func TestRenderBatchSummary_SkippedFoldedIntoNoOp(t *testing.T) {
-	silent = false
-	t.Cleanup(func() { silent = false })
-
 	// Fail-fast skip is "no-op" from the user's perspective: the target
 	// didn't change anything because the batch short-circuited it.
 	// Counter 2 (NoOp) collapses NoOp + Skipped.
@@ -88,6 +80,7 @@ func TestRenderBatchSummary_SkippedFoldedIntoNoOp(t *testing.T) {
 			batch.Summary{OK: 1, NoOp: 1, Skipped: 1, Failed: 1},
 			4,
 			summaryConfig{noopVerb: "no-op"},
+			false,
 		)
 	})
 	if !strings.Contains(out, "1 ok, 2 no-op, 1 failed") {
@@ -96,9 +89,6 @@ func TestRenderBatchSummary_SkippedFoldedIntoNoOp(t *testing.T) {
 }
 
 func TestRenderBatchSummary_SilentSuppresses(t *testing.T) {
-	silent = true
-	t.Cleanup(func() { silent = false })
-
 	out := captureStderr(t, func() {
 		renderBatchSummary(
 			batch.Summary{OK: 2, Failed: 1, Errors: []batch.TargetError{
@@ -106,6 +96,7 @@ func TestRenderBatchSummary_SilentSuppresses(t *testing.T) {
 			}},
 			3,
 			summaryConfig{noopVerb: "no-op"},
+			true,
 		)
 	})
 	if out != "" {
@@ -114,9 +105,6 @@ func TestRenderBatchSummary_SilentSuppresses(t *testing.T) {
 }
 
 func TestRenderBatchSummary_ErrorsSection(t *testing.T) {
-	silent = false
-	t.Cleanup(func() { silent = false })
-
 	out := captureStderr(t, func() {
 		renderBatchSummary(
 			batch.Summary{OK: 1, Failed: 1, Errors: []batch.TargetError{
@@ -124,6 +112,7 @@ func TestRenderBatchSummary_ErrorsSection(t *testing.T) {
 			}},
 			2,
 			summaryConfig{noopVerb: "no-op"},
+			false,
 		)
 	})
 	for _, want := range []string{"Errors:", "us-east-1/a/b/c", "boom"} {
@@ -135,7 +124,7 @@ func TestRenderBatchSummary_ErrorsSection(t *testing.T) {
 
 func TestRenderErrorsSection_NoOpWhenEmpty(t *testing.T) {
 	out := captureStderr(t, func() {
-		renderErrorsSection(batch.Summary{OK: 3})
+		renderErrorsSection(batch.Summary{OK: 3}, false)
 	})
 	if out != "" {
 		t.Errorf("no failures should yield no Errors: section; got %q", out)

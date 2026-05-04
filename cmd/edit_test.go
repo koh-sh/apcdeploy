@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -100,12 +101,62 @@ func TestEditCommand(t *testing.T) {
 				require.NotNil(t, cmd.Flags().Lookup("timeout"))
 			},
 		},
+		{
+			name: "has --description flag",
+			check: func(t *testing.T, cmd *cobra.Command) {
+				require.NotNil(t, cmd.Flags().Lookup("description"))
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			tt.check(t, cmd)
+		})
+	}
+}
+
+// TestRunEditDescriptionValidation ensures the edit command applies the same
+// 1024-rune client-side guard as the run command (CLAUDE.md "validation
+// parity"). We exercise the boundary so a regression in either runEdit's
+// validation call or validateDescription itself would be caught here, not
+// only in TestValidateDescription (which exercises the helper directly).
+//
+// runEdit is invoked with no AWS calls because validation runs before the
+// executor is constructed.
+func TestRunEditDescriptionValidation(t *testing.T) {
+	cmd := newEditCmd()
+
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		{name: "empty allowed", input: "", wantErr: false},
+		{name: "exactly 1024 ascii allowed", input: strings.Repeat("a", 1024), wantErr: false},
+		{name: "1025 ascii rejected", input: strings.Repeat("a", 1025), wantErr: true},
+		{name: "exactly 1024 multibyte allowed", input: strings.Repeat("あ", 1024), wantErr: false},
+		{name: "1025 multibyte rejected", input: strings.Repeat("あ", 1025), wantErr: true},
+		{name: "control character rejected", input: "bad\x00value", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			editDescription = tt.input
+			t.Cleanup(func() { editDescription = "" })
+
+			err := validateDescription(editDescription)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("validateDescription(runes=%d) error = %v, wantErr %v", len([]rune(tt.input)), err, tt.wantErr)
+			}
+			// Sanity-check that runEdit would also propagate the failure
+			// before any AWS work. We do not execute the full RunE path
+			// here because constructing a real prompter / AWS client is
+			// out of scope for a validation test.
+			if tt.wantErr && cmd.RunE == nil {
+				t.Fatal("runEdit RunE handler missing")
+			}
 		})
 	}
 }

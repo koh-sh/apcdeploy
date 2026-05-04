@@ -1,10 +1,13 @@
-// Package errors maps AWS API error codes to short, actionable user-facing
+// Package apcerrors maps AWS API error codes to short, actionable user-facing
 // hints rendered in the Errors: section of CLI output.
 //
 // The map is intentionally minimal: only the most frequent failure codes are
 // covered. New entries are added on demand when a real failure shows up —
 // no speculative hints.
-package errors
+//
+// The package is named apcerrors (not errors) to avoid forcing every caller
+// to alias around the standard library's errors package.
+package apcerrors
 
 import (
 	"errors"
@@ -18,6 +21,7 @@ import (
 var resolutionHints = map[string]string{
 	"ConflictException":         "wait for the current deployment to complete or run 'apcdeploy rollback'.",
 	"BadRequestException":       "check your configuration data, JSON/YAML syntax, and any configured validators (JSON Schema / Lambda).",
+	"ValidationException":       "configuration data failed AppConfig validation; check the JSON Schema / Lambda validators configured on this profile.",
 	"ResourceNotFoundException": "verify the resource names with 'apcdeploy ls-resources' and your AWS region.",
 }
 

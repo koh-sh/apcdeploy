@@ -67,12 +67,10 @@ func TestTTYTargets_RunningPhaseAndProgress(t *testing.T) {
 	tt.Close()
 
 	out := stripANSI(buf.String())
-	// Final state is "done"; intermediate phase/progress shouldn't matter
-	// for terminal assertions, but we should still see the bar rendered at
-	// least once at 50%.
-	if !strings.Contains(out, "50%") {
-		t.Errorf("missing 50%% bar in output:\n%s", out)
-	}
+	// Only the terminal "done" line is asserted here. Intermediate progress
+	// rendering depends on whether the animate goroutine's ticker fires
+	// before Done(); that's covered deterministically by the plain (non-TTY)
+	// implementation in targets_plain_test.go.
 	if !strings.Contains(out, "✓ complete (3s) — v1, AllAtOnce") {
 		t.Errorf("missing done line in output:\n%s", out)
 	}
