@@ -259,7 +259,7 @@ Options:
 - `--timeout`: Per-target timeout in seconds for deployment wait (default: 1800)
 - `--force`: Deploy even if content hasn't changed
 - `--description`: Description attached to the configuration version and deployment (max 1024 Unicode characters, counted by rune). Defaults to `"Deployed by apcdeploy"`; pass `--description ""` to clear it.
-- `--parallel`: Maximum concurrent targets when `-c` is repeated (default: all in parallel)
+- `--parallel`: Maximum concurrent targets when `-c` is repeated (default: 0, meaning all in parallel)
 - `--continue-on-error`: Run remaining targets after one fails (default: fail-fast)
 
 Note: `--wait-deploy` and `--wait-bake` are mutually exclusive.
@@ -290,7 +290,7 @@ Options:
 - `--timeout`: Timeout in seconds for deployment wait (default: 1800)
 - `--description`: Description attached to the configuration version and deployment (max 1024 Unicode characters, counted by rune). Defaults to `"Deployed by apcdeploy"`; pass `--description ""` to clear it.
 
-**Note:** This command does not use `apcdeploy.yml`. `$EDITOR` is invoked through `sh -c` (matching `git`'s `GIT_EDITOR` behavior), so its value is shell-evaluated — avoid passing values that contain shell metacharacters in CI environments.
+**Note:** This command does not use `apcdeploy.yml`. `$EDITOR` is invoked through `sh -c` (matching `git`'s `GIT_EDITOR` behavior), so its value is shell-evaluated — avoid passing values that contain shell metacharacters in CI environments. Exits with code 2 when no prior deployment exists.
 
 ### diff
 
@@ -309,7 +309,7 @@ apcdeploy diff -c environments/dev.yml -c environments/stg.yml -c environments/p
 Options:
 
 - `--exit-nonzero`: Exit with code 1 if differences are found (useful in CI)
-- `--parallel`: Maximum concurrent targets when `-c` is repeated (default: all in parallel)
+- `--parallel`: Maximum concurrent targets when `-c` is repeated (default: 0, meaning all in parallel)
 - `--continue-on-error`: Run remaining targets after one fails (default: fail-fast)
 
 ### status
@@ -350,10 +350,10 @@ apcdeploy pull -c environments/dev.yml -c environments/stg.yml -c environments/p
 
 Options:
 
-- `--parallel`: Maximum concurrent targets when `-c` is repeated (default: all in parallel)
+- `--parallel`: Maximum concurrent targets when `-c` is repeated (default: 0, meaning all in parallel)
 - `--continue-on-error`: Run remaining targets after one fails (default: fail-fast)
 
-This command is useful when configuration changes are made directly in the AWS Console and you want to sync your local files with the deployed state.
+This command is useful when configuration changes are made directly in the AWS Console and you want to sync your local files with the deployed state. Exits with code 2 when no prior deployment exists.
 
 ### rollback
 
