@@ -63,7 +63,6 @@ func runInit(cmd *cobra.Command, args []string) error {
 		ConfigFile:  cfgFile,
 		OutputData:  initOutputData,
 		Force:       initForce,
-		Silent:      isSilent(),
 	}
 
 	// Create reporter and prompter

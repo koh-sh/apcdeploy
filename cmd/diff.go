@@ -64,7 +64,6 @@ func runDiff(cmd *cobra.Command, args []string) error {
 		opts := &diff.Options{
 			ConfigFile:  path,
 			ExitNonzero: diffExitNonzero,
-			Silent:      isSilent(),
 		}
 		err := diff.NewExecutor(rep).Execute(ctx, opts)
 		if errors.Is(err, diff.ErrDiffFound) {

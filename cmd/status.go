@@ -44,7 +44,6 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	opts := &status.Options{
 		ConfigFile:   cfgFile,
 		DeploymentID: statusDeploymentID,
-		Silent:       isSilent(),
 	}
 
 	// Create reporter

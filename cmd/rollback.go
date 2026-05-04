@@ -44,7 +44,6 @@ func runRollback(cmd *cobra.Command, args []string) error {
 	// Create options
 	opts := &rollback.Options{
 		ConfigFile:       cfgFile,
-		Silent:           isSilent(),
 		SkipConfirmation: rollbackSkipConfirmation,
 	}
 

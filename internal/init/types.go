@@ -13,7 +13,6 @@ type Options struct {
 	ConfigFile  string
 	OutputData  string
 	Force       bool
-	Silent      bool
 }
 
 // Result contains the result of initialization
