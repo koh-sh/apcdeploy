@@ -6,9 +6,9 @@ import (
 	"os"
 	"unicode/utf8"
 
+	"github.com/koh-sh/apcdeploy/internal/apcerrors"
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/cli"
-	apcerrors "github.com/koh-sh/apcdeploy/internal/errors"
 	"github.com/spf13/cobra"
 )
 
@@ -90,10 +90,10 @@ func Execute() {
 		// Append a Resolution: <hint> line when the underlying AWS error code
 		// has a documented remediation.
 		// Emitted via Warn (⚠) instead of Error (✗) so the visual hierarchy is
-		// "what failed" first, "how to recover" second; both lines reach
-		// stderr even under --silent because Warn-via-the-real-reporter is
-		// suppressed by the silent variant — so the hint shows in interactive
-		// runs but not in piped/automation output.
+		// "what failed" first, "how to recover" second. Warn is suppressed by
+		// the silent variant, so the hint surfaces in interactive runs but not
+		// under --silent — automation should rely on the exit code and the
+		// (always-emitted) Error line above instead.
 		if hint := apcerrors.Resolution(err); hint != "" {
 			rep.Warn("Resolution: " + hint)
 		}
@@ -144,10 +144,24 @@ const defaultDescription = "Deployed by apcdeploy"
 // not bytes, so multibyte input (e.g. Japanese) is counted by rune.
 // Empty values are allowed — the AWS wrappers omit the field entirely when
 // description is "".
+//
+// Control characters (other than tab/newline/carriage return) are rejected
+// up-front: the value flows into the AppConfig Description field, the
+// AppConfig console UI, and any downstream log scraper, where embedded
+// ANSI/control sequences would either corrupt the display or open a log
+// injection vector. AWS may or may not sanitise — don't rely on it.
 func validateDescription(s string) error {
 	n := utf8.RuneCountInString(s)
 	if n > maxDescriptionLength {
 		return fmt.Errorf("--description exceeds maximum length of %d characters (got %d)", maxDescriptionLength, n)
+	}
+	for _, r := range s {
+		if r < 0x20 && r != '\t' && r != '\n' && r != '\r' {
+			return fmt.Errorf("--description contains invalid control character U+%04X", r)
+		}
+		if r == 0x7f {
+			return fmt.Errorf("--description contains invalid control character U+%04X", r)
+		}
 	}
 	return nil
 }

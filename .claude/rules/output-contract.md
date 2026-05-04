@@ -199,7 +199,7 @@ when `cfg.Region` is empty); multi-config flows through
 
 Failed targets are surfaced both as `Targets.Fail` rows (during the
 run) and as `Errors:` entries in the post-run section (after Close).
-Resolution hints come from `internal/errors.Resolution`, exactly like
+Resolution hints come from `internal/apcerrors.Resolution`, exactly like
 single-target callers — see "Resolution hints" below.
 
 ## What MUST NOT happen
@@ -238,9 +238,9 @@ single-target callers — see "Resolution hints" below.
 ## Resolution hints
 
 When emitting a `Targets.Fail` whose underlying error is an AWS API error,
-the command may consult `internal/errors.Resolution(err)` to look up a
+the command may consult `internal/apcerrors.Resolution(err)` to look up a
 short user-facing remediation hint (e.g. "wait for the current deployment to
 complete or run 'apcdeploy rollback'"). Hints exist only for the small set of
-AWS error codes documented in `internal/errors/resolution.go`; callers MUST
+AWS error codes documented in `internal/apcerrors/resolution.go`; callers MUST
 NOT invent new hints inline. To add a hint, add an entry to
 `resolutionHints`.

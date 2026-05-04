@@ -229,6 +229,12 @@ func TestValidateDescription(t *testing.T) {
 		{name: "1025 ascii rejected", input: strings.Repeat("a", 1025), wantErr: true},
 		{name: "exactly 1024 multibyte", input: strings.Repeat("あ", 1024), wantErr: false},
 		{name: "1025 multibyte rejected", input: strings.Repeat("あ", 1025), wantErr: true},
+		{name: "tab allowed", input: "release\tnotes", wantErr: false},
+		{name: "newline allowed", input: "release\nnotes", wantErr: false},
+		{name: "carriage return allowed", input: "release\rnotes", wantErr: false},
+		{name: "null byte rejected", input: "bad\x00value", wantErr: true},
+		{name: "ANSI escape rejected", input: "\x1b[31mred\x1b[0m", wantErr: true},
+		{name: "DEL rejected", input: "bad\x7fvalue", wantErr: true},
 	}
 
 	for _, tt := range tests {
