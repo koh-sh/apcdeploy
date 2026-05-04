@@ -38,11 +38,9 @@ func TestTerminalColsOf(t *testing.T) {
 	t.Parallel()
 
 	// terminalColsOf accepts io.Writer; a non-*os.File path returns 0.
-	type stubWriter struct{}
 	if got := terminalColsOf(stubWriterImpl{}); got != 0 {
 		t.Errorf("terminalColsOf(non-file) = %d, want 0", got)
 	}
-	_ = stubWriter{}
 }
 
 type stubWriterImpl struct{}

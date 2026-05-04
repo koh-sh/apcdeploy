@@ -130,6 +130,6 @@ func runRun(cmd *cobra.Command, args []string) error {
 	}
 	summary, runErr := o.Run(ctx)
 	withElapsed := runWaitDeploy || runWaitBake
-	renderBatchSummary(rep, summary, len(targets), summaryConfig{noopVerb: "no-op", withElapsed: withElapsed})
+	renderBatchSummary(summary, len(targets), summaryConfig{noopVerb: "no-op", withElapsed: withElapsed})
 	return runErr
 }

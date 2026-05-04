@@ -53,7 +53,7 @@ func TestRenderBatchSummary_HiddenForSingleTarget(t *testing.T) {
 	t.Cleanup(func() { silent = false })
 
 	out := captureStderr(t, func() {
-		renderBatchSummary(&reportertest.MockReporter{}, batch.Summary{OK: 1}, 1, summaryConfig{noopVerb: "no-op"})
+		renderBatchSummary(batch.Summary{OK: 1}, 1, summaryConfig{noopVerb: "no-op"})
 	})
 	if out != "" {
 		t.Errorf("N=1 should not emit a summary line; got %q", out)
@@ -65,7 +65,7 @@ func TestRenderBatchSummary_RendersForMultipleTargets(t *testing.T) {
 	t.Cleanup(func() { silent = false })
 
 	out := captureStderr(t, func() {
-		renderBatchSummary(&reportertest.MockReporter{},
+		renderBatchSummary(
 			batch.Summary{OK: 2, NoOp: 1, Failed: 0, Elapsed: 12 * time.Second},
 			3,
 			summaryConfig{noopVerb: "no-op", withElapsed: true},
@@ -84,7 +84,7 @@ func TestRenderBatchSummary_SkippedFoldedIntoNoOp(t *testing.T) {
 	// didn't change anything because the batch short-circuited it.
 	// Counter 2 (NoOp) collapses NoOp + Skipped.
 	out := captureStderr(t, func() {
-		renderBatchSummary(&reportertest.MockReporter{},
+		renderBatchSummary(
 			batch.Summary{OK: 1, NoOp: 1, Skipped: 1, Failed: 1},
 			4,
 			summaryConfig{noopVerb: "no-op"},
@@ -100,7 +100,7 @@ func TestRenderBatchSummary_SilentSuppresses(t *testing.T) {
 	t.Cleanup(func() { silent = false })
 
 	out := captureStderr(t, func() {
-		renderBatchSummary(&reportertest.MockReporter{},
+		renderBatchSummary(
 			batch.Summary{OK: 2, Failed: 1, Errors: []batch.TargetError{
 				{Identifier: "us-east-1/a/b/c", Err: errors.New("boom")},
 			}},
@@ -118,7 +118,7 @@ func TestRenderBatchSummary_ErrorsSection(t *testing.T) {
 	t.Cleanup(func() { silent = false })
 
 	out := captureStderr(t, func() {
-		renderBatchSummary(&reportertest.MockReporter{},
+		renderBatchSummary(
 			batch.Summary{OK: 1, Failed: 1, Errors: []batch.TargetError{
 				{Identifier: "us-east-1/a/b/c", Err: errors.New("boom")},
 			}},

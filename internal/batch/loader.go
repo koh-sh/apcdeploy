@@ -39,7 +39,7 @@ func LoadAll(paths []string) ([]*Target, error) {
 	byID := make(map[string]*Target, len(paths))
 
 	for _, p := range paths {
-		abs, err := filepath.Abs(filepath.Clean(p))
+		abs, err := filepath.Abs(p)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", p, err)
 		}

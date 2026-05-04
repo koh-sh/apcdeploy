@@ -110,7 +110,7 @@ func runDiff(cmd *cobra.Command, args []string) error {
 
 	flushDiffPayloads(rep, targets, payloads)
 
-	renderBatchSummary(rep, summary, len(targets), summaryConfig{noopVerb: "no-op"})
+	renderBatchSummary(summary, len(targets), summaryConfig{noopVerb: "no-op"})
 
 	// --exit-nonzero collapses "any change" across all targets, matching
 	// the single-target contract. Even if some targets failed we still

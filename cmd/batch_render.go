@@ -7,7 +7,6 @@ import (
 	"github.com/koh-sh/apcdeploy/internal/batch"
 	"github.com/koh-sh/apcdeploy/internal/cli"
 	apcerrors "github.com/koh-sh/apcdeploy/internal/errors"
-	"github.com/koh-sh/apcdeploy/internal/reporter"
 )
 
 // summaryConfig describes how to render a batch.Summary line for one
@@ -36,7 +35,7 @@ type summaryConfig struct {
 // The Errors: section is also suppressed because failed targets are
 // already surfaced through Targets.Fail before this point and through
 // the top-level Error in cmd/root.go.
-func renderBatchSummary(_ reporter.Reporter, summary batch.Summary, n int, cfg summaryConfig) {
+func renderBatchSummary(summary batch.Summary, n int, cfg summaryConfig) {
 	if isSilent() {
 		return
 	}
