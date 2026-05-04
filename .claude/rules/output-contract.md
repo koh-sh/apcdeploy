@@ -159,8 +159,54 @@ need to see this risk even when they otherwise want machine-readable output.
 Routing through `Reporter.Warn` would suppress it under `--silent`, so the
 notice bypasses the Reporter for this single case.
 
-This is the only sanctioned bypass. New callers must not introduce more
-without adding a similar entry here.
+### Multi-config aggregate summary and Errors section
+
+`cmd/batch_render.go::renderBatchSummary` writes the post-run aggregate
+line (`N ok, N no-op, N failed [(elapsed)]` per `docs/design/output.md`
+§8.2) and the `Errors:` section (§8.3) directly to `os.Stderr` instead
+of routing through Reporter.
+
+Why: Reporter has no "plain stderr line" primitive — `Header` / `Box` /
+`Info` would over-format these short lines. The renderer honours
+`--silent` itself by checking `isSilent()` before writing, so the
+behaviour matches the rest of the silent-mode contract; only the
+mechanism (direct `os.Stderr`) differs. Any new caller adding a
+similar bare-line summary must extend `batch_render.go` rather than
+sprinkling `fmt.Fprint*` calls in cmd files.
+
+These two are the only sanctioned bypasses. New callers must not
+introduce more without adding a similar entry here.
+
+## Multi-config orchestration
+
+`run`, `diff`, and `pull` accept `-c` repeatedly (see
+`docs/design/multi-config.md`). The plumbing lives in `internal/batch`:
+
+- `batch.LoadAll(paths)` pre-loads and validates every `-c` before any
+  AWS work; load failures abort the batch as a single "事前エラー"
+  (multi-config.md §10.1).
+- `batch.Orchestrator` opens a single `Reporter.Targets` handle for all
+  rows, drives executor callbacks in argument order under a worker
+  pool, and aggregates per-target outcomes into `batch.Summary`.
+- Per-target callbacks receive `reporter.TargetReporter` (a single-row
+  view returned by `batch.NewTargetReporter`) so they don't carry
+  their own identifier.
+
+Each executor exposes both `Execute(ctx, opts)` (single-config) and
+`RunOnTarget(ctx, *batch.Target, reporter.TargetReporter, ...)`
+(orchestrator entry point). Both delegate to a shared
+`runOnTargetWith*` body so visual output is bit-identical between the
+two paths. `cmd/{run,diff,pull}.go` dispatch on
+`len(configFiles)`: single-config keeps the existing `Execute` path
+(so the row identifier still shows the SDK-resolved default region
+when `cfg.Region` is empty); multi-config flows through
+`batch.Orchestrator` and requires region in yml
+(multi-config.md §6.2).
+
+Failed targets are surfaced both as `Targets.Fail` rows (during the
+run) and as `Errors:` entries in the post-run section (after Close).
+Resolution hints come from `internal/errors.Resolution`, exactly like
+single-target callers — see "Resolution hints" below.
 
 ## What MUST NOT happen
 

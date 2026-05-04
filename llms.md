@@ -436,9 +436,31 @@ apcdeploy ls-resources --region us-west-2 --json --silent > resources.json
 
 Available for all commands:
 
-- `-c, --config <path>`: Configuration file path (default: `apcdeploy.yml`)
+- `-c, --config <path>`: Configuration file path (default: `apcdeploy.yml`). May be repeated for `run` / `diff` / `pull` to operate on several configs in one invocation; all other commands accept exactly one `-c` and reject multiple.
 - `-s, --silent`: Suppress verbose output, show only essential information (useful for CI/CD and scripting)
   - **Note for AI Assistants**: Do not use `--silent` when executing commands via AI agents. Verbose output is essential for debugging and understanding command execution.
+
+### Multi-config Mode (run / diff / pull)
+
+`run`, `diff`, and `pull` support running against multiple configurations in one invocation. Pass `-c` repeatedly:
+
+```bash
+apcdeploy diff -c environments/dev.yml -c environments/stg.yml -c environments/prod.yml
+apcdeploy run  -c environments/*.yml --parallel 3 --wait-bake
+apcdeploy pull -c environments/*.yml --continue-on-error
+```
+
+Behavior (defined in `docs/design/multi-config.md`):
+
+- Each `-c` is loaded and validated up-front; any single load failure aborts the batch before any AWS call.
+- Targets are identified by the 4-tuple `region/app/profile/env`. Two configs that resolve to the same identifier produce `ErrDuplicateTarget`.
+- Default execution is fully parallel. Use `--parallel N` to cap concurrency or `--parallel 1` for strict serial order.
+- Default failure mode is fail-fast: queued targets that haven't started yet are reported as `⊘ skipped (fail-fast)`. Use `--continue-on-error` to run every target regardless of failures.
+- Each target's `--timeout` is independent (it is per-target, not a global wall-clock cap).
+- After all targets settle, a single aggregate line is printed: `N ok, N no-op, N failed [(elapsed)]`. Failed targets are also expanded into an `Errors:` section with optional `Resolution:` hints.
+- `diff`'s stdout is buffered per target and emitted in argument order (so the combined diff stream is deterministic regardless of completion order). Each per-target body is prefixed with `=== <region>/<app>/<profile>/<env> ===`. Single-target output (`-c` once) keeps the existing no-header format so the body still pipes into `patch` / `git apply`.
+- Multi-config requires `region:` to be set in each yml. Single-config keeps the SDK-default region resolution as before.
+- **For AI assistants**: prefer single-target invocations unless the multi-config behavior is explicitly desired. Multi-target output is denser and harder to read step-by-step; failures are aggregated at the end of the run.
 
 ### init command
 
