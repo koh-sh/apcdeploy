@@ -148,9 +148,9 @@ func (d *Deployer) WaitForBakingComplete(ctx context.Context, resolved *aws.Reso
 }
 
 // MakeTargetsDeployTick returns an aws.DeploymentTickFunc that drives a
-// Targets row's deploying sub-phase via SetProgress. Once BAKING (or
-// COMPLETE) is observed the percent pins at 1.0 and the eta is cleared so
-// callers can swap the row to a "baking" sub-phase via SetPhase.
+// row's deploying sub-phase via SetProgress. Once BAKING (or COMPLETE)
+// is observed the percent pins at 1.0 and the eta is cleared so callers
+// can swap the row to a "baking" sub-phase via SetPhase.
 //
 // The "(~N min left)" countdown is derived from wall-clock elapsed time
 // (waitStart) minus the strategy's totalDuration so non-linear strategies
@@ -158,29 +158,30 @@ func (d *Deployer) WaitForBakingComplete(ctx context.Context, resolved *aws.Reso
 //
 // Lives in `run` rather than `internal/aws` or `internal/cli` because the
 // only callers are deploy-shape commands (run + edit). Moving it to either
-// neutral location would introduce a UI dependency in `aws` (Targets is a
-// reporter concept) or an AWS-domain dependency in `cli` (DeploymentState
-// is an AWS type). The `edit → run` import is the lesser evil while the
-// caller set stays at two; revisit if a third caller appears.
-func MakeTargetsDeployTick(tg reporter.Targets, id string) aws.DeploymentTickFunc {
+// neutral location would introduce a UI dependency in `aws` (TargetReporter
+// is a reporter concept) or an AWS-domain dependency in `cli`
+// (DeploymentState is an AWS type). The `edit → run` import is the lesser
+// evil while the caller set stays at two; revisit if a third caller
+// appears.
+func MakeTargetsDeployTick(tr reporter.TargetReporter) aws.DeploymentTickFunc {
 	waitStart := time.Now()
 	return func(state types.DeploymentState, percent float64, totalDuration time.Duration) {
 		if state == types.DeploymentStateBaking || state == types.DeploymentStateComplete {
-			tg.SetProgress(id, 1.0, 0)
+			tr.SetProgress(1.0, 0)
 			return
 		}
 		eta := max(totalDuration-time.Since(waitStart), 0)
-		tg.SetProgress(id, percent/100.0, eta)
+		tr.SetProgress(percent/100.0, eta)
 	}
 }
 
-// MakeTargetsBakeTick returns an aws.BakeTickFunc that updates a Targets
-// row's baking sub-phase detail with the current "(~N min left)" countdown.
+// MakeTargetsBakeTick returns an aws.BakeTickFunc that updates the row's
+// baking sub-phase detail with the current "(~N min left)" countdown.
 // The row is expected to already be in the baking sub-phase (the caller
 // invokes SetPhase("baking", "") before starting the bake wait).
-func MakeTargetsBakeTick(tg reporter.Targets, id string) aws.BakeTickFunc {
+func MakeTargetsBakeTick(tr reporter.TargetReporter) aws.BakeTickFunc {
 	return func(elapsed, total time.Duration) {
-		tg.SetPhase(id, "baking", remainingFromElapsedSuffix(elapsed, total))
+		tr.SetPhase("baking", remainingFromElapsedSuffix(elapsed, total))
 	}
 }
 

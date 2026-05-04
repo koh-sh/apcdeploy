@@ -8,6 +8,7 @@ import (
 	"time"
 
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
+	"github.com/koh-sh/apcdeploy/internal/batch"
 	"github.com/koh-sh/apcdeploy/internal/cli"
 	"github.com/koh-sh/apcdeploy/internal/config"
 	initPkg "github.com/koh-sh/apcdeploy/internal/init"
@@ -266,9 +267,10 @@ func resolveStrategy(ctx context.Context, resolver *awsInternal.Resolver, provid
 // distinguishes the verb by wait mode (output.md §7.1.0).
 func (w *workflow) waitIfRequested(ctx context.Context, tg reporter.Targets, id string, t *resolvedTargets, deploymentNumber, versionNumber int32, strategyName string, deployStart time.Time, opts *Options) error {
 	timeout := time.Duration(opts.Timeout) * time.Second
+	tr := batch.NewTargetReporter(tg, id)
 	switch {
 	case opts.WaitDeploy:
-		if err := w.awsClient.WaitForDeploymentPhase(ctx, t.AppID, t.EnvID, deploymentNumber, false, timeout, run.MakeTargetsDeployTick(tg, id)); err != nil {
+		if err := w.awsClient.WaitForDeploymentPhase(ctx, t.AppID, t.EnvID, deploymentNumber, false, timeout, run.MakeTargetsDeployTick(tr)); err != nil {
 			tg.Fail(id, err)
 			return fmt.Errorf("deployment failed: %w", err)
 		}
@@ -281,12 +283,12 @@ func (w *workflow) waitIfRequested(ctx context.Context, tg reporter.Targets, id 
 		waitCtx, cancel := context.WithDeadline(ctx, deadline)
 		defer cancel()
 
-		if err := w.awsClient.WaitForDeploymentPhase(waitCtx, t.AppID, t.EnvID, deploymentNumber, false, remainingDuration(deadline), run.MakeTargetsDeployTick(tg, id)); err != nil {
+		if err := w.awsClient.WaitForDeploymentPhase(waitCtx, t.AppID, t.EnvID, deploymentNumber, false, remainingDuration(deadline), run.MakeTargetsDeployTick(tr)); err != nil {
 			tg.Fail(id, err)
 			return fmt.Errorf("deployment failed: %w", err)
 		}
 		tg.SetPhase(id, "baking", "")
-		if err := w.awsClient.WaitForBakingComplete(waitCtx, t.AppID, t.EnvID, deploymentNumber, remainingDuration(deadline), run.MakeTargetsBakeTick(tg, id)); err != nil {
+		if err := w.awsClient.WaitForBakingComplete(waitCtx, t.AppID, t.EnvID, deploymentNumber, remainingDuration(deadline), run.MakeTargetsBakeTick(tr)); err != nil {
 			tg.Fail(id, err)
 			return fmt.Errorf("deployment failed: %w", err)
 		}

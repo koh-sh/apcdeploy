@@ -130,19 +130,21 @@ func runDiff(cmd *cobra.Command, args []string) error {
 // flushDiffPayloads writes per-target diff bodies to stdout in argument
 // order with a `=== <id> ===` header per target (output.md §7.2 stdout
 // header rules — N>=2 always carries headers). Empty payloads (no-op
-// targets / failed targets) are skipped.
+// targets / failed targets) are skipped. A blank line is inserted
+// before every non-first non-empty payload so the stream stays
+// readable when piped through `less`.
 func flushDiffPayloads(rep reporter.Reporter, targets []*batch.Target, payloads [][]byte) {
+	first := true
 	for i, t := range targets {
 		body := payloads[i]
 		if len(body) == 0 {
 			continue
 		}
-		rep.Diff([]byte(fmt.Sprintf("=== %s ===\n", t.Identifier)))
-		rep.Diff(body)
-		// Insert a blank line between adjacent target diffs so the
-		// stream stays readable when piped through `less`.
-		if i < len(targets)-1 {
+		if !first {
 			rep.Diff([]byte("\n"))
 		}
+		first = false
+		rep.Diff(fmt.Appendf(nil, "=== %s ===\n", t.Identifier))
+		rep.Diff(body)
 	}
 }
