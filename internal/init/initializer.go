@@ -174,6 +174,6 @@ func (i *Initializer) showNextSteps() {
 		"  1. Review the generated configuration files",
 		"  2. Modify the data file as needed",
 		"  3. Run 'apcdeploy diff' to preview changes",
-		"  4. Run 'apcdeploy deploy' to deploy your configuration",
+		"  4. Run 'apcdeploy run' to deploy your configuration",
 	})
 }
