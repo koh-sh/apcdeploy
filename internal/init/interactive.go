@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/prompt"
@@ -85,7 +85,7 @@ func (s *InteractiveSelector) SelectApplication(ctx context.Context, client *aws
 		sp.Stop()
 		return "", errors.New("no applications found. Please create an application in AppConfig first")
 	}
-	sort.Strings(apps)
+	slices.Sort(apps)
 	sp.Done(fmt.Sprintf("Found %d application(s)", len(apps)))
 
 	return s.promptAndReport(
@@ -119,7 +119,7 @@ func (s *InteractiveSelector) SelectConfigurationProfile(ctx context.Context, cl
 		sp.Stop()
 		return "", errors.New("no configuration profiles found. Please create a configuration profile in AppConfig first")
 	}
-	sort.Strings(profiles)
+	slices.Sort(profiles)
 	sp.Done(fmt.Sprintf("Found %d configuration profile(s)", len(profiles)))
 
 	return s.promptAndReport(
@@ -153,7 +153,7 @@ func (s *InteractiveSelector) SelectEnvironment(ctx context.Context, client *aws
 		sp.Stop()
 		return "", errors.New("no environments found. Please create an environment in AppConfig first")
 	}
-	sort.Strings(envs)
+	slices.Sort(envs)
 	sp.Done(fmt.Sprintf("Found %d environment(s)", len(envs)))
 
 	return s.promptAndReport(
