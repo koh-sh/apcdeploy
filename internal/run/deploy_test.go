@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/appconfig/types"
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/aws/mock"
+	"github.com/koh-sh/apcdeploy/internal/batch"
 	"github.com/koh-sh/apcdeploy/internal/config"
 	reportertest "github.com/koh-sh/apcdeploy/internal/reporter/testing"
 )
@@ -931,7 +932,7 @@ func TestMakeTargetsDeployTick(t *testing.T) {
 			t.Parallel()
 			m := &reportertest.MockReporter{}
 			tg := m.Targets([]string{"id"})
-			tick := MakeTargetsDeployTick(tg, "id")
+			tick := MakeTargetsDeployTick(batch.NewTargetReporter(tg, "id"))
 			tick(tt.state, tt.percent, tt.totalDuration)
 			tg.Close()
 
@@ -984,7 +985,7 @@ func TestMakeTargetsBakeTick(t *testing.T) {
 			t.Parallel()
 			m := &reportertest.MockReporter{}
 			tg := m.Targets([]string{"id"})
-			tick := MakeTargetsBakeTick(tg, "id")
+			tick := MakeTargetsBakeTick(batch.NewTargetReporter(tg, "id"))
 			tick(tt.elapsed, tt.total)
 			tg.Close()
 

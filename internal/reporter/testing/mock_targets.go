@@ -2,6 +2,7 @@ package testing
 
 import (
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/koh-sh/apcdeploy/internal/reporter"
@@ -32,6 +33,10 @@ type TargetsTransition struct {
 
 // Targets opens a new Targets handle. The returned handle records every
 // transition into the matching TargetsCall entry.
+//
+// The returned handle is safe for concurrent calls — the multi-config
+// orchestrator (internal/batch) drives several targets in parallel from
+// separate goroutines, and tests of that path need a race-free mock.
 func (m *MockReporter) Targets(ids []string) reporter.Targets {
 	idx := len(m.TargetsCalls)
 	m.TargetsCalls = append(m.TargetsCalls, TargetsCall{
@@ -44,6 +49,7 @@ func (m *MockReporter) Targets(ids []string) reporter.Targets {
 type mockTargets struct {
 	m      *MockReporter
 	idx    int
+	mu     sync.Mutex
 	closed bool
 }
 
@@ -68,6 +74,8 @@ func (t *mockTargets) Skip(id, reason string) {
 }
 
 func (t *mockTargets) Close() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	if t.closed {
 		return
 	}
@@ -77,6 +85,8 @@ func (t *mockTargets) Close() {
 }
 
 func (t *mockTargets) record(tr TargetsTransition) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	if t.closed {
 		return
 	}

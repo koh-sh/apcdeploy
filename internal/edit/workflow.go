@@ -8,6 +8,7 @@ import (
 	"time"
 
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
+	"github.com/koh-sh/apcdeploy/internal/batch"
 	"github.com/koh-sh/apcdeploy/internal/cli"
 	"github.com/koh-sh/apcdeploy/internal/config"
 	initPkg "github.com/koh-sh/apcdeploy/internal/init"
@@ -82,9 +83,9 @@ func (t *resolvedTargets) Identifier(region string) string {
 
 // Run executes the edit workflow.
 //
-// Output shape (docs/design/output.md §7.6):
+// Output shape:
 //   - resolve / fetch / ongoing-check are silent unless they fail
-//   - $EDITOR launches without a "launching $EDITOR" spinner (§7.6)
+//   - $EDITOR launches without a "launching $EDITOR" spinner
 //   - after the editor closes, a single Targets row carries the deployment
 //     lifecycle: creating-version → deploying → ✓ deployed/complete (...)
 //     or ⊘ skipped (no changes) when the edit was a no-op.
@@ -184,9 +185,9 @@ func (w *workflow) prepareDeployment(ctx context.Context, t *resolvedTargets, op
 func (w *workflow) editAndDeploy(ctx context.Context, t *resolvedTargets, deployed *awsInternal.DeployedConfigInfo, strategyID, strategyName string, opts *Options) error {
 	ext := config.ExtensionForContentType(deployed.ContentType)
 
-	// No "launching $EDITOR" spinner per output.md §7.6 — short-lived
-	// spinners on instant operations create flicker, and the editor itself
-	// is the user-facing signal that a hand-off is happening.
+	// No "launching $EDITOR" spinner — short-lived spinners on instant
+	// operations create flicker, and the editor itself is the user-facing
+	// signal that a hand-off is happening.
 	_, edited, err := editBuffer(deployed.Content, ext)
 	if err != nil {
 		return fmt.Errorf("failed to edit configuration: %w", err)
@@ -262,17 +263,17 @@ func resolveStrategy(ctx context.Context, resolver *awsInternal.Resolver, provid
 
 // waitIfRequested optionally blocks for the deploy or bake phase to complete,
 // driving the same Targets row through the deploying/baking sub-phases that
-// run uses. The done summary follows the output.md §3.3.2 format and
-// distinguishes the verb by wait mode (output.md §7.1.0).
+// run uses. The done summary distinguishes the verb by wait mode.
 func (w *workflow) waitIfRequested(ctx context.Context, tg reporter.Targets, id string, t *resolvedTargets, deploymentNumber, versionNumber int32, strategyName string, deployStart time.Time, opts *Options) error {
 	timeout := time.Duration(opts.Timeout) * time.Second
+	tr := batch.NewTargetReporter(tg, id)
 	switch {
 	case opts.WaitDeploy:
-		if err := w.awsClient.WaitForDeploymentPhase(ctx, t.AppID, t.EnvID, deploymentNumber, false, timeout, run.MakeTargetsDeployTick(tg, id)); err != nil {
+		if err := w.awsClient.WaitForDeploymentPhase(ctx, t.AppID, t.EnvID, deploymentNumber, false, timeout, run.MakeTargetsDeployTick(tr)); err != nil {
 			tg.Fail(id, err)
 			return fmt.Errorf("deployment failed: %w", err)
 		}
-		tg.Done(id, cli.FormatDeploymentSummary("deployed", deployStart, versionNumber, strategyName, "baking started"))
+		tg.Done(id, cli.FormatDeploymentSummary("deployed", awsDeployElapsed(ctx, w.awsClient, t.AppID, t.EnvID, deploymentNumber, deployStart), versionNumber, strategyName, "baking started"))
 	case opts.WaitBake:
 		// waitCtx caps total wait at opts.Timeout. The per-phase timeout
 		// passed below is the remaining budget against that deadline so the
@@ -281,20 +282,45 @@ func (w *workflow) waitIfRequested(ctx context.Context, tg reporter.Targets, id 
 		waitCtx, cancel := context.WithDeadline(ctx, deadline)
 		defer cancel()
 
-		if err := w.awsClient.WaitForDeploymentPhase(waitCtx, t.AppID, t.EnvID, deploymentNumber, false, remainingDuration(deadline), run.MakeTargetsDeployTick(tg, id)); err != nil {
+		if err := w.awsClient.WaitForDeploymentPhase(waitCtx, t.AppID, t.EnvID, deploymentNumber, false, remainingDuration(deadline), run.MakeTargetsDeployTick(tr)); err != nil {
 			tg.Fail(id, err)
 			return fmt.Errorf("deployment failed: %w", err)
 		}
 		tg.SetPhase(id, "baking", "")
-		if err := w.awsClient.WaitForBakingComplete(waitCtx, t.AppID, t.EnvID, deploymentNumber, remainingDuration(deadline), run.MakeTargetsBakeTick(tg, id)); err != nil {
+		if err := w.awsClient.WaitForBakingComplete(waitCtx, t.AppID, t.EnvID, deploymentNumber, remainingDuration(deadline), run.MakeTargetsBakeTick(tr)); err != nil {
 			tg.Fail(id, err)
 			return fmt.Errorf("deployment failed: %w", err)
 		}
-		tg.Done(id, cli.FormatDeploymentSummary("complete", deployStart, versionNumber, strategyName, ""))
+		tg.Done(id, cli.FormatDeploymentSummary("complete", awsBakeElapsed(ctx, w.awsClient, t.AppID, t.EnvID, deploymentNumber, deployStart), versionNumber, strategyName, ""))
 	default:
-		tg.Done(id, cli.FormatDeploymentSummary("started", deployStart, versionNumber, strategyName, fmt.Sprintf("deployment #%d", deploymentNumber)))
+		tg.Done(id, cli.FormatDeploymentSummary("started", 0, versionNumber, strategyName, fmt.Sprintf("deployment #%d", deploymentNumber)))
 	}
 	return nil
+}
+
+// awsDeployElapsed mirrors run.Deployer.AWSElapsedForDeploy for the
+// edit workflow (which doesn't carry a Deployer). Returns
+// BAKE_TIME_STARTED.OccurredAt - StartedAt when both are available;
+// falls back to wall-clock otherwise.
+func awsDeployElapsed(ctx context.Context, client *awsInternal.Client, appID, envID string, deploymentNumber int32, fallback time.Time) time.Duration {
+	details, err := awsInternal.GetDeploymentDetails(ctx, client, appID, envID, deploymentNumber)
+	if err == nil && details.StartedAt != nil {
+		if bakeStart := awsInternal.BakeTimeStartedAt(details); bakeStart != nil {
+			return bakeStart.Sub(*details.StartedAt)
+		}
+	}
+	return time.Since(fallback)
+}
+
+// awsBakeElapsed mirrors run.Deployer.AWSElapsedForBake. Returns
+// CompletedAt - StartedAt when both are available; falls back to
+// wall-clock otherwise.
+func awsBakeElapsed(ctx context.Context, client *awsInternal.Client, appID, envID string, deploymentNumber int32, fallback time.Time) time.Duration {
+	details, err := awsInternal.GetDeploymentDetails(ctx, client, appID, envID, deploymentNumber)
+	if err == nil && details.StartedAt != nil && details.CompletedAt != nil {
+		return details.CompletedAt.Sub(*details.StartedAt)
+	}
+	return time.Since(fallback)
 }
 
 // remainingDuration returns the time until deadline, clamped at 1s to

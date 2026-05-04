@@ -22,7 +22,7 @@ func TestGetCommand(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Reset global flags for each test
-			configFile = "apcdeploy.yml"
+			configFiles = []string{"apcdeploy.yml"}
 
 			cmd := newGetCmd()
 			cmd.SetArgs(tt.args)
@@ -97,7 +97,7 @@ data_file: data.json
 			configPath := tt.setupFiles(t, tmpDir)
 
 			// Reset global flags
-			configFile = configPath
+			configFiles = []string{configPath}
 
 			// Create command
 			cmd := newGetCmd()

@@ -42,18 +42,18 @@ func NewExecutorWithFactory(rep reporter.Reporter, prom prompt.Prompter, factory
 
 // Execute performs the complete configuration retrieval workflow.
 //
-// Output shape (docs/design/output.md §7.5):
+// Output shape:
 //   - interactive: identifier shown as Header, cost notice via Warn, prompt;
 //     the configuration body lands on stdout after the user accepts.
 //   - --yes (TTY): a single Targets row finalised as ✓ fetched, plus the
 //     configuration body on stdout.
 //   - --silent --yes: stdout-only — the user has explicitly opted out of
-//     stderr noise (output.md §7.5 (c)).
+//     stderr noise.
 //
 // Resource resolution happens before the cost prompt because List APIs do
 // not incur per-call charges and it gives the user a clearer error path
-// when names don't match (output.md §7.5 (a) shows the prompt first, but
-// the resolve step is invisible to the user when it succeeds).
+// when names don't match (the resolve step is invisible to the user when
+// it succeeds).
 func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	cfg, err := config.LoadConfig(opts.ConfigFile)
 	if err != nil {
@@ -91,8 +91,8 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 
 		// Fetch silently after acceptance: the user already sees the
 		// identifier in the Header above; an extra Targets row would just
-		// duplicate it (output.md §7.5 (a) — the body lands on stdout with
-		// no completion line on stderr).
+		// duplicate it — the body lands on stdout with no completion line
+		// on stderr.
 		configData, err := getter.GetConfiguration(ctx, resolved)
 		if err != nil {
 			return fmt.Errorf("failed to get configuration for profile %q in environment %q: %w",

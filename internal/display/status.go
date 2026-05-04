@@ -30,8 +30,8 @@ func DeploymentStatus(r reporter.Reporter, deployment *aws.DeploymentDetails, cf
 		{"Profile", resources.Profile.Name},
 		{"Environment", cfg.Environment},
 		// "Deployment Number" and "Hosted Config Version" use distinct labels
-		// (output.md §3.3.1 / §7.4) to make the scope explicit: deployment
-		// numbers are environment-scoped while hosted-config versions are
+		// to make the scope explicit: deployment numbers are
+		// environment-scoped while hosted-config versions are
 		// configuration-profile-scoped, and the two values can diverge.
 		{"Deployment Number", strconv.Itoa(int(deployment.DeploymentNumber))},
 		{"Status", cli.StateBadge(string(deployment.State))},

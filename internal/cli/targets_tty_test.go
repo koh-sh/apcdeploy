@@ -116,3 +116,36 @@ func TestTTYTargets_UnknownIDIgnored(t *testing.T) {
 	// no panics, no row state for "missing"
 	tt.Close()
 }
+
+// TestTTYTargets_TruncatesLongFields verifies that when cols is set,
+// long error/summary/detail/reason payloads are truncated so the
+// rendered row fits within the terminal width. Without this guard the
+// `\033[NA` redraw math drifts (one logical row = two visual lines)
+// and earlier rows accumulate in subsequent frames — see the
+// CreateHostedConfigurationVersion ConflictException reproducer.
+func TestTTYTargets_TruncatesLongFields(t *testing.T) {
+	t.Parallel()
+
+	buf := &bytes.Buffer{}
+	r := &Reporter{outW: &bytes.Buffer{}, errW: buf, outTTY: false, errTTY: true}
+	tt := newTTYTargets(r, []string{"id"})
+	tt.cols = 60 // pretend the terminal is 60 cols wide
+
+	long := strings.Repeat("x", 200)
+	tt.Fail("id", errors.New(long))
+	tt.Close()
+
+	out := stripANSI(buf.String())
+	// Each line printed by ttyTargets must be ≤ cols runes (the
+	// trailing "\n" is not counted). The output may contain ANSI
+	// movement sequences but stripANSI removes them, leaving only
+	// the payload lines.
+	for line := range strings.SplitSeq(out, "\n") {
+		if n := len([]rune(line)); n > tt.cols {
+			t.Errorf("line of %d runes exceeds cols=%d:\n%q", n, tt.cols, line)
+		}
+	}
+	if !strings.Contains(out, "…") {
+		t.Errorf("expected ellipsis in truncated output, got:\n%s", out)
+	}
+}

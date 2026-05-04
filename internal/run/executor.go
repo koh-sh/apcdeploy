@@ -3,9 +3,11 @@ package run
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/koh-sh/apcdeploy/internal/aws"
+	"github.com/koh-sh/apcdeploy/internal/batch"
 	"github.com/koh-sh/apcdeploy/internal/cli"
 	"github.com/koh-sh/apcdeploy/internal/config"
 	"github.com/koh-sh/apcdeploy/internal/reporter"
@@ -34,29 +36,23 @@ func NewExecutorWithFactory(rep reporter.Reporter, factory func(context.Context,
 	}
 }
 
-// Execute performs the complete deployment workflow.
+// Execute performs the deployment workflow for a single config file. The
+// per-target body is shared with the multi-config orchestrator path
+// (RunOnTarget) so both routes produce identical Targets output.
 //
-// Output shape (docs/design/output.md §7.1):
+// Output shape:
 //   - wait none:    ✓ started — v<N>, <Strategy>
 //   - wait-deploy:  ✓ deployed (<elapsed>) — v<N>, <Strategy>, baking started
 //   - wait-bake:    ✓ complete  (<elapsed>) — v<N>, <Strategy>
 //   - no changes:   ⊘ skipped (no changes)
 //   - errors:       ✗ failed: <message>
 //
-// Sub-phases (output.md §3.2):
+// Sub-phases:
 //
 //	preparing → comparing → creating-version → deploying → baking
-//
-// The deploying sub-phase drives Targets.SetProgress with AppConfig's
-// PercentageComplete so the caller sees a real rollout bar; the baking
-// sub-phase uses Targets.SetPhase("baking", detail) instead because there
-// is no quantified progress to report (it's a monitoring wait).
 func (e *Executor) Execute(ctx context.Context, opts *Options) error {
-	if opts.Timeout < 0 {
-		return fmt.Errorf("timeout must be a non-negative value")
-	}
-	if opts.WaitDeploy && opts.WaitBake {
-		return fmt.Errorf("--wait-deploy and --wait-bake cannot be used together")
+	if err := validateOpts(opts); err != nil {
+		return err
 	}
 
 	cfg, dataContent, err := loadConfiguration(opts.ConfigFile)
@@ -69,56 +65,95 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 		return fmt.Errorf("failed to create deployer: %w", err)
 	}
 
-	id := config.Identifier(deployer.awsClient.Region, cfg)
-	tg := e.reporter.Targets([]string{id})
+	target := &batch.Target{
+		Path:       opts.ConfigFile,
+		Config:     cfg,
+		Identifier: config.Identifier(deployer.awsClient.Region, cfg),
+	}
+
+	tg := e.reporter.Targets([]string{target.Identifier})
 	defer tg.Close()
-	tg.SetPhase(id, "preparing", "")
+	tr := batch.NewTargetReporter(tg, target.Identifier)
+
+	return e.runOnTargetWithDeployer(ctx, target, dataContent, tr, deployer, opts)
+}
+
+// RunOnTarget runs the deployment for one pre-loaded target. Used by the
+// multi-config orchestrator (cmd/run.go wires it via RunOnTargetWithOpts
+// closure since ExecuteFunc has no opts parameter).
+func (e *Executor) RunOnTarget(ctx context.Context, t *batch.Target, tr reporter.TargetReporter, opts *Options) error {
+	if err := validateOpts(opts); err != nil {
+		return err
+	}
+
+	dataContent, err := os.ReadFile(t.Config.DataFile)
+	if err != nil {
+		tr.Fail(err)
+		return fmt.Errorf("failed to read data file %s: %w", t.Config.DataFile, err)
+	}
+
+	deployer, err := e.deployerFactory(ctx, t.Config)
+	if err != nil {
+		tr.Fail(err)
+		return fmt.Errorf("failed to create deployer: %w", err)
+	}
+
+	return e.runOnTargetWithDeployer(ctx, t, dataContent, tr, deployer, opts)
+}
+
+// runOnTargetWithDeployer is the per-target body shared by Execute and
+// RunOnTarget. It assumes the AWS deployer is already constructed and
+// the data file content has been read.
+func (e *Executor) runOnTargetWithDeployer(ctx context.Context, t *batch.Target, dataContent []byte, tr reporter.TargetReporter, deployer *Deployer, opts *Options) error {
+	cfg := t.Config
+
+	tr.SetPhase("preparing", "")
 
 	resolved, err := deployer.ResolveResources(ctx)
 	if err != nil {
-		tg.Fail(id, err)
+		tr.Fail(err)
 		return fmt.Errorf("failed to resolve resources: %w", err)
 	}
 
 	hasOngoing, _, err := deployer.CheckOngoingDeployment(ctx, resolved)
 	if err != nil {
-		tg.Fail(id, err)
+		tr.Fail(err)
 		return fmt.Errorf("failed to check ongoing deployments: %w", err)
 	}
 	if hasOngoing {
 		ongoingErr := fmt.Errorf("deployment already in progress")
-		tg.Fail(id, ongoingErr)
+		tr.Fail(ongoingErr)
 		return ongoingErr
 	}
 
 	contentType, err := deployer.DetermineContentType(resolved.Profile.Type, cfg.DataFile)
 	if err != nil {
-		tg.Fail(id, err)
+		tr.Fail(err)
 		return fmt.Errorf("failed to determine content type: %w", err)
 	}
 
 	if err := deployer.ValidateLocalData(dataContent, contentType); err != nil {
-		tg.Fail(id, err)
+		tr.Fail(err)
 		return fmt.Errorf("validation failed: %w", err)
 	}
 
 	if !opts.Force {
-		tg.SetPhase(id, "comparing", "")
+		tr.SetPhase("comparing", "")
 		hasChanges, err := deployer.HasConfigurationChanges(ctx, resolved, dataContent, cfg.DataFile, contentType)
 		if err != nil {
-			tg.Fail(id, err)
+			tr.Fail(err)
 			return fmt.Errorf("failed to check for changes: %w", err)
 		}
 		if !hasChanges {
-			tg.Skip(id, "skipped (no changes)")
+			tr.Skip("skipped (no changes)")
 			return nil
 		}
 	}
 
-	tg.SetPhase(id, "creating-version", "")
+	tr.SetPhase("creating-version", "")
 	versionNumber, err := deployer.CreateVersion(ctx, resolved, dataContent, contentType, opts.Description)
 	if err != nil {
-		tg.Fail(id, err)
+		tr.Fail(err)
 		if aws.IsValidationError(err) {
 			return fmt.Errorf("%s", aws.FormatValidationError(err))
 		}
@@ -126,45 +161,58 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	}
 
 	deployStart := time.Now()
-	tg.SetPhase(id, "deploying", "")
+	tr.SetPhase("deploying", "")
 	deploymentNumber, err := deployer.StartDeployment(ctx, resolved, versionNumber, opts.Description)
 	if err != nil {
-		tg.Fail(id, err)
+		tr.Fail(err)
 		return fmt.Errorf("failed to start deployment: %w", err)
 	}
 
 	strategyName := cfg.DeploymentStrategy
 	switch {
 	case opts.WaitDeploy:
-		if err := deployer.WaitForDeploymentPhase(ctx, resolved, deploymentNumber, false, opts.Timeout, MakeTargetsDeployTick(tg, id)); err != nil {
-			tg.Fail(id, err)
+		if err := deployer.WaitForDeploymentPhase(ctx, resolved, deploymentNumber, false, opts.Timeout, MakeTargetsDeployTick(tr)); err != nil {
+			tr.Fail(err)
 			return fmt.Errorf("deployment failed: %w", err)
 		}
-		tg.Done(id, cli.FormatDeploymentSummary("deployed", deployStart, versionNumber, strategyName, "baking started"))
+		tr.Done(cli.FormatDeploymentSummary("deployed", deployer.AWSElapsedForDeploy(ctx, resolved, deploymentNumber, deployStart), versionNumber, strategyName, "baking started"))
 
 	case opts.WaitBake:
-		// waitCtx caps total wait at opts.Timeout. The per-phase timeout passed
-		// below is the remaining budget against that deadline so the inner
-		// Wait* timeout reflects "how long this phase may still take".
+		// waitCtx caps total wait at opts.Timeout. The per-phase timeout
+		// passed below is the remaining budget against that deadline so the
+		// inner Wait* timeout reflects "how long this phase may still take".
 		deadline := time.Now().Add(time.Duration(opts.Timeout) * time.Second)
 		waitCtx, cancel := context.WithDeadline(ctx, deadline)
 		defer cancel()
 
-		if err := deployer.WaitForDeploymentPhase(waitCtx, resolved, deploymentNumber, false, remainingSeconds(deadline), MakeTargetsDeployTick(tg, id)); err != nil {
-			tg.Fail(id, err)
+		if err := deployer.WaitForDeploymentPhase(waitCtx, resolved, deploymentNumber, false, remainingSeconds(deadline), MakeTargetsDeployTick(tr)); err != nil {
+			tr.Fail(err)
 			return fmt.Errorf("deployment failed: %w", err)
 		}
-		tg.SetPhase(id, "baking", "")
-		if err := deployer.WaitForBakingComplete(waitCtx, resolved, deploymentNumber, remainingSeconds(deadline), MakeTargetsBakeTick(tg, id)); err != nil {
-			tg.Fail(id, err)
+		tr.SetPhase("baking", "")
+		if err := deployer.WaitForBakingComplete(waitCtx, resolved, deploymentNumber, remainingSeconds(deadline), MakeTargetsBakeTick(tr)); err != nil {
+			tr.Fail(err)
 			return fmt.Errorf("deployment failed: %w", err)
 		}
-		tg.Done(id, cli.FormatDeploymentSummary("complete", deployStart, versionNumber, strategyName, ""))
+		tr.Done(cli.FormatDeploymentSummary("complete", deployer.AWSElapsedForBake(ctx, resolved, deploymentNumber, deployStart), versionNumber, strategyName, ""))
 
 	default:
-		tg.Done(id, cli.FormatDeploymentSummary("started", deployStart, versionNumber, strategyName, fmt.Sprintf("deployment #%d", deploymentNumber)))
+		tr.Done(cli.FormatDeploymentSummary("started", 0, versionNumber, strategyName, fmt.Sprintf("deployment #%d", deploymentNumber)))
 	}
 
+	return nil
+}
+
+// validateOpts checks Options invariants that don't depend on AWS state.
+// Extracted so single-target Execute and the multi-config orchestrator
+// path apply the same checks before doing any AWS work.
+func validateOpts(opts *Options) error {
+	if opts.Timeout < 0 {
+		return fmt.Errorf("timeout must be a non-negative value")
+	}
+	if opts.WaitDeploy && opts.WaitBake {
+		return fmt.Errorf("--wait-deploy and --wait-bake cannot be used together")
+	}
 	return nil
 }
 

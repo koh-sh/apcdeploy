@@ -183,7 +183,7 @@ For detailed usage information and advanced features, see [llms.md](./llms.md).
 
 All commands support these global flags:
 
-- `-c, --config`: Config file path (default: `apcdeploy.yml`)
+- `-c, --config`: Config file path (default: `apcdeploy.yml`). May be passed multiple times for `run` / `diff` / `pull` to operate on several configs in one invocation
 - `-s, --silent`: Suppress verbose output, show only essential information (useful for CI/CD and scripting)
 
 ### ls-resources
@@ -246,13 +246,21 @@ Deploy configuration changes:
 apcdeploy run -c apcdeploy.yml [--wait-deploy|--wait-bake] [--force]
 ```
 
+Pass `-c` multiple times to deploy several configs in one invocation:
+
+```bash
+apcdeploy run -c environments/dev.yml -c environments/stg.yml -c environments/prod.yml --wait-bake
+```
+
 Options:
 
 - `--wait-deploy`: Wait for deployment phase to complete (until baking starts)
 - `--wait-bake`: Wait for complete deployment including baking phase
-- `--timeout`: Timeout in seconds for deployment wait (default: 1800)
+- `--timeout`: Per-target timeout in seconds for deployment wait (default: 1800)
 - `--force`: Deploy even if content hasn't changed
 - `--description`: Description attached to the configuration version and deployment (max 1024 chars). Defaults to `"Deployed by apcdeploy"`; pass `--description ""` to clear it.
+- `--parallel`: Maximum concurrent targets when `-c` is repeated (default: all in parallel)
+- `--continue-on-error`: Run remaining targets after one fails (default: fail-fast)
 
 Note: `--wait-deploy` and `--wait-bake` are mutually exclusive.
 
@@ -292,9 +300,17 @@ Preview configuration changes:
 apcdeploy diff -c apcdeploy.yml [--exit-nonzero]
 ```
 
+Pass `-c` multiple times to diff several configs in one invocation. Each target's diff is prefixed with `=== <region>/<app>/<profile>/<env> ===`; the single-target form omits the header so it can be piped into `patch` / `git apply`.
+
+```bash
+apcdeploy diff -c environments/dev.yml -c environments/stg.yml -c environments/prod.yml
+```
+
 Options:
 
 - `--exit-nonzero`: Exit with code 1 if differences are found (useful in CI)
+- `--parallel`: Maximum concurrent targets when `-c` is repeated (default: all in parallel)
+- `--continue-on-error`: Run remaining targets after one fails (default: fail-fast)
 
 ### status
 
@@ -325,6 +341,17 @@ Pull the latest deployed configuration and update your local data file:
 ```bash
 apcdeploy pull -c apcdeploy.yml
 ```
+
+Pass `-c` multiple times to pull several configurations in one invocation:
+
+```bash
+apcdeploy pull -c environments/dev.yml -c environments/stg.yml -c environments/prod.yml
+```
+
+Options:
+
+- `--parallel`: Maximum concurrent targets when `-c` is repeated (default: all in parallel)
+- `--continue-on-error`: Run remaining targets after one fails (default: fail-fast)
 
 This command is useful when configuration changes are made directly in the AWS Console and you want to sync your local files with the deployed state.
 

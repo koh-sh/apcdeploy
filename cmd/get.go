@@ -37,9 +37,14 @@ Use --yes to skip the confirmation prompt (useful for scripts and automation).`,
 func runGet(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
+	cfgFile, err := requireSingleConfig("get")
+	if err != nil {
+		return err
+	}
+
 	// Create options
 	opts := &get.Options{
-		ConfigFile:       configFile,
+		ConfigFile:       cfgFile,
 		SkipConfirmation: getSkipConfirmation,
 	}
 

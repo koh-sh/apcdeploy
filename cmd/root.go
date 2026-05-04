@@ -24,10 +24,17 @@ var (
 	commit  string
 	date    string
 
-	// Global flags
-	configFile string
-	silent     bool
+	// Global flags. configFiles is a slice so the run/diff/pull commands can
+	// accept `-c` repeatedly. Single-config commands
+	// (init/get/status/rollback/edit) call requireSingleConfig() to enforce
+	// `len == 1` themselves.
+	configFiles []string
+	silent      bool
 )
+
+// defaultConfigFile is the implicit -c value when the user passes no
+// `-c` flag. Kept as a constant so tests and the flag default agree.
+const defaultConfigFile = "apcdeploy.yml"
 
 // NewRootCommand creates and returns the root command
 func NewRootCommand() *cobra.Command {
@@ -39,8 +46,10 @@ It provides commands to initialize, deploy, diff, and check the status of config
 		Version: fmt.Sprintf("%s (Built on %s from Git SHA %s)", version, date, commit),
 	}
 
-	// Global flags
-	rootCmd.PersistentFlags().StringVarP(&configFile, "config", "c", "apcdeploy.yml", "config file path")
+	// Global flags. `-c` is a string slice so run/diff/pull can accept it
+	// multiple times for multi-config; single-config commands validate
+	// the count via requireSingleConfig().
+	rootCmd.PersistentFlags().StringSliceVarP(&configFiles, "config", "c", []string{defaultConfigFile}, "config file path (run/diff/pull may pass -c multiple times)")
 	rootCmd.PersistentFlags().BoolVarP(&silent, "silent", "s", false, "suppress verbose output, show only essential information")
 
 	// Add subcommands
@@ -79,7 +88,7 @@ func Execute() {
 		rep := cli.GetReporter(silent)
 		rep.Error(err.Error())
 		// Append a Resolution: <hint> line when the underlying AWS error code
-		// has a documented remediation (output.md §8.3 / internal/errors).
+		// has a documented remediation.
 		// Emitted via Warn (⚠) instead of Error (✗) so the visual hierarchy is
 		// "what failed" first, "how to recover" second; both lines reach
 		// stderr even under --silent because Warn-via-the-real-reporter is
@@ -100,6 +109,23 @@ func Execute() {
 // isSilent returns whether silent mode is enabled
 func isSilent() bool {
 	return silent
+}
+
+// requireSingleConfig enforces that single-config commands receive exactly
+// one `-c` value. It returns the single path when valid; otherwise it
+// returns an error explaining that the command does not support
+// multi-config (only run/diff/pull do).
+func requireSingleConfig(cmdName string) (string, error) {
+	switch len(configFiles) {
+	case 0:
+		// Cobra's default keeps the slice non-empty, but be defensive in
+		// case a test or pre-run hook clears it.
+		return defaultConfigFile, nil
+	case 1:
+		return configFiles[0], nil
+	default:
+		return "", fmt.Errorf("%s does not support multiple -c flags (got %d)", cmdName, len(configFiles))
+	}
 }
 
 // maxDescriptionLength matches the AppConfig API limit on the Description

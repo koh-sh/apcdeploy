@@ -27,7 +27,7 @@ func TestStatusCommand(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Reset global flags for each test
-			configFile = "apcdeploy.yml"
+			configFiles = []string{"apcdeploy.yml"}
 			statusDeploymentID = ""
 
 			cmd := newStatusCmd()
@@ -102,7 +102,7 @@ deployment_strategy: test-strategy
 			configPath := tt.setupFiles(t, tmpDir)
 
 			// Reset global flags
-			configFile = configPath
+			configFiles = []string{configPath}
 			statusDeploymentID = ""
 
 			// Create command
@@ -139,7 +139,7 @@ func TestStatusCommandStructure(t *testing.T) {
 }
 
 func TestStatusCommandFlags(t *testing.T) {
-	configFile = "apcdeploy.yml"
+	configFiles = []string{"apcdeploy.yml"}
 	statusDeploymentID = ""
 
 	cmd := newStatusCmd()

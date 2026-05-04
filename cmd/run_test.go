@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -37,7 +39,7 @@ func TestRunCommand(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Reset global flags for each test. We touch every flag-bound
 			// global so `go test -shuffle=on` can't expose ordering bugs.
-			configFile = "apcdeploy.yml"
+			configFiles = []string{"apcdeploy.yml"}
 			runWaitDeploy = false
 			runWaitBake = false
 			runTimeout = DefaultDeploymentTimeout
@@ -56,7 +58,7 @@ func TestRunCommand(t *testing.T) {
 }
 
 func TestRunCommandFlags(t *testing.T) {
-	configFile = "apcdeploy.yml"
+	configFiles = []string{"apcdeploy.yml"}
 	runWaitDeploy = false
 	runWaitBake = false
 	runTimeout = DefaultDeploymentTimeout
@@ -93,7 +95,7 @@ func TestRunCommandFlags(t *testing.T) {
 }
 
 func TestRunCommandWaitFlags(t *testing.T) {
-	configFile = "apcdeploy.yml"
+	configFiles = []string{"apcdeploy.yml"}
 	runWaitDeploy = false
 	runWaitBake = false
 	runTimeout = DefaultDeploymentTimeout
@@ -236,5 +238,76 @@ func TestValidateDescription(t *testing.T) {
 				t.Errorf("validateDescription(runes=%d) error = %v, wantErr %v", len([]rune(tt.input)), err, tt.wantErr)
 			}
 		})
+	}
+}
+
+// TestRunRun_MultiConfigLoadError exercises the multi-config branch in
+// runRun: when one of the supplied -c paths fails to load, the
+// orchestrator never starts and the error wraps "failed to load
+// configurations".
+func TestRunRun_MultiConfigLoadError(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "run-multi-load-*")
+	if err != nil {
+		t.Fatalf("temp: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	good := filepath.Join(tmpDir, "good.yml")
+	if err := os.WriteFile(good, []byte("application: a\nconfiguration_profile: p\nenvironment: e\nregion: us-east-1\ndata_file: data.json\n"), 0o644); err != nil {
+		t.Fatalf("good: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "data.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatalf("data: %v", err)
+	}
+	missing := filepath.Join(tmpDir, "missing.yml")
+
+	configFiles = []string{good, missing}
+	t.Cleanup(func() { configFiles = []string{defaultConfigFile} })
+
+	cmd := newRunCmd()
+	err = runRun(cmd, nil)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to load configurations") {
+		t.Errorf("err = %q, want substring 'failed to load configurations'", err.Error())
+	}
+}
+
+// TestRunRun_MultiConfigOrchestratorAWSError exercises the multi-config
+// branch in runRun through to the orchestrator setup + summary render.
+// AWS calls must fail for this to work without credentials.
+func TestRunRun_MultiConfigOrchestratorAWSError(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "run-multi-orch-*")
+	if err != nil {
+		t.Fatalf("temp: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	makeConfig := func(name, env string) string {
+		path := filepath.Join(tmpDir, name)
+		body := "application: a\nconfiguration_profile: p\nregion: us-east-1\ndata_file: data.json\nenvironment: " + env + "\n"
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatalf("config: %v", err)
+		}
+		return path
+	}
+	a := makeConfig("a.yml", "dev")
+	b := makeConfig("b.yml", "prod")
+	if err := os.WriteFile(filepath.Join(tmpDir, "data.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatalf("data: %v", err)
+	}
+
+	configFiles = []string{a, b}
+	silent = true
+	t.Cleanup(func() {
+		configFiles = []string{defaultConfigFile}
+		silent = false
+	})
+
+	cmd := newRunCmd()
+	err = runRun(cmd, nil)
+	if err == nil {
+		t.Fatal("expected error from multi-config orchestrator path, got nil")
 	}
 }

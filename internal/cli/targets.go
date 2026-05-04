@@ -32,7 +32,7 @@ var terminalEscapeRE = regexp.MustCompile(
 
 // sanitizeIdentifier strips ANSI / DEC escape sequences from id. Used at the
 // Targets boundary so caller-supplied identifiers cannot inject terminal
-// control codes (output.md §10.3 — identifier integrity).
+// control codes.
 func sanitizeIdentifier(id string) string {
 	if !strings.ContainsRune(id, '\x1b') {
 		return id
@@ -41,13 +41,13 @@ func sanitizeIdentifier(id string) string {
 }
 
 // targetsBarWidth is the fixed visual width of the deploying-phase progress
-// bar (output.md §5.4). Bars do not adapt to terminal width — they print at
-// 20 cells regardless.
+// bar. Bars do not adapt to terminal width — they print at 20 cells
+// regardless.
 const targetsBarWidth = 20
 
 // targetsIDGap is the minimum gap between the identifier column and the
-// state icon (output.md §5.2). Implementations pad shorter identifiers with
-// spaces so the icon column lines up across rows.
+// state icon. Implementations pad shorter identifiers with spaces so the
+// icon column lines up across rows.
 const targetsIDGap = 3
 
 // targetsRowState captures the lifecycle stage of a single Targets row.
@@ -108,6 +108,29 @@ func idColumnWidth(ids []string) int {
 		}
 	}
 	return w + targetsIDGap
+}
+
+// truncateRunes shortens s to at most limit runes, appending an ellipsis
+// (…) when truncation actually happens. Returns "" for limit <= 0 and "…"
+// for limit == 1 — at one rune of budget the ellipsis itself is the only
+// thing that fits.
+//
+// Used by the TTY Targets renderer to keep each row within terminal
+// width: row contents that wrap to a second visual line break the redraw
+// math (\033[NA assumes one terminal line per row), and either accumulate
+// stale fragments or eat earlier rows.
+func truncateRunes(s string, limit int) string {
+	if limit <= 0 {
+		return ""
+	}
+	runes := []rune(s)
+	if len(runes) <= limit {
+		return s
+	}
+	if limit == 1 {
+		return "…"
+	}
+	return string(runes[:limit-1]) + "…"
 }
 
 // padID returns id padded with spaces to width.

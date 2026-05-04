@@ -35,9 +35,14 @@ identified by deployment number.`,
 func runStatus(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
+	cfgFile, err := requireSingleConfig("status")
+	if err != nil {
+		return err
+	}
+
 	// Create options
 	opts := &status.Options{
-		ConfigFile:   configFile,
+		ConfigFile:   cfgFile,
 		DeploymentID: statusDeploymentID,
 		Silent:       isSilent(),
 	}

@@ -15,11 +15,10 @@ package reporter
 //   - Error → stderr, always shown.
 //   - Data / Diff → stdout, always shown.
 //
-// Targets is the primary primitive for run/diff/pull/rollback/edit/get/status
-// (docs/design/output.md §4). The older Step / Success / Info / Spin
-// primitives are retained for the init command, which is fundamentally a
-// sequential interactive workflow that does not fit the target-centric
-// model (output.md §11 Q-1, resolved in favour of keeping these primitives).
+// Targets is the primary primitive for run/diff/pull/rollback/edit/get/status.
+// The older Step / Success / Info / Spin primitives are retained for the
+// init command, which is fundamentally a sequential interactive workflow
+// that does not fit the target-centric model.
 type Reporter interface {
 	// Step announces the start of a long-running step. Used by init only;
 	// other commands use Targets.SetPhase.

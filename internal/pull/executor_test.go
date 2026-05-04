@@ -656,7 +656,7 @@ region: us-east-1
 	}
 
 	// The no-change branch finalises the Targets row with Done("no changes")
-	// — pull is idempotent so a no-op is a successful outcome (output.md §7.3).
+	// — pull is idempotent so a no-op is a successful outcome.
 	foundDone := false
 	for _, call := range reporter.TargetsCalls {
 		for _, tr := range call.Transitions {

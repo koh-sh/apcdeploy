@@ -173,3 +173,32 @@ func TestPadID(t *testing.T) {
 		}
 	}
 }
+
+func TestTruncateRunes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		in    string
+		limit int
+		want  string
+	}{
+		{"empty input", "", 10, ""},
+		{"limit zero returns empty", "abc", 0, ""},
+		{"limit negative returns empty", "abc", -1, ""},
+		{"shorter than limit passes through", "abc", 10, "abc"},
+		{"equal to limit passes through", "abc", 3, "abc"},
+		{"limit one returns ellipsis only", "abc", 1, "…"},
+		{"truncates to limit with ellipsis", "abcdef", 4, "abc…"},
+		{"multibyte truncation is rune-aware", "あいうえお", 3, "あい…"},
+		{"long ASCII", strings.Repeat("a", 100), 5, "aaaa…"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := truncateRunes(tt.in, tt.limit); got != tt.want {
+				t.Errorf("truncateRunes(%q, %d) = %q, want %q", tt.in, tt.limit, got, tt.want)
+			}
+		})
+	}
+}

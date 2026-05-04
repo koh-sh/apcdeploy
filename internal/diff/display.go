@@ -21,8 +21,7 @@ var inProgressWarningSink io.Writer = os.Stderr
 // still rolling out.
 //
 // For N=1 (single -c) callers, the unified diff body is emitted without a
-// `=== <id> ===` header so it can be piped straight into patch/git apply
-// (output.md §7.2 stdout header rules).
+// `=== <id> ===` header so it can be piped straight into patch/git apply.
 func display(r reporter.Reporter, tg reporter.Targets, id string, result *Result, deployment *aws.DeploymentInfo) {
 	if !result.HasChanges {
 		tg.Done(id, "no changes")
@@ -37,9 +36,9 @@ func display(r reporter.Reporter, tg reporter.Targets, id string, result *Result
 }
 
 // formatDiffSummary renders the post-icon Targets summary for a diff with
-// changes. The wording matches output.md §7.2 (a) — "diff (N lines changed)"
-// — but augments it with the +/- breakdown so users get the deletion/addition
-// split without scrolling through the patch.
+// changes. The wording is "diff (N lines changed)" augmented with the
+// +/- breakdown so users get the deletion/addition split without
+// scrolling through the patch.
 func formatDiffSummary(added, removed int) string {
 	total := added + removed
 	noun := "lines"

@@ -49,13 +49,18 @@ to select from available resources.`,
 func runInit(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
+	cfgFile, err := requireSingleConfig("init")
+	if err != nil {
+		return err
+	}
+
 	// Create options
 	opts := &initPkg.Options{
 		Application: initApp,
 		Profile:     initProfile,
 		Environment: initEnv,
 		Region:      initRegion,
-		ConfigFile:  configFile,
+		ConfigFile:  cfgFile,
 		OutputData:  initOutputData,
 		Force:       initForce,
 		Silent:      isSilent(),
