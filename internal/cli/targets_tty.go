@@ -110,10 +110,7 @@ func (t *ttyTargets) formatLine(row *targetsRow, frame string) string {
 		// (some terminals wrap on column-0 of the next line in that
 		// case). Floor at 10 so very narrow terminals still get
 		// something visible rather than a string of just ellipses.
-		budget := t.cols - t.idWidth - 12
-		if budget < 10 {
-			budget = 10
-		}
+		budget := max(t.cols-t.idWidth-12, 10)
 		r.errMsg = truncateRunes(r.errMsg, budget)
 		r.summary = truncateRunes(r.summary, budget)
 		r.detail = truncateRunes(r.detail, budget)

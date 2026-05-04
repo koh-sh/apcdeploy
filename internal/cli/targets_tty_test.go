@@ -140,7 +140,7 @@ func TestTTYTargets_TruncatesLongFields(t *testing.T) {
 	// trailing "\n" is not counted). The output may contain ANSI
 	// movement sequences but stripANSI removes them, leaving only
 	// the payload lines.
-	for _, line := range strings.Split(out, "\n") {
+	for line := range strings.SplitSeq(out, "\n") {
 		if n := len([]rune(line)); n > tt.cols {
 			t.Errorf("line of %d runes exceeds cols=%d:\n%q", n, tt.cols, line)
 		}
