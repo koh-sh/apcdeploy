@@ -13,12 +13,16 @@ import (
 )
 
 // Client wraps the AWS AppConfig client and implements AppConfigAPI interface.
-// It holds the raw SDK client internally and delegates/enhances its methods.
+// It holds the raw SDK clients internally and delegates/enhances their methods.
 type Client struct {
-	// appConfig is the underlying AWS SDK client (private field implementing AppConfigSDKAPI)
-	// This can be either *appconfig.Client in production or mock.MockAppConfigClient in tests
-	appConfig       AppConfigSDKAPI
-	AppConfigData   AppConfigDataAPI
+	// appConfig is the underlying AWS SDK client (implements AppConfigSDKAPI).
+	// In production this is *appconfig.Client; tests inject MockAppConfigClient
+	// via NewTestClient.
+	appConfig AppConfigSDKAPI
+	// appConfigData is the AppConfig Data API client (implements
+	// AppConfigDataAPI). Only the get command uses it. Tests inject mocks via
+	// NewTestClientWithData.
+	appConfigData   AppConfigDataAPI
 	Region          string
 	PollingInterval time.Duration // Interval for polling deployment status (default: 5s)
 }
@@ -49,7 +53,7 @@ func NewClient(ctx context.Context, region string) (*Client, error) {
 
 	return &Client{
 		appConfig:       appconfigClient,
-		AppConfigData:   appconfigdataClient,
+		appConfigData:   appconfigdataClient,
 		Region:          cfg.Region,
 		PollingInterval: config.DefaultPollingInterval,
 	}, nil

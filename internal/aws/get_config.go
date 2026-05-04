@@ -28,7 +28,7 @@ func (c *Client) GetConfiguration(ctx context.Context, applicationID, environmen
 		ConfigurationProfileIdentifier: aws.String(configurationProfileID),
 	}
 
-	sessionOutput, err := c.AppConfigData.StartConfigurationSession(ctx, sessionInput)
+	sessionOutput, err := c.appConfigData.StartConfigurationSession(ctx, sessionInput)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start configuration session: %w", err)
 	}
@@ -38,7 +38,7 @@ func (c *Client) GetConfiguration(ctx context.Context, applicationID, environmen
 		ConfigurationToken: sessionOutput.InitialConfigurationToken,
 	}
 
-	configOutput, err := c.AppConfigData.GetLatestConfiguration(ctx, configInput)
+	configOutput, err := c.appConfigData.GetLatestConfiguration(ctx, configInput)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get latest configuration: %w", err)
 	}

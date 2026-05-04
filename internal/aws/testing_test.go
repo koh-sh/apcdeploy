@@ -71,8 +71,8 @@ func TestNewTestClient(t *testing.T) {
 				t.Error("appConfig not set correctly")
 			}
 
-			if tt.checkAppConfigData && client.AppConfigData == nil {
-				t.Error("AppConfigData not set correctly")
+			if tt.checkAppConfigData && client.appConfigData == nil {
+				t.Error("appConfigData not set correctly")
 			}
 
 			if client.Region != tt.expectedRegion {
