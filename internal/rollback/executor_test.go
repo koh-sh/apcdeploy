@@ -14,6 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/appconfig/types"
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/aws/mock"
+	"github.com/koh-sh/apcdeploy/internal/prompt"
 	prompttest "github.com/koh-sh/apcdeploy/internal/prompt/testing"
 	reportertest "github.com/koh-sh/apcdeploy/internal/reporter/testing"
 )
@@ -317,8 +318,8 @@ func TestExecutorUserDeclined(t *testing.T) {
 		t.Error("expected error when user declines")
 	}
 
-	if !errors.Is(err, ErrUserDeclined) {
-		t.Errorf("expected ErrUserDeclined, got: %v", err)
+	if !errors.Is(err, prompt.ErrUserDeclined) {
+		t.Errorf("expected prompt.ErrUserDeclined, got: %v", err)
 	}
 }
 

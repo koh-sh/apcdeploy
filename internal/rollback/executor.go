@@ -13,9 +13,6 @@ import (
 	"github.com/koh-sh/apcdeploy/internal/reporter"
 )
 
-// ErrUserDeclined is returned when the user declines to proceed with the operation
-var ErrUserDeclined = errors.New("operation declined by user")
-
 // ErrNoOngoingDeployment is returned when no ongoing deployment is found
 var ErrNoOngoingDeployment = errors.New("no ongoing deployment found")
 
@@ -112,7 +109,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 
 		normalized := strings.ToLower(strings.TrimSpace(response))
 		if normalized != "y" && normalized != "yes" {
-			return ErrUserDeclined
+			return prompt.ErrUserDeclined
 		}
 	}
 
