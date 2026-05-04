@@ -22,39 +22,18 @@ import (
 func TestNewExecutor(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name         string
-		validateFunc func(*testing.T, *Executor)
-	}{
-		{
-			name: "creates executor with reporter and prompter",
-			validateFunc: func(t *testing.T, executor *Executor) {
-				if executor == nil {
-					t.Fatal("expected non-nil Executor")
-				}
-			},
-		},
+	mockReporter := &reporterTesting.MockReporter{}
+	mockPrompter := &promptTesting.MockPrompter{}
+
+	executor := NewExecutor(mockReporter, mockPrompter)
+	if executor == nil {
+		t.Fatal("expected non-nil Executor")
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			mockReporter := &reporterTesting.MockReporter{}
-			mockPrompter := &promptTesting.MockPrompter{}
-
-			executor := NewExecutor(mockReporter, mockPrompter)
-
-			if executor.reporter != mockReporter {
-				t.Error("expected reporter to be set")
-			}
-			if executor.prompter != mockPrompter {
-				t.Error("expected prompter to be set")
-			}
-
-			if tt.validateFunc != nil {
-				tt.validateFunc(t, executor)
-			}
-		})
+	if executor.reporter != mockReporter {
+		t.Error("expected reporter to be set")
+	}
+	if executor.prompter != mockPrompter {
+		t.Error("expected prompter to be set")
 	}
 }
 
