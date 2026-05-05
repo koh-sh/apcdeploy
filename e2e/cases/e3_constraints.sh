@@ -20,7 +20,10 @@ __e3_cleanup_bg() {
         __e3_bg_active=0
     fi
 }
-# Compose with the per-section finalizer registered by e2e-test.sh.
+# This overrides the per-section `trap '__finalize_step ok' EXIT` registered
+# by e2e-test.sh, so we re-invoke __finalize_step explicitly to keep the
+# trailing ✓ of the last step. Anything else the runner expects on EXIT
+# must be added here too.
 trap '__e3_cleanup_bg; __finalize_step ok' EXIT
 
 step "start a slow deploy in the background"

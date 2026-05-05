@@ -77,8 +77,9 @@ fi
 # __on_exit — registering a `trap "rm -rf …" EXIT` per iteration would
 # overwrite (not chain) the parent EXIT trap and disable the final summary.
 set -E
+# Visible to common.sh's __on_exit (same shell) without export — bash does
+# not export arrays through the environment anyway.
 TMPDIRS=()
-export TMPDIRS
 for entry in "${SELECTED[@]}"; do
     id="${entry%%:*}"
     file="${entry#*:}"

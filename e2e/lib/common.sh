@@ -110,6 +110,9 @@ __on_err() {
         printf '  %s✗%s %s\n' "$C_RED" "$C_RESET" "$__STEP" >&2
         printf '    %sat %s:%s (exit %d)%s\n' \
             "$C_DIM" "${source#"$E2E_ROOT/"}" "$lineno" "$rc" "$C_RESET" >&2
+        # Mark already-reported so the subshell's EXIT trap doesn't
+        # re-finalize this step as ✓ (and double-count it in __STEPS_FILE).
+        __STEP=""
     fi
     if [[ -n "${__STDERR_FILE:-}" && -s "$__STDERR_FILE" ]]; then
         printf '    %s---- last stderr ----%s\n' "$C_DIM" "$C_RESET" >&2
