@@ -799,6 +799,8 @@ To use `apcdeploy`, the following AWS AppConfig IAM permissions are required:
 }
 ```
 
+Additionally, the interactive region picker on `init` (when `--region` is omitted) calls `account:ListRegions`. Grant it only if you intend to use interactive `init`; non-interactive flows (`--region` supplied) do not need it.
+
 #### Deployment Permissions (run, edit, diff, status, pull, and rollback commands)
 
 ```json

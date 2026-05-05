@@ -139,7 +139,7 @@ Check the status of your latest deployment:
 apcdeploy status -c apcdeploy.yml
 ```
 
-This shows the current deployment state (IN_PROGRESS, COMPLETE, or ROLLED_BACK) and progress percentage.
+This shows the current deployment state (DEPLOYING, BAKING, COMPLETE, or ROLLED_BACK) and progress percentage.
 
 ## Configuration File Reference
 

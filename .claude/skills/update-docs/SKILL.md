@@ -34,6 +34,7 @@ The shared documentation conventions live in `.claude/rules/documentation.md` an
 
 1. Inspect recent changes: `git diff`, `git log -n 20 --oneline`.
 2. For each target file (or the one passed as argument), look for: drift (out of date), audience mismatch (in the wrong file), and bloat (could be removed without losing information).
+   - **Drift includes facts that didn't change in this commit but no longer match the code** (deployment state names, exit codes, flag defaults, error sentinels). Spot-check the doc's named constants/states against the source even when they don't appear in `git diff` — `git`-diff-only review will miss long-standing inconsistencies.
 3. **Default to subtraction over addition.** Propose deletions and moves before additions. Do not grow a doc unless the new content earns its place.
 4. Propose a plan before editing if the change is non-trivial. Apply edits preserving existing tone and structure.
 
