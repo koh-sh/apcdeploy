@@ -1,6 +1,6 @@
 # apcdeploy
 
-A declarative CLI tool for managing AWS AppConfig deployments. Manage your AppConfig applications, configuration profiles, and environments as code using a simple YAML configuration file.
+A declarative CLI tool for managing AWS AppConfig deployments. Roll out configuration changes to existing AppConfig applications, configuration profiles, and environments using a simple YAML configuration file.
 
 Note: This tool only supports AWS AppConfig hosted configuration store. You must create AppConfig resources (application, configuration profile, environment, deployment strategy) before using this tool.
 
@@ -10,11 +10,9 @@ Note: This tool only supports AWS AppConfig hosted configuration store. You must
 
 - **Resource Discovery**: List all AWS AppConfig resources (applications, profiles, environments) in a region
 - **Declarative Configuration**: Define your AppConfig resources in `apcdeploy.yml`
-- **Deployment Automation**: Deploy configuration changes with a single command
 - **Configuration Retrieval**: Fetch deployed configuration (`get`) or sync local files with deployed state (`pull`)
 - **Deployment Rollback**: Stop ongoing deployments with a single command
 - **Diff Previews**: See exactly what will change before deploying
-- **Status Monitoring**: Track deployment progress and completion
 - **Multiple Content Types**: Support for both Feature Flags and Freeform configuration profiles
 - **Idempotent Deployments**: Automatically skips deployment when local content matches deployed version
 
@@ -319,6 +317,10 @@ Check deployment status:
 ```bash
 apcdeploy status -c apcdeploy.yml
 ```
+
+Options:
+
+- `--deployment`: Deployment number to check (defaults to latest)
 
 ### get
 
