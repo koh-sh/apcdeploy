@@ -6,6 +6,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `apcdeploy` is a CLI tool for managing AWS AppConfig deployments. It enables developers to manage AppConfig resources (applications, configuration profiles, environments) as code through a declarative YAML configuration file (`apcdeploy.yml`).
 
+## Documentation map
+
+This repo ships three reader-facing docs plus a rules file. They target **different audiences** — do not treat them as interchangeable when sourcing facts:
+
+| File | Audience | Purpose |
+|---|---|---|
+| `README.md` | apcdeploy users (humans) | install, quickstart, command summary |
+| `llms.md` | apcdeploy users (AI agents) — served by `apcdeploy context` | detailed command specs, gotchas, AI-specific guidance |
+| `CLAUDE.md` (this file) | apcdeploy **developers** (incl. Claude Code) | architecture, conventions, dev workflow |
+| `.claude/rules/documentation.md` | doc editors | conventions for the three docs above |
+
+`llms.md` is **not** a substitute for `CLAUDE.md`: it documents how to *use* the CLI, not how the project is built. When in doubt about where a fact belongs, consult `.claude/rules/documentation.md`.
+
 ## Development Rules
 
 When implementing new features or fixing bugs, follow these absolute rules:
@@ -91,270 +104,39 @@ subset by passing section IDs (`./e2e/e2e-test.sh S1 S3`); set
 
 ### Command Structure (Cobra-based)
 
-All commands follow the pattern: `cmd/<command>.go` → `internal/<command>/executor.go`
+Every command follows: `cmd/<command>.go` (CLI parsing only) → `internal/<command>/executor.go` (business logic, Factory pattern, accepts `reporter.Reporter`). `init` and `edit` additionally own a `workflow.go` for their multi-step interactive flow.
 
-**Exception**: The `context` command is a simple utility that only outputs embedded content (`llms.md`). It does not follow the standard command structure and has no corresponding `internal/context/` directory. The implementation is entirely contained in `cmd/context.go`, with the content embedded in `main.go` and passed via `cmd.SetLLMsContent()`.
-
-1. **cmd/**: Cobra command definitions and CLI flag parsing
-   - `root.go`: Root command with global flags (`--config`, `--silent`); also hosts the `--description` shared helpers (`validateDescription` for the 1024-rune client-side limit and `resolveDescription` for the `defaultDescription` fallback) used by `run` and `edit`
-   - Each command file (`init.go`, `run.go`, `diff.go`, `status.go`, `get.go`, `pull.go`, `rollback.go`, `ls_resources.go`, `edit.go`) handles CLI concerns only
-   - `context.go`: Simple command that outputs embedded `llms.md` content for AI assistants (no internal package)
-   - `init.go`: Supports interactive mode for resource selection; all flags are optional
-   - `ls_resources.go`: Lists AppConfig resources; does not require `apcdeploy.yml`; all flags are optional
-   - `rollback.go`: Stops an ongoing deployment; supports confirmation prompt
-   - `edit.go`: Opens `$EDITOR` on the deployed configuration and deploys; does not require `apcdeploy.yml`; all flags are optional
-
-2. **internal/\<command\>/**: Business logic for each command
-   - `executor.go`: Main execution logic using Factory pattern for testability
-   - `options.go`: Command-specific options struct
-   - `workflow.go` (init, edit commands): Handles multi-step workflow including interactive prompts and resource resolution
-   - Executors accept a `reporter.Reporter` for user feedback
+- `cmd/root.go` hosts the global flags (`--config`, `--silent`) and the `--description` shared helpers (`validateDescription` for the 1024-rune client-side limit, `resolveDescription` for the `defaultDescription` fallback) used by `run` and `edit`.
+- **Commands that do NOT require `apcdeploy.yml`**: `init`, `ls-resources`, `edit`.
+- **Exception**: the `context` command is a self-contained utility that outputs embedded `llms.md` via `cmd.SetLLMsContent()` from `main.go`. There is no `internal/context/` package.
 
 ### Core Packages
 
-#### internal/aws
+Package-level index. Read the source for details — this only points you at the right place and surfaces non-obvious conventions.
 
-AWS AppConfig client wrapper with:
+- `internal/aws`: AWS AppConfig SDK wrapper. Owns `AppConfigAPI` (mocked in `internal/aws/mock/`), the name→ID resolver, deployment lifecycle (incl. `StopDeployment`), and `ErrNoDeployment` sentinel consumed by `pull` / `edit` via `errors.Is`.
+- `internal/config`: Loads / validates `apcdeploy.yml` and data files (JSON/YAML/text). Owns normalization (`HasContentChanged`, `NormalizeByExtension`, FeatureFlags metadata stripping) and pre-deploy validation (size + syntax) shared by `run` / `edit`.
+- `internal/reporter` + `internal/cli`: The single output abstraction. See [Output Contract](.claude/rules/output-contract.md). Executors MUST NOT call `fmt.Fprint*` and MUST NOT branch on `opts.Silent` — Reporter selection in `cmd/root.go` handles silent semantics.
+- `internal/prompt`: Interactive prompt interface (`Select` / `Input` / `CheckTTY`). TTY check prevents hangs in non-interactive environments.
+- `internal/batch`: Multi-config orchestration for `run` / `diff` / `pull`. Pre-loads/validates every `-c` target before any AWS work, runs under a worker pool with fail-fast or `ContinueOnError`. Each executor exposes both `Execute` (single-config) and `RunOnTarget` (orchestrator), sharing a `runOnTargetWith*` body so output is bit-identical between paths.
+- `internal/deploywait`: Helpers between `internal/aws` and `internal/reporter` that adapt deployment polling ticks into `Targets.SetPhase` / `SetProgress`. Lives in its own package to avoid `aws ↔ reporter` reverse dependencies.
+- `internal/apcerrors`: Maps AWS API error codes to short user-facing resolution hints via `Resolution(err)`. Add new hints to `resolutionHints` rather than inlining at call sites — see `.claude/rules/output-contract.md` § "Resolution hints".
+- `internal/display`: Presentation helpers shared by `status` and `rollback` (deployment-status block rendering). Routes everything through `Reporter` so silent mode behaves uniformly — callers MUST NOT branch on `opts.Silent`.
+- Per-command packages (`internal/init`, `internal/run`, `internal/diff`, `internal/edit`, `internal/lsresources`, `internal/pull`, `internal/get`, `internal/status`, `internal/rollback`): each owns an `executor.go` (Factory pattern for testability) plus `options.go`. `init` and `edit` additionally own a `workflow.go` for their multi-step interactive flow.
 
-- `Client`: Wraps AWS SDK AppConfig client with polling interval configuration
-- `AppConfigAPI`: Interface for AppConfig operations (enables mocking in tests)
-- `client_list_paginated.go`: **Centralized list operations with pagination handling** - All AWS List APIs should use these methods
-- `resolver.go`: Resolves resource names (application, profile, environment) to AWS IDs
-- `deployment.go`: Deployment creation, monitoring, and rollback logic (includes `StopDeployment` method)
-- `config_fetcher.go`: Provides `GetLatestDeployedConfiguration` to retrieve deployed configuration from the latest deployment; exposes `ErrNoDeployment` sentinel for callers (`pull`, `edit`) that need to detect "no prior deployment" via `errors.Is`
-- Version info is injected at build time via `main.go` variables
+**IMPORTANT — AWS List API usage:** Always go through the centralized helpers in `internal/aws/client_list_paginated.go` (`ListAllApplications`, `ListAllConfigurationProfiles`, `ListAllEnvironments`, `ListAllDeploymentStrategies`, `ListAllDeployments`, `ListAllHostedConfigurationVersions`). Direct SDK `List*` calls outside that file silently truncate when results exceed AWS page limits.
 
-**IMPORTANT - AWS List API Usage:**
+### Cross-cutting conventions
 
-Always use the centralized list methods in `client_list_paginated.go` instead of calling AWS SDK List APIs directly:
+A few rules don't live cleanly in any one package's source. Spelled out so they survive code drift:
 
-- `ListAllApplications()` - Lists all applications with pagination
-- `ListAllConfigurationProfiles(appID)` - Lists all profiles with pagination
-- `ListAllEnvironments(appID)` - Lists all environments with pagination
-- `ListAllDeploymentStrategies()` - Lists all deployment strategies with pagination
-- `ListAllDeployments(appID, envID)` - Lists all deployments with pagination
-- `ListAllHostedConfigurationVersions(appID, profileID)` - Lists all versions with pagination
-
-These methods automatically handle pagination to ensure all resources are retrieved, even in environments with many resources. Direct SDK calls without pagination can silently truncate results when the resource count exceeds AWS API page limits.
-
-#### internal/config
-
-Configuration file management:
-
-- `types.go`: Defines `Config` struct (application, profile, environment, deployment strategy, data file path)
-- `loader.go`: Loads and validates `apcdeploy.yml`, resolves relative paths
-- `data.go`: Loads data files (JSON/YAML/text) and detects content type
-- `normalize.go`: Normalizes JSON/YAML for consistent comparisons (removes FeatureFlags metadata); also exposes `HasContentChanged` and `NormalizeByExtension` for diff detection shared by `run`, `pull`, and `edit`
-- `validate.go`: Validates configuration data before deployment (size limit + JSON/YAML syntax checks); shared by `run` and `edit`
-- `generator.go`: Generates `apcdeploy.yml` from AWS resources during init
-
-#### internal/reporter
-
-The single output abstraction used by every command. See [Output Contract](.claude/rules/output-contract.md) for the full contract.
-
-- `Reporter`: Interface with `Step`, `Success`, `Info`, `Warn`, `Error`, `Header`, `Box`, `Table`, `Spin`, `Targets`, `Data`, `Diff`. `Targets` is the primary primitive for deployment-target commands (`run` / `diff` / `pull` / `rollback` / `edit` / `get` / `status`); `Step` / `Success` / `Info` / `Spin` are retained for `init`'s sequential interactive workflow only.
-- `internal/cli/reporter.go`: TTY-aware console implementation using lipgloss styles + bubbles spinner frames
-- `internal/cli/silent_reporter.go`: Silent variant that suppresses everything except `Error` / `Data` / `Diff`
-- `internal/cli/style.go`: Centralized lipgloss styles (the only place ANSI/color is defined)
-- `internal/cli/factory.go`: `GetReporter(silent bool) reporter.Reporter` selects the appropriate implementation
-- `internal/cli/tty.go`: TTY detection used to degrade animations and color in non-interactive environments
-
-Executors MUST NOT call `fmt.Fprint*` directly; all output flows through `Reporter`. Executors MUST NOT branch on `opts.Silent` — Reporter selection in `cmd/root.go` handles silent semantics.
-
-#### internal/prompt
-
-Interactive prompt interface for user input:
-
-- `Prompter`: Interface with `Select()`, `Input()`, and `CheckTTY()` methods for interactive operations
-- `internal/prompt/huh.go`: Implementation using `huh` library for terminal UI
-- `internal/prompt/tty.go`: TTY detection utility that checks if stdin is a terminal
-- `internal/prompt/testing/mock.go`: Mock implementation for unit tests
-- TTY checking prevents interactive prompts from hanging in non-interactive environments (CI/CD, scripts)
-
-#### internal/edit
-
-Edit command implementation:
-
-- `executor.go`: Orchestrates the edit workflow using a `WorkflowFactory` for testability
-- `workflow.go`: Resolves the target resources (region/app/profile/env) via flags or interactive prompts, fetches the latest deployed configuration, launches the editor, validates, and deploys
-- `editor.go`: Launches `$EDITOR` (falls back to `vi`) against a temp file whose extension is derived from the content type; cleans up the temp file after use
-- `options.go`: Command-specific options struct (`Region`, `Application`, `Profile`, `Environment`, `DeploymentStrategy`, `WaitDeploy`, `WaitBake`, `Timeout`, `Description`)
-- Reuses `init.InteractiveSelector` for interactive resource selection
-- No configuration file required; operates independently of `apcdeploy.yml`
-- Validation parity with `run`: same size limit and JSON/YAML syntax checks
-- Deployment strategy defaults to the strategy of the most recent deployment when `--deployment-strategy` is omitted
-
-#### internal/batch
-
-Multi-config orchestration for `run` / `diff` / `pull`:
-
-- `target.go`: `Target` struct (`Path`, `Config`, `Identifier`) — one loaded `-c` argument
-- `loader.go`: `LoadAll(paths)` pre-loads and validates every config before any AWS work, deduplicates equivalent paths (`./x.yml` vs `x.yml`), and surfaces identifier collisions (`region/app/profile/env` 4-tuple) with `ErrDuplicateTarget`
-- `orchestrator.go`: worker-pool driver with FIFO start order, optional `Parallel` limit (default = `0`, interpreted as `len(targets)`), fail-fast (queued targets get `Skip("skipped (fail-fast)")` without cancelling in-flight ones) or `ContinueOnError`. Returns a `Summary` (OK / NoOp / Skipped / Failed counts + `[]TargetError` for the post-run "Errors:" section)
-- `NewTargetReporter(tg, id)`: wraps a single row of an existing `Targets` handle so single-target executor entry points can share their per-target body with the orchestrator path
-
-Each executor exposes both `Execute(ctx, opts)` (single-config) and `RunOnTarget(ctx, *batch.Target, reporter.TargetReporter, ...)` (orchestrator entry point); both delegate to a shared `runOnTargetWith*` body so the per-target output is bit-identical between paths. `cmd/run.go` / `cmd/diff.go` / `cmd/pull.go` dispatch on `len(configFiles)` — single-config keeps the existing path (so the row identifier still shows the SDK-resolved default region when `cfg.Region` is empty); multi-config goes through the orchestrator and requires region in yml.
-
-#### internal/deploywait
-
-Helpers shared by deploy-shape commands (`run` and `edit`) that wait on AppConfig deployments and surface progress through `Reporter.Targets`:
-
-- `elapsed.go`: `AWSElapsedForDeploy` / `AWSElapsedForBake` — returns the AWS-recorded phase elapsed (BAKE_TIME_STARTED − StartedAt or CompletedAt − StartedAt), with `time.Since(fallback)` as the wall-clock fallback when AWS data is unavailable
-- `tick.go`: `MakeTargetsDeployTick` / `MakeTargetsBakeTick` — adapts AWS polling tick callbacks (`aws.DeploymentTickFunc` / `aws.BakeTickFunc`) into `TargetReporter.SetProgress` / `SetPhase` calls
-- `timeout.go`: `RemainingDuration(deadline)` — returns the time until deadline clamped at 1s for `awsClient.Wait*` invocations
-
-The package sits between `internal/aws` (deployment polling / timestamps) and `internal/reporter` (Targets primitive). Placing it in either parent would introduce a reverse dependency: `aws` would gain a UI dependency on Reporter, or `cli`/`reporter` would gain an AWS-domain dependency on `DeploymentState`.
-
-#### internal/lsresources
-
-Resource listing functionality for discovering AppConfig resources:
-
-- `executor.go`: Orchestrates the resource listing workflow using Factory pattern
-- `lister.go`: Core logic for fetching AppConfig resources (applications, profiles, environments, deployment strategies)
-- `formatter.go`: `FormatJSON` returns the JSON payload; `RenderHumanReadable` emits the human view through Reporter primitives (`Header` / `Table` / `Info`)
-- `types.go`: Defines data structures (`ResourcesTree`, `Application`, `ConfigurationProfile`, `Environment`, `DeploymentStrategy`)
-- `options.go`: Command-specific options struct (`Region`, `JSON`, `ShowStrategies`, `Silent`)
-- Factory pattern enables dependency injection for testing (custom `ClientFactory`)
-- No configuration file required; operates independently of `apcdeploy.yml`
-
-### Key Workflows
-
-#### Deployment Flow (run command)
-
-1. Load local config (`apcdeploy.yml`) and data file
-2. Resolve resource names to AWS IDs (application, profile, environment, deployment strategy)
-3. Compare local content with latest deployed version (auto-skip if identical unless `--force`)
-4. Create new hosted configuration version
-5. Start deployment
-6. Optionally wait for deployment:
-   - `--wait-deploy`: Wait until deployment phase completes (enters BAKING state)
-   - `--wait-bake`: Wait for complete deployment (DEPLOYING → BAKING → COMPLETE)
-
-#### Diff Calculation
-
-- For FeatureFlags profiles: Strips `_updatedAt`/`_createdAt` metadata before comparison
-- Normalizes both JSON and YAML to consistent formatting
-- Uses `github.com/sergi/go-diff/diffmatchpatch` for unified diff output
-- Special exit code (1) if differences found with `--exit-nonzero` flag
-
-#### Initialization (init command)
-
-1. TTY check: If any flags are omitted (requiring interactive prompts), verify stdin is a terminal
-   - Returns `ErrNoTTY` with helpful message suggesting to provide all flags if not a TTY
-2. If flags are omitted, use interactive prompts to select:
-   - AWS region (with account ID detection)
-   - Application
-   - Configuration profile
-   - Environment
-3. Fetch latest deployed configuration from AWS using `GetLatestDeployedConfiguration`
-   - Gets the latest deployment for the selected profile/environment
-   - Retrieves the configuration content from that deployment
-   - If no deployment exists, creates config file without data file
-4. Auto-detect ContentType from the hosted configuration version
-5. Generate `apcdeploy.yml` with resolved settings
-6. Save data file with appropriate extension (`.json`, `.yaml`, `.txt`)
-
-Interactive mode uses `huh` library for terminal UI prompts. TTY checking prevents the command from hanging in non-interactive environments (CI/CD pipelines, scripts).
-
-#### Get Flow (get command)
-
-1. Load local config (`apcdeploy.yml`)
-2. Resolve resource names to AWS IDs
-3. Check TTY availability (if confirmation prompt required)
-   - Returns `ErrNoTTY` with helpful message suggesting `--yes` flag if not a TTY
-4. Show confirmation prompt (unless `--yes` flag is used)
-5. Fetch latest deployed configuration from AppConfig
-6. Output configuration to stdout (respects content type formatting)
-
-#### Pull Flow (pull command)
-
-1. Load local config (`apcdeploy.yml`)
-2. Resolve resource names to AWS IDs (application, profile, environment)
-3. Get latest deployed configuration using `GetLatestDeployedConfiguration`
-   - Fetches the latest deployment for the configuration profile
-   - Retrieves configuration content, content type, and deployment metadata
-   - Returns an error wrapping `aws.ErrNoDeployment` if no deployment exists
-4. Compare local and remote content after normalization
-   - For FeatureFlags profiles: Removes `_updatedAt`/`_createdAt` metadata before comparison
-   - If no differences found, skip update and report "already up to date"
-5. Update local data file only if changes detected
-   - Automatically detects content type from the hosted configuration version
-   - Overwrites existing data file (force=true)
-
-Key characteristics:
-- **Idempotent**: Only updates file when changes exist; safe to run repeatedly
-- Does NOT use AppConfig Data API (no per-call charges)
-- Useful when configuration changes are made directly in AWS Console
-- Syncs local files with currently deployed state
-- Supports silent mode for script-friendly output
-
-#### Resource Listing Flow (ls-resources command)
-
-1. Create AWS client with specified region (or use SDK default)
-2. Fetch all deployment strategies (always fetched, optionally displayed)
-3. Fetch all applications in the region
-4. For each application:
-   - Fetch all configuration profiles
-   - Fetch all environments
-   - Sort profiles and environments by name
-5. Sort applications by name for consistent output
-6. Emit output:
-   - Human-readable mode: Reporter primitives (`Header` per region/app, `Table` for strategies/profiles/environments) on stderr — suppressed under `--silent`
-   - JSON mode: Encoded payload written to stdout via `Reporter.Data` (always shown, even under `--silent`)
-
-Key characteristics:
-- No configuration file required (operates independently)
-- Read-only operation (no AWS resource modifications)
-- Use `--json` for script consumption; the human-readable view is for terminals only and is suppressed entirely under `--silent`
-- Deployment strategies fetched but hidden by default (use `--show-strategies` to display)
-- All resources sorted alphabetically for consistent output
-
-#### Edit Flow (edit command)
-
-1. Parse flags; run TTY check if any of `--region`/`--app`/`--profile`/`--env` are omitted
-2. Resolve region (flag or interactive prompt), then create the AWS client
-3. Select application/profile/environment via flag or interactive prompt
-4. Resolve resource names to AWS IDs
-5. Fetch the latest deployed configuration using `GetLatestDeployedConfiguration`
-   - Error wrapping `aws.ErrNoDeployment` if no prior deployment exists (shared with `pull`)
-6. Determine deployment strategy:
-   - If `--deployment-strategy` is provided, resolve it to an ID
-   - Otherwise reuse the strategy of the latest deployment (from `DeployedConfigInfo.DeploymentStrategyID`)
-7. Check for ongoing deployments; abort if one is in progress
-8. Launch `$EDITOR` (defaults to `vi`) on a temp file. Extension is derived from the content type (`.json`/`.yaml`/`.txt`)
-9. Validate the edited content (size + JSON/YAML syntax) with the same rules as `run`
-10. Normalize and compare; skip deployment if content is unchanged
-11. Create a new hosted configuration version and start deployment
-12. Optionally wait for `--wait-deploy` or `--wait-bake`
-
-Key characteristics:
-- **No `apcdeploy.yml` required**: Targets are specified via flags or interactive prompts
-- **Requires TTY**: Interactive selection (if any) and `$EDITOR` both need a terminal
-- **Strategy inheritance**: Omit `--deployment-strategy` to reuse the previous deployment's strategy
-- **Validation parity with `run`**: Same checks apply before AWS mutations
-
-#### Rollback Flow (rollback command)
-
-1. Load local config (`apcdeploy.yml`)
-2. Resolve resource names to AWS IDs (application, profile, environment)
-3. Find ongoing deployment:
-   - Automatically detects the current ongoing deployment (DEPLOYING or BAKING state)
-   - Returns `ErrNoOngoingDeployment` if no ongoing deployment exists
-4. Get deployment details for confirmation display
-5. Prompt for confirmation (unless `--yes` flag is used):
-   - Check TTY availability before interactive prompt
-   - Returns `ErrNoTTY` with helpful message suggesting `--yes` flag if not a TTY
-   - Display deployment status and ask for confirmation
-   - Returns `ErrUserDeclined` if user declines
-6. Stop deployment using AWS AppConfig StopDeployment API
-7. Report success
-
-Key characteristics:
-- **Does NOT support AllowRevert**: Only stops in-progress deployments
-- Maintains local files as source of truth (no AWS version history dependency)
-- Automatically detects and stops the current ongoing deployment
-- Requires confirmation by default for safety
-- Supports silent mode for script-friendly output
+- **TTY discipline**: every command that may prompt (`init`, `edit`, `rollback`, `get`) checks TTY before prompting and returns `prompt.ErrNoTTY` with a hint pointing at the bypass flag (`--yes` or "supply all flags") when stdin is not a terminal. The check sits in the executor, not in the prompter.
+- **`pull` / `edit` "no prior deployment"**: both surface failures as errors that wrap `aws.ErrNoDeployment`. New callers of `GetLatestDeployedConfiguration` should preserve that wrap so `errors.Is` works.
+- **`edit` strategy inheritance**: omit `--deployment-strategy` to reuse the previous deployment's strategy via `DeployedConfigInfo.DeploymentStrategyID`. Do not introduce a hard-coded fallback.
+- **`run` / `edit` validation parity**: pre-deploy size + JSON/YAML syntax checks live in `internal/config/validate.go`. New deploy-shape commands MUST reuse it rather than re-implementing.
+- **`run` / `pull` no-op detection**: content comparison is normalized via `internal/config/normalize.go` (FeatureFlags `_updatedAt` / `_createdAt` stripped) and gated on `HasContentChanged`. Both commands skip the AWS write when unchanged.
+- **`rollback` semantics**: stops the *current* ongoing deployment only (no `AllowRevert`). Returns `ErrNoOngoingDeployment` when nothing is in flight.
+- **Wait flags**: `--wait-deploy` and `--wait-bake` are mutually exclusive on `run` and `edit`. Both honor `--timeout` (default 1800s, applied across phases).
 
 ### Testing Patterns
 
@@ -369,84 +151,13 @@ Key characteristics:
 
 ### Important Constants
 
-Defined in `internal/config/constants.go`:
-
-- Default deployment strategy
-- Supported content types (JSON, YAML, text)
-- Magic numbers for normalization (indentation, JSON formatting)
-
-### Configuration File Format
-
-`apcdeploy.yml`:
-
-```yaml
-application: <name>
-configuration_profile: <name>
-environment: <name>
-deployment_strategy: <strategy-name>  # optional, defaults to AppConfig.AllAtOnce
-data_file: <path>  # relative to apcdeploy.yml or absolute
-region: <aws-region>  # optional, uses AWS SDK default if omitted
-```
+Constants for default deployment strategy, supported content types, and normalization tunings live in `internal/config/constants.go`. Reach for it before introducing new magic numbers.
 
 ## Output Contract
 
-Every command produces output through `internal/reporter`. The full contract — channels (stdout vs stderr), output kinds (Targets/Step/Success/Info/Warn/Error/Header/Box/Table/Spin/Data/Diff), the per-row state machine (preparing/comparing/creating-version/deploying/baking → done/failed/skipped), `--silent` semantics, TTY degradation, and rules for adding new commands — lives in [.claude/rules/output-contract.md](.claude/rules/output-contract.md).
+The full contract lives in [.claude/rules/output-contract.md](.claude/rules/output-contract.md). Three rules to remember while writing executor code:
 
-Quick reference:
+- stdout = machine-readable payload only (one per command). stderr = everything else.
+- `--silent` (`-s`) suppresses progress; preserves `Error` / `Data` / `Diff`.
+- Executors MUST NOT call `fmt.Fprint*` directly and MUST NOT branch on `opts.Silent` — Reporter selection in `cmd/root.go` is the single source of truth.
 
-- stdout = machine-readable payload (one per command, e.g. `get` body, `diff` body, `ls-resources --json` payload, `status --silent` state).
-- stderr = human-readable progress, structure, errors.
-- `--silent` (`-s`) suppresses everything except `Error`, `Data`, `Diff`. Executors MUST NOT branch on `opts.Silent`.
-
-```bash
-# Show only the diff without metadata
-./apcdeploy diff -c apcdeploy.yml --silent
-
-# Show only the deployment status
-./apcdeploy status -c apcdeploy.yml --silent
-
-# Suppress progress messages during deployment
-./apcdeploy run -c apcdeploy.yml --wait-bake --silent
-```
-
-## Deployment Wait Options
-
-The `run` command supports two wait modes for monitoring deployment progress:
-
-### `--wait-deploy`
-
-Waits until the deployment phase completes (when the deployment enters BAKING state):
-- Monitors deployment progress through the DEPLOYING phase
-- Returns successfully once baking begins
-- Useful for CI/CD pipelines that only need to confirm the rollout started
-
-```bash
-./apcdeploy run -c apcdeploy.yml --wait-deploy
-```
-
-### `--wait-bake`
-
-Waits for complete deployment including the baking phase:
-- Monitors the full deployment lifecycle: DEPLOYING → BAKING → COMPLETE
-- Returns only when deployment is fully complete
-- Deploy phase renders a progress bar (AppConfig reports a real rollout %); bake phase renders a spinner (no quantified progress — bake is a monitoring wait, not a deployment activity).
-- Both phases show a `(~N min left)` countdown derived from the locally observed elapsed time vs the strategy's `DeploymentDurationInMinutes` / `FinalBakeTimeInMinutes`.
-- Recommended for production deployments requiring full validation
-
-```bash
-./apcdeploy run -c apcdeploy.yml --wait-bake
-```
-
-These flags are mutually exclusive and cannot be used together. Either flag can be combined with `--timeout` to specify the total maximum wait duration across both phases (default: 1800 seconds).
-
-## Go Version and Tools
-
-Dev tools are managed by [mise](https://mise.jdx.dev/) via `.mise.toml` (GitHub-releases backend). Run `mise install` to provision them.
-
-- Go 1.26.2
-- golangci-lint v2 with configuration in `.golangci.yml`
-- gofumpt for stricter formatting
-- tparse for test output formatting
-- octocov for coverage reporting
-- goreleaser for release builds
-- terraform for E2E resource provisioning
