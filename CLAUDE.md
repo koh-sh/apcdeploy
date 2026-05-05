@@ -80,6 +80,13 @@ E2E tests require AWS credentials and use Terraform to provision resources:
 - **Clean up**: `mise run e2e-clean` (destroys test resources)
 - **Full workflow**: `mise run e2e-full` (setup, test, cleanup in one command)
 
+The runner (`e2e/e2e-test.sh`) drives per-scenario case files in
+`e2e/cases/` (S1–S9 success scenarios, E1–E5 error scenarios) using shared
+helpers in `e2e/lib/` (`common.sh` for env / output / traps, `assert.sh`
+for assertions, `apc.sh` for CLI wrappers and fixture helpers). Run a
+subset by passing section IDs (`./e2e/e2e-test.sh S1 S3`); set
+`E2E_KEEP_TMP=1` to keep per-section tempdirs for debugging.
+
 ## Architecture
 
 ### Command Structure (Cobra-based)
