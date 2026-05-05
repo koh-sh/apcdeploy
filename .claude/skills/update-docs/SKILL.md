@@ -28,7 +28,7 @@ The shared documentation conventions live in `.claude/rules/documentation.md` an
 - Preserve existing structure, formatting, and tone. Do not overemphasize or overuse emojis.
 - `README.md` — user-facing. Match the existing command-section format **exactly**. Do not invent subsections such as "Key characteristics" or "When to use". Do not compare commands with each other. If uncertain about format, ask first.
 - `CLAUDE.md` — developer-facing. Follow Claude Code best practices: keep it short, do not duplicate source/README/llms.md/rules, prefer `@` imports over inline copies. For each line ask "would removing this cause Claude to make a mistake?" — if not, cut it.
-- `llms.md` — AI-oriented context delivered by `apcdeploy context`. Cover specs, common mistakes, and execution risks. For AI-oriented guidance, bias away from interactive / `--wait-*` features; for human-oriented guidance, include them.
+- `llms.md` — AI-oriented context delivered by `apcdeploy context`. Cover specs, common mistakes, and execution risks. For AI-oriented guidance, bias away from interactive / `--wait-*` features; for human-oriented guidance, include them. Operational rules (per-command template, Errors/Exit Codes policy, compression criteria) live in `.claude/rules/llms-md.md` — consult it before any non-trivial edit.
 
 ## Workflow
 

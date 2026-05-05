@@ -39,3 +39,4 @@ Shared principles for `README.md`, `CLAUDE.md`, and `llms.md`:
 - Be thorough on command specifications and usage.
 - Document overlooked features, common mistakes, and execution risks.
 - `apcdeploy` has interactive and long-running (`--wait-*`) features that are poorly suited to AI use; bias AI-oriented guidance away from them. For human-oriented guidance, cover them.
+- Operational rules (per-command template, Errors/Exit Codes policy, single-source-of-truth dedup, `edit` special case, compression criteria): see `.claude/rules/llms-md.md`.
