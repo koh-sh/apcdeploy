@@ -1,0 +1,9 @@
+{
+  "features": {
+    "new_search": false,
+    "dark_mode": true
+  },
+  "limits": {
+    "upload_mb": 10
+  }
+}

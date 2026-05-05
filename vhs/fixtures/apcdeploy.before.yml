@@ -1,0 +1,6 @@
+application: test-app
+configuration_profile: test-prof
+environment: test-env
+deployment_strategy: fastest
+data_file: data.json
+region: ap-northeast-1
