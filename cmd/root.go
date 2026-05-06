@@ -22,7 +22,7 @@ import (
 const (
 	// exitNoDeployment is returned for the "no relevant deployment to operate
 	// on" family of errors:
-	//   - awsInternal.ErrNoDeployment (pull / edit: never been deployed)
+	//   - awsInternal.ErrNoDeployment (pull / edit / status: never been deployed)
 	//   - rollback.ErrNoOngoingDeployment (rollback: nothing in flight to stop)
 	// Scripts can use this code to branch on "no work to do" without parsing
 	// stderr.
