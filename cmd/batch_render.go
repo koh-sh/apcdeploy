@@ -24,12 +24,9 @@ type summaryConfig struct {
 }
 
 // renderBatchSummary writes the aggregate summary line plus, when there
-// were failures, the per-target Errors: section. The summary is only
-// shown when N >= 2 (single-target output already terminates in the
-// row's Done/Skip/Fail line; an additional summary would be noisy).
-// Both lines go directly to os.Stderr — Reporter has no "plain stderr
-// line" primitive, and using Header/Box/Info would over-format the bare
-// summary.
+// were failures, the per-target Errors: section. Both lines go directly
+// to os.Stderr — Reporter has no "plain stderr line" primitive, and
+// using Header/Box/Info would over-format the bare summary.
 //
 // silent suppresses both the summary and the Errors: section to match
 // the rest of stderr summary output. (Failed targets are already
@@ -38,12 +35,8 @@ type summaryConfig struct {
 // under --silent.) Callers in cmd/ pass isSilent(); tests pass an
 // explicit bool, which removes the package-global mutation that used to
 // race under -race.
-func renderBatchSummary(summary batch.Summary, n int, cfg summaryConfig, silent bool) {
+func renderBatchSummary(summary batch.Summary, cfg summaryConfig, silent bool) {
 	if silent {
-		return
-	}
-	if n < 2 {
-		renderErrorsSection(summary, silent)
 		return
 	}
 	noOp := summary.NoOp + summary.Skipped

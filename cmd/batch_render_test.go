@@ -48,12 +48,12 @@ func captureStderr(t *testing.T, fn func()) string {
 	return string(<-done)
 }
 
-func TestRenderBatchSummary_HiddenForSingleTarget(t *testing.T) {
+func TestRenderBatchSummary_RendersForSingleTarget(t *testing.T) {
 	out := captureStderr(t, func() {
-		renderBatchSummary(batch.Summary{OK: 1}, 1, summaryConfig{noopVerb: "no-op"}, false)
+		renderBatchSummary(batch.Summary{OK: 1}, summaryConfig{noopVerb: "no-op"}, false)
 	})
-	if out != "" {
-		t.Errorf("N=1 should not emit a summary line; got %q", out)
+	if !strings.Contains(out, "1 ok, 0 no-op, 0 failed") {
+		t.Errorf("N=1 should still emit a summary line; got %q", out)
 	}
 }
 
@@ -61,7 +61,6 @@ func TestRenderBatchSummary_RendersForMultipleTargets(t *testing.T) {
 	out := captureStderr(t, func() {
 		renderBatchSummary(
 			batch.Summary{OK: 2, NoOp: 1, Failed: 0, Elapsed: 12 * time.Second},
-			3,
 			summaryConfig{noopVerb: "no-op", withElapsed: true},
 			false,
 		)
@@ -78,7 +77,6 @@ func TestRenderBatchSummary_SkippedFoldedIntoNoOp(t *testing.T) {
 	out := captureStderr(t, func() {
 		renderBatchSummary(
 			batch.Summary{OK: 1, NoOp: 1, Skipped: 1, Failed: 1},
-			4,
 			summaryConfig{noopVerb: "no-op"},
 			false,
 		)
@@ -94,7 +92,6 @@ func TestRenderBatchSummary_SilentSuppresses(t *testing.T) {
 			batch.Summary{OK: 2, Failed: 1, Errors: []batch.TargetError{
 				{Identifier: "us-east-1/a/b/c", Err: errors.New("boom")},
 			}},
-			3,
 			summaryConfig{noopVerb: "no-op"},
 			true,
 		)
@@ -110,7 +107,6 @@ func TestRenderBatchSummary_ErrorsSection(t *testing.T) {
 			batch.Summary{OK: 1, Failed: 1, Errors: []batch.TargetError{
 				{Identifier: "us-east-1/a/b/c", Err: errors.New("boom")},
 			}},
-			2,
 			summaryConfig{noopVerb: "no-op"},
 			false,
 		)
@@ -210,6 +206,16 @@ func TestFlushDiffPayloads(t *testing.T) {
 				[]byte("diff-B\n"),
 			},
 			want: "=== id-A ===\ndiff-A\n\n=== id-B ===\ndiff-B\n",
+		},
+		{
+			name: "single target still gets a header (no special-case)",
+			targets: []*batch.Target{
+				{Identifier: "us-east-1/a/b/dev"},
+			},
+			payloads: [][]byte{
+				[]byte("+a\n+b\n"),
+			},
+			want: "=== us-east-1/a/b/dev ===\n+a\n+b\n",
 		},
 	}
 	for _, tt := range tests {

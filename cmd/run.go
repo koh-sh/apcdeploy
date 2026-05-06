@@ -38,6 +38,21 @@ func RunCommand() *cobra.Command {
 	return newRunCmd()
 }
 
+// validateRunFlags checks the run-command flags whose validity does not
+// depend on per-target state. Run once at the cmd layer (rather than
+// inside each per-target RunOnTarget call) so the user gets the same
+// error regardless of -c count and the orchestrator never starts when
+// the flags are bogus.
+func validateRunFlags() error {
+	if runTimeout < 0 {
+		return fmt.Errorf("timeout must be a non-negative value")
+	}
+	if runWaitDeploy && runWaitBake {
+		return fmt.Errorf("--wait-deploy and --wait-bake cannot be used together")
+	}
+	return nil
+}
+
 func newRunCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "run",
@@ -75,29 +90,12 @@ func runRun(cmd *cobra.Command, args []string) error {
 	if err := validateDescription(runDescription); err != nil {
 		return err
 	}
+	if err := validateRunFlags(); err != nil {
+		return err
+	}
 	description := resolveDescription(cmd, runDescription)
 
 	rep := cli.GetReporter(isSilent())
-
-	// Single-config keeps the existing path so the row identifier still
-	// shows the SDK-resolved default region when cfg.Region is empty
-	// (multi-config requires region in yml).
-	if len(configFiles) <= 1 {
-		path := defaultConfigFile
-		if len(configFiles) == 1 {
-			path = configFiles[0]
-		}
-		opts := &run.Options{
-			ConfigFile:  path,
-			WaitDeploy:  runWaitDeploy,
-			WaitBake:    runWaitBake,
-			Timeout:     runTimeout,
-			Force:       runForce,
-			Description: description,
-		}
-		executor := run.NewExecutor(rep)
-		return executor.Execute(ctx, opts)
-	}
 
 	targets, err := batch.LoadAll(configFiles)
 	if err != nil {
@@ -105,7 +103,11 @@ func runRun(cmd *cobra.Command, args []string) error {
 	}
 
 	executor := run.NewExecutor(rep)
-	baseOpts := &run.Options{
+	// opts is shared (by pointer) across all per-target goroutines launched
+	// by the orchestrator below. All fields MUST be treated as read-only
+	// after construction. If a future change needs per-target mutation,
+	// switch to a per-target copy inside the Execute closure.
+	opts := &run.Options{
 		WaitDeploy:  runWaitDeploy,
 		WaitBake:    runWaitBake,
 		Timeout:     runTimeout,
@@ -119,17 +121,11 @@ func runRun(cmd *cobra.Command, args []string) error {
 		ContinueOnError: runContinueOnError,
 		Reporter:        rep,
 		Execute: func(ctx context.Context, t *batch.Target, tr reporter.TargetReporter) error {
-			// Each call gets its own Options copy via the per-target
-			// ConfigFile (kept for parity with single-config — the
-			// executor reads it for diagnostics but the data file path
-			// already lives in t.Config.DataFile).
-			perTarget := *baseOpts
-			perTarget.ConfigFile = t.Path
-			return executor.RunOnTarget(ctx, t, tr, &perTarget)
+			return executor.RunOnTarget(ctx, t, tr, opts)
 		},
 	}
 	summary, runErr := o.Run(ctx)
 	withElapsed := runWaitDeploy || runWaitBake
-	renderBatchSummary(summary, len(targets), summaryConfig{noopVerb: "no-op", withElapsed: withElapsed}, isSilent())
+	renderBatchSummary(summary, summaryConfig{noopVerb: "no-op", withElapsed: withElapsed}, isSilent())
 	return runErr
 }

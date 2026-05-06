@@ -12,10 +12,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/appconfig/types"
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/aws/mock"
+	batchtest "github.com/koh-sh/apcdeploy/internal/batch/testing"
 	reportertest "github.com/koh-sh/apcdeploy/internal/reporter/testing"
 )
 
 func TestNewExecutor(t *testing.T) {
+	t.Parallel()
 	reporter := &reportertest.MockReporter{}
 	executor := NewExecutor(reporter)
 
@@ -29,26 +31,17 @@ func TestNewExecutor(t *testing.T) {
 	}
 }
 
-func TestExecutorLoadConfigurationError(t *testing.T) {
-	reporter := &reportertest.MockReporter{}
-	executor := NewExecutor(reporter)
-
-	opts := &Options{
-		ConfigFile: "nonexistent.yml",
-	}
-
-	err := executor.Execute(context.Background(), opts)
-
-	if err == nil {
-		t.Error("expected error when loading non-existent config file")
-	}
-
-	if !strings.Contains(err.Error(), "failed to load configuration") {
-		t.Errorf("expected 'failed to load configuration' error, got: %v", err)
-	}
+// runOnTargetForTest defers the per-target plumbing to
+// batchtest.BuildTarget and invokes RunOnTarget.
+func runOnTargetForTest(t *testing.T, rep *reportertest.MockReporter, executor *Executor, configPath string) ([]byte, bool, error) {
+	t.Helper()
+	target, tr, cleanup := batchtest.BuildTarget(t, rep, configPath)
+	defer cleanup()
+	return executor.RunOnTarget(context.Background(), target, tr)
 }
 
 func TestExecutorNoDeployment(t *testing.T) {
+	t.Parallel()
 	// Create temporary test files
 	tempDir, err := os.MkdirTemp("", "executor-nodeploy-*")
 	if err != nil {
@@ -141,18 +134,20 @@ region: us-east-1
 	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, clientFactory)
 
-	opts := &Options{
-		ConfigFile: configPath,
-	}
-
-	err = executor.Execute(context.Background(), opts)
+	payload, hasChanges, err := runOnTargetForTest(t, reporter, executor, configPath)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	// "no prior deployment" is now finalised on the Targets row's Done
-	// transition, and the local data is emitted as the stdout payload (it
-	// acts as the right-hand side of the would-be diff).
+	// transition, and the local data is emitted as the stdout payload
+	// formatted as an "all lines added" unified diff.
+	if !hasChanges {
+		t.Errorf("expected hasChanges=true for no-prior-deployment case")
+	}
+	if len(payload) == 0 || payload[0] != '+' {
+		t.Errorf("expected payload to start with '+' (all-added unified diff); got %q", payload)
+	}
 	hasNotice := false
 	for _, call := range reporter.TargetsCalls {
 		for _, tr := range call.Transitions {
@@ -167,6 +162,7 @@ region: us-east-1
 }
 
 func TestExecutorWithDeployingState(t *testing.T) {
+	t.Parallel()
 	// Create temporary test files
 	tempDir, err := os.MkdirTemp("", "executor-deploying-*")
 	if err != nil {
@@ -248,11 +244,7 @@ region: us-east-1
 	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, clientFactory)
 
-	opts := &Options{
-		ConfigFile: configPath,
-	}
-
-	err = executor.Execute(context.Background(), opts)
+	_, _, err = runOnTargetForTest(t, reporter, executor, configPath)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -261,7 +253,11 @@ region: us-east-1
 	// Warning display is tested in display_test.go
 }
 
-func TestExecutorExitNonzeroWithDifferences(t *testing.T) {
+// TestExecutorWithDifferences exercises the changes path: the executor
+// must return hasChanges=true and a non-empty diff payload, leaving the
+// cmd-layer ExitNonzero policy to decide whether that is fatal.
+func TestExecutorWithDifferences(t *testing.T) {
+	t.Parallel()
 	tempDir, err := os.MkdirTemp("", "executor-exitnonzero-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
@@ -342,22 +338,36 @@ region: us-east-1
 	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, clientFactory)
 
-	opts := &Options{
-		ConfigFile:  configPath,
-		ExitNonzero: true,
+	payload, hasChanges, err := runOnTargetForTest(t, reporter, executor, configPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-
-	err = executor.Execute(context.Background(), opts)
-	if err == nil {
-		t.Error("expected ErrDiffFound, got nil")
+	if !hasChanges {
+		t.Error("expected hasChanges=true when local and remote differ")
 	}
-
-	if !strings.Contains(err.Error(), "differences found") {
-		t.Errorf("expected error to contain 'differences found', got: %v", err)
+	if len(payload) == 0 {
+		t.Error("expected non-empty diff payload when changes exist")
+	}
+	// The Targets row must finalise with a "diff (...)" summary so the
+	// user sees how many lines changed in-line with the identifier.
+	foundDone := false
+	for _, call := range reporter.TargetsCalls {
+		for _, tr := range call.Transitions {
+			if tr.Kind == "done" && strings.Contains(tr.Summary, "diff (") {
+				foundDone = true
+			}
+		}
+	}
+	if !foundDone {
+		t.Errorf("expected Targets.Done summary containing 'diff ('; got: %+v", reporter.TargetsCalls)
 	}
 }
 
-func TestExecutorExitNonzeroWithoutDifferences(t *testing.T) {
+// TestExecutorWithoutDifferences exercises the no-changes path: the
+// executor must return hasChanges=false and an empty payload, leaving
+// the cmd-layer ExitNonzero policy to decide whether that is fatal.
+func TestExecutorWithoutDifferences(t *testing.T) {
+	t.Parallel()
 	tempDir, err := os.MkdirTemp("", "executor-exitnonzero-nodiff-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
@@ -438,13 +448,27 @@ region: us-east-1
 	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, clientFactory)
 
-	opts := &Options{
-		ConfigFile:  configPath,
-		ExitNonzero: true,
-	}
-
-	err = executor.Execute(context.Background(), opts)
+	payload, hasChanges, err := runOnTargetForTest(t, reporter, executor, configPath)
 	if err != nil {
-		t.Errorf("expected no error when no differences exist, got: %v", err)
+		t.Fatalf("unexpected error when no differences exist: %v", err)
+	}
+	if hasChanges {
+		t.Error("expected hasChanges=false when local and remote match")
+	}
+	if len(payload) != 0 {
+		t.Errorf("expected empty payload when no changes; got %q", payload)
+	}
+	// The Targets row must finalise with "no changes" so the user sees
+	// the early-exit reason in-line with the identifier.
+	foundDone := false
+	for _, call := range reporter.TargetsCalls {
+		for _, tr := range call.Transitions {
+			if tr.Kind == "done" && strings.Contains(tr.Summary, "no changes") {
+				foundDone = true
+			}
+		}
+	}
+	if !foundDone {
+		t.Errorf("expected Targets.Done('no changes'); got: %+v", reporter.TargetsCalls)
 	}
 }

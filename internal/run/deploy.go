@@ -36,33 +36,6 @@ func NewWithClient(cfg *config.Config, awsClient *aws.Client) *Deployer {
 	}
 }
 
-// loadConfiguration loads the configuration file and data file.
-// It returns the parsed Config, the raw data file content, and any error encountered.
-// The data file path in the returned Config is resolved to an absolute path.
-//
-// Parameters:
-//   - configPath: Path to the apcdeploy.yml configuration file
-//
-// Returns:
-//   - *config.Config: Parsed configuration with resolved paths
-//   - []byte: Raw content of the data file
-//   - error: Any error during loading or parsing
-func loadConfiguration(configPath string) (*config.Config, []byte, error) {
-	// Load the config file
-	cfg, err := config.LoadConfig(configPath)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to load configuration: %w", err)
-	}
-
-	// Read data file (path is already resolved by LoadConfig)
-	dataContent, err := config.LoadDataFile(cfg.DataFile)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to read data file %s: %w", cfg.DataFile, err)
-	}
-
-	return cfg, dataContent, nil
-}
-
 // ValidateLocalData validates the configuration data locally
 func (d *Deployer) ValidateLocalData(data []byte, contentType string) error {
 	return config.ValidateData(data, contentType)

@@ -3,6 +3,8 @@ package batch
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -297,5 +299,117 @@ func TestOrchestrator_DefaultParallelIsAll(t *testing.T) {
 	}
 	if res.summary.OK != len(targets) {
 		t.Errorf("summary.OK = %d, want %d", res.summary.OK, len(targets))
+	}
+}
+
+// errSentinel is a package-local sentinel used to assert that
+// Orchestrator.Run preserves errors.Is matching through whatever wrapper
+// it returns. The actual production sentinel (aws.ErrNoDeployment) lives
+// in a higher layer; using a local sentinel keeps this test free of that
+// dependency.
+var errSentinel = errors.New("sentinel")
+
+// TestOrchestrator_PreservesSentinelSingleFailure asserts errors.Is finds
+// a wrapped sentinel when exactly one target fails. This is the most
+// load-bearing case in production: cmd/root.go maps
+// aws.ErrNoDeployment to exit code 2 via errors.Is on the orchestrator's
+// return value.
+func TestOrchestrator_PreservesSentinelSingleFailure(t *testing.T) {
+	t.Parallel()
+
+	rep := &reportertesting.MockReporter{}
+	targets := makeTargets("a")
+	o := &Orchestrator{
+		Targets:  targets,
+		Reporter: rep,
+		Execute: func(_ context.Context, _ *Target, tr reporter.TargetReporter) error {
+			wrapped := fmt.Errorf("wrapped: %w", errSentinel)
+			tr.Fail(wrapped)
+			return wrapped
+		},
+	}
+	_, err := o.Run(context.Background())
+	if err == nil {
+		t.Fatal("Run should return non-nil error")
+	}
+	if !errors.Is(err, errSentinel) {
+		t.Errorf("errors.Is(err, sentinel) = false; err = %v", err)
+	}
+}
+
+// TestOrchestrator_PreservesSentinelAmongMultipleFailures asserts a
+// sentinel buried in any one of several failing targets is still found
+// by errors.Is. Without Unwrap() []error this would silently regress to
+// "only the first error matches".
+func TestOrchestrator_PreservesSentinelAmongMultipleFailures(t *testing.T) {
+	t.Parallel()
+
+	rep := &reportertesting.MockReporter{}
+	targets := makeTargets("a", "b", "c")
+	o := &Orchestrator{
+		Targets:         targets,
+		ContinueOnError: true,
+		Reporter:        rep,
+		Execute: func(_ context.Context, tgt *Target, tr reporter.TargetReporter) error {
+			var wrapped error
+			switch tgt.Identifier {
+			case "a":
+				wrapped = errors.New("a failed")
+			case "b":
+				wrapped = fmt.Errorf("b: %w", errSentinel)
+			case "c":
+				wrapped = errors.New("c failed")
+			}
+			tr.Fail(wrapped)
+			return wrapped
+		},
+	}
+	_, err := o.Run(context.Background())
+	if err == nil {
+		t.Fatal("Run should return non-nil error")
+	}
+	if !errors.Is(err, errSentinel) {
+		t.Errorf("errors.Is found no sentinel among multiple failures; err = %v", err)
+	}
+}
+
+// TestOrchestrator_AggregateErrorErrorIsSingleLine asserts the top-level
+// Error string is a one-line summary so cmd/root.go's `✗` line does not
+// duplicate the per-target Errors: section that cmd/batch_render.go
+// already emits. If this test fails, the user is seeing the same
+// failure text twice in stderr.
+func TestOrchestrator_AggregateErrorErrorIsSingleLine(t *testing.T) {
+	t.Parallel()
+
+	rep := &reportertesting.MockReporter{}
+	targets := makeTargets("a", "b", "c")
+	o := &Orchestrator{
+		Targets:         targets,
+		ContinueOnError: true,
+		Reporter:        rep,
+		Execute: func(_ context.Context, _ *Target, tr reporter.TargetReporter) error {
+			err := errors.New("boom")
+			tr.Fail(err)
+			return err
+		},
+	}
+	_, err := o.Run(context.Background())
+	if err == nil {
+		t.Fatal("Run should return non-nil error")
+	}
+	msg := err.Error()
+	if strings.Contains(msg, "\n") {
+		t.Errorf("AggregateError.Error() must be one line; got:\n%s", msg)
+	}
+	if !strings.Contains(msg, "3 of 3") {
+		t.Errorf("expected summary to mention '3 of 3'; got %q", msg)
+	}
+
+	var aggregate *AggregateError
+	if !errors.As(err, &aggregate) {
+		t.Fatalf("errors.As must extract *AggregateError; err = %v", err)
+	}
+	if aggregate.Total != 3 || len(aggregate.Errs) != 3 {
+		t.Errorf("AggregateError = %+v, want Total=3 Errs=3", aggregate)
 	}
 }

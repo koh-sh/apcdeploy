@@ -392,6 +392,7 @@ apcdeploy diff -c apcdeploy.yml
 - **Normalization**: JSON and YAML are normalized (indentation and line-break differences are absorbed); plain text is compared byte-for-byte. For FeatureFlags profiles, `_createdAt` and `_updatedAt` are stripped before comparison.
 - **In-progress deployments**: when a deployment is `DEPLOYING` or `BAKING`, the diff is taken against that in-flight configuration. If that deployment is later rolled back (`ROLLED_BACK`), the diff output may not match the configuration that ends up deployed.
 - **Output**: lines prefixed `-` are present in the deployed version, `+` lines are present locally. When the two match, the command prints `No differences found` and exits 0.
+- **No prior deployment**: when the configuration profile + environment has never been deployed, the local data is emitted as an "all-added" unified diff (every line `+` prefixed) — semantically the would-be initial deployment payload. The command exits `0` (unlike `pull` / `edit`, which exit `2` in this state).
 
 #### Exit Codes
 
@@ -680,7 +681,7 @@ Behavior:
 - Default failure mode is fail-fast: queued targets that haven't started yet are reported as `⊘ skipped (fail-fast)`. Use `--continue-on-error` to run every target regardless of failures.
 - Each target's `--timeout` is independent (it is per-target, not a global wall-clock cap).
 - After all targets settle, a single aggregate line is printed: `N ok, N no-op, N failed [(elapsed)]`. Failed targets are also expanded into an `Errors:` section with optional `Resolution:` hints.
-- `diff`'s stdout is buffered per target and emitted in argument order (so the combined diff stream is deterministic regardless of completion order). Each per-target body is prefixed with `=== <region>/<app>/<profile>/<env> ===`. Single-target output (`-c` once) keeps the existing no-header format so the body still pipes into `patch` / `git apply`.
+- `diff`'s stdout is buffered per target and emitted in argument order (so the combined diff stream is deterministic regardless of completion order). Each per-target body — including single-target invocations — is prefixed with `=== <region>/<app>/<profile>/<env> ===`. To pipe a body into `patch` / `git apply`, strip the header lines first (e.g. `apcdeploy diff -c x.yml | sed '/^=== /d'`).
 - **For AI assistants**: prefer single-target invocations unless the multi-config behavior is explicitly desired. Multi-target output is denser and harder to read step-by-step; failures are aggregated at the end of the run.
 
 ## Silent Mode

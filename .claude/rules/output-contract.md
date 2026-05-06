@@ -186,19 +186,26 @@ introduce more without adding a similar entry here.
 - Per-target callbacks receive `reporter.TargetReporter` (a single-row
   view returned by `batch.NewTargetReporter`) so they don't carry
   their own identifier.
+- Commands that produce per-target stdout payloads (currently only
+  `diff`) use `batch.PayloadCollector` to translate completion order
+  into argument order. The collector lives in `internal/batch` so the
+  index/mutex/slot synchronisation stays out of `cmd/` — callers MUST
+  NOT reintroduce that pattern in command files.
 
-Each executor exposes both `Execute(ctx, opts)` (single-config) and
-`RunOnTarget(ctx, *batch.Target, reporter.TargetReporter, ...)`
-(orchestrator entry point). Both delegate to a shared
-`runOnTargetWith*` body so visual output is bit-identical between the
-two paths. `cmd/{run,diff,pull}.go` dispatch on
-`len(configFiles)`: single-config keeps the existing `Execute` path
-(so the row identifier still shows the SDK-resolved default region
-when `cfg.Region` is empty); multi-config flows through
-`batch.Orchestrator` and requires region in yml.
+**Single-target invocations flow through the same orchestrator** with a
+single goroutine — there is no separate `Execute(ctx, opts)` path. Each
+executor exposes exactly one entry point,
+`RunOnTarget(ctx, *batch.Target, reporter.TargetReporter, ...)`, which
+`cmd/{run,diff,pull}.go` invokes via `batch.Orchestrator` regardless of
+how many `-c` flags were passed. As a consequence, `region` is required
+in every yml (no SDK-default fallback), and the `=== <id> ===` header in
+`diff` output is always emitted.
 
 Failed targets are surfaced both as `Targets.Fail` rows (during the
 run) and as `Errors:` entries in the post-run section (after Close).
+The aggregate summary line (`N ok, N no-op, N failed [(elapsed)]`) is
+emitted by `cmd/batch_render.go` for **every** invocation, including
+N=1 — there is no special-case suppression for single-target runs.
 Resolution hints come from `internal/apcerrors.Resolution`, exactly like
 single-target callers — see "Resolution hints" below.
 
@@ -218,7 +225,7 @@ single-target callers — see "Resolution hints" below.
    payload.
 2. Pick Reporter kinds for everything else. The default shape for a
    deployment-target command is:
-   - Build the canonical identifier with `config.Identifier(region, cfg)`.
+   - Build the canonical identifier with `config.Identifier(cfg)`.
    - Open a `Targets` block, `defer tg.Close()`, drive the row through
      `SetPhase` / `SetProgress` and finalise with `Done` / `Fail` / `Skip`.
    - Optional `Header` + `Table` / `Box` for a final summary or guidance.

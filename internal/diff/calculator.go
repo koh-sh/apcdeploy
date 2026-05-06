@@ -43,9 +43,20 @@ func calculate(remoteContent, localContent, fileName, profileType string) (*Resu
 	// Normalize content based on file extension
 	ext := filepath.Ext(fileName)
 
-	normalizedRemote, err := config.NormalizeByExtension(remoteContent, ext, profileType)
-	if err != nil {
-		return nil, fmt.Errorf("failed to normalize remote content: %w", err)
+	// When remoteContent is empty, treat it as the "no prior deployment"
+	// case: skip normalization on the remote side (empty input would fail
+	// JSON/YAML parsing) and let diffmatchpatch produce an all-added body
+	// against the normalized local content. This is the single entry
+	// point for the diff body, regardless of whether a prior deployment
+	// exists — callers MUST NOT bypass calculate by hand-formatting their
+	// own diff body.
+	var normalizedRemote string
+	if remoteContent != "" {
+		var err error
+		normalizedRemote, err = config.NormalizeByExtension(remoteContent, ext, profileType)
+		if err != nil {
+			return nil, fmt.Errorf("failed to normalize remote content: %w", err)
+		}
 	}
 
 	normalizedLocal, err := config.NormalizeByExtension(localContent, ext, profileType)

@@ -128,6 +128,50 @@ func TestCalculate(t *testing.T) {
 	}
 }
 
+// TestCalculate_NoPriorDeployment exercises the "no prior deployment"
+// path where calculate is invoked with an empty remote. Normalization on
+// the remote side must be skipped (an empty string would fail JSON/YAML
+// parsing) and the resulting unified diff must mark every line of the
+// local content as added.
+func TestCalculate_NoPriorDeployment(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		localContent string
+		fileName     string
+	}{
+		{name: "json", localContent: `{"key": "value"}`, fileName: "config.json"},
+		{name: "yaml", localContent: "key: value\n", fileName: "config.yaml"},
+		{name: "text", localContent: "line1\nline2\n", fileName: "config.txt"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			result, err := calculate("", tt.localContent, tt.fileName, "")
+			if err != nil {
+				t.Fatalf("unexpected error for empty remote: %v", err)
+			}
+			if !result.HasChanges {
+				t.Error("HasChanges = false, want true (empty remote vs non-empty local)")
+			}
+			if result.UnifiedDiff == "" {
+				t.Error("UnifiedDiff is empty, want all-added body")
+			}
+			// Every non-trivial line in the diff must start with '+'.
+			for line := range strings.SplitSeq(strings.TrimRight(result.UnifiedDiff, "\n"), "\n") {
+				if line == "" {
+					continue
+				}
+				if !strings.HasPrefix(line, "+") {
+					t.Errorf("expected every line to start with '+', got %q", line)
+				}
+			}
+		})
+	}
+}
+
 func TestNormalizeJSON(t *testing.T) {
 	tests := []struct {
 		name    string

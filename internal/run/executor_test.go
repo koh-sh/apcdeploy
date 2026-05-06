@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/appconfig/types"
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/aws/mock"
+	batchtest "github.com/koh-sh/apcdeploy/internal/batch/testing"
 	"github.com/koh-sh/apcdeploy/internal/config"
 	reportertest "github.com/koh-sh/apcdeploy/internal/reporter/testing"
 )
@@ -32,115 +33,14 @@ func TestNewExecutor(t *testing.T) {
 	}
 }
 
-func TestExecutorValidateTimeout(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name        string
-		timeout     int
-		wantErr     bool
-		expectedMsg string
-	}{
-		{
-			name:        "negative timeout is invalid",
-			timeout:     -1,
-			wantErr:     true,
-			expectedMsg: "timeout must be a non-negative value",
-		},
-		{
-			name:    "zero timeout is valid",
-			timeout: 0,
-			wantErr: false,
-		},
-		{
-			name:    "positive timeout is valid",
-			timeout: 300,
-			wantErr: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			reporter := &reportertest.MockReporter{}
-			executor := NewExecutor(reporter)
-
-			opts := &Options{
-				ConfigFile: "nonexistent.yml",
-				WaitDeploy: false,
-				WaitBake:   false,
-				Timeout:    tt.timeout,
-			}
-
-			err := executor.Execute(context.Background(), opts)
-
-			if tt.wantErr {
-				if err == nil {
-					t.Error("expected error for negative timeout, got nil")
-				} else if !strings.Contains(err.Error(), tt.expectedMsg) {
-					t.Errorf("expected error containing %q, got %q", tt.expectedMsg, err.Error())
-				}
-			} else {
-				// We expect an error here because the config file doesn't exist
-				// but it should not be a timeout validation error
-				if err != nil && strings.Contains(err.Error(), "timeout must be a non-negative value") {
-					t.Errorf("unexpected timeout validation error: %v", err)
-				}
-			}
-		})
-	}
-}
-
-func TestExecutorValidateWaitFlags(t *testing.T) {
-	t.Parallel()
-	reporter := &reportertest.MockReporter{}
-	executor := NewExecutor(reporter)
-
-	opts := &Options{
-		ConfigFile: "nonexistent.yml",
-		WaitDeploy: true,
-		WaitBake:   true,
-		Timeout:    300,
-	}
-
-	err := executor.Execute(context.Background(), opts)
-
-	if err == nil {
-		t.Error("expected error when both --wait-deploy and --wait-bake are specified")
-		return
-	}
-
-	if !strings.Contains(err.Error(), "--wait-deploy and --wait-bake cannot be used together") {
-		t.Errorf("expected error about mutually exclusive flags, got: %v", err)
-	}
-}
-
-func TestExecutorLoadConfigurationError(t *testing.T) {
-	t.Parallel()
-	reporter := &reportertest.MockReporter{}
-	executor := NewExecutor(reporter)
-
-	opts := &Options{
-		ConfigFile: "nonexistent.yml",
-		WaitDeploy: false,
-		WaitBake:   false,
-		Timeout:    300,
-	}
-
-	err := executor.Execute(context.Background(), opts)
-
-	if err == nil {
-		t.Error("expected error when loading non-existent config file")
-	}
-
-	if !strings.Contains(err.Error(), "failed to load configuration") {
-		t.Errorf("expected 'failed to load configuration' error, got: %v", err)
-	}
-
-	// Config loading is an instant operation: per the output contract it does
-	// not produce any reporter output on failure — the returned error is the
-	// signal. The reporter should be untouched.
-	if len(reporter.Messages) != 0 {
-		t.Errorf("expected no reporter messages for config-load failure, got: %v", reporter.Messages)
-	}
+// runOnTargetForTest defers the per-target plumbing (Target / Targets /
+// TargetReporter assembly) to batchtest.BuildTarget so the wiring stays
+// consistent with diff and pull tests, then invokes RunOnTarget.
+func runOnTargetForTest(t *testing.T, rep *reportertest.MockReporter, executor *Executor, configPath string, opts *Options) error {
+	t.Helper()
+	target, tr, cleanup := batchtest.BuildTarget(t, rep, configPath)
+	defer cleanup()
+	return executor.RunOnTarget(context.Background(), target, tr, opts)
 }
 
 // TestExecutorFullWorkflowWithMock tests the complete deployment workflow with mocked AWS
@@ -254,13 +154,12 @@ region: us-east-1
 	executor := NewExecutorWithFactory(reporter, deployerFactory)
 
 	opts := &Options{
-		ConfigFile: configPath,
 		WaitDeploy: false,
 		WaitBake:   false,
 		Timeout:    300,
 	}
 
-	err = executor.Execute(context.Background(), opts)
+	err = runOnTargetForTest(t, reporter, executor, configPath, opts)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -428,13 +327,12 @@ region: us-east-1
 			executor := NewExecutorWithFactory(reporter, deployerFactory)
 
 			opts := &Options{
-				ConfigFile: configPath,
 				WaitDeploy: tt.waitDeploy,
 				WaitBake:   tt.waitBake,
 				Timeout:    30,
 			}
 
-			err = executor.Execute(context.Background(), opts)
+			err = runOnTargetForTest(t, reporter, executor, configPath, opts)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -585,14 +483,13 @@ region: us-east-1
 	executor := NewExecutorWithFactory(reporter, deployerFactory)
 
 	opts := &Options{
-		ConfigFile: configPath,
 		WaitDeploy: false,
 		WaitBake:   false,
 		Timeout:    300,
 		Force:      false,
 	}
 
-	err = executor.Execute(context.Background(), opts)
+	err = runOnTargetForTest(t, reporter, executor, configPath, opts)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -721,14 +618,13 @@ region: us-east-1
 	executor := NewExecutorWithFactory(reporter, deployerFactory)
 
 	opts := &Options{
-		ConfigFile: configPath,
 		WaitDeploy: false,
 		WaitBake:   false,
 		Timeout:    300,
 		Force:      true, // Force deployment even without changes
 	}
 
-	err = executor.Execute(context.Background(), opts)
+	err = runOnTargetForTest(t, reporter, executor, configPath, opts)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -828,13 +724,12 @@ region: us-east-1
 	executor := NewExecutorWithFactory(reporter, deployerFactory)
 
 	opts := &Options{
-		ConfigFile: configPath,
 		WaitDeploy: false,
 		WaitBake:   false,
 		Timeout:    300,
 	}
 
-	err = executor.Execute(context.Background(), opts)
+	err = runOnTargetForTest(t, reporter, executor, configPath, opts)
 
 	if err == nil {
 		t.Fatal("expected error for ongoing deployment")

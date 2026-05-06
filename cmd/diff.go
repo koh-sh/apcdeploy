@@ -2,10 +2,8 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
-	"sync"
 
 	"github.com/koh-sh/apcdeploy/internal/batch"
 	"github.com/koh-sh/apcdeploy/internal/cli"
@@ -35,9 +33,8 @@ This command compares your local configuration file with the latest deployed ver
 and displays the differences in unified diff format.
 
 Pass -c multiple times to diff several configurations in one invocation.
-Multi-target diffs prefix each body with "=== <region>/<app>/<profile>/<env> ==="
-so the combined stream stays unambiguous; single-target output omits the
-header so it can be piped into patch/git apply.`,
+Each body is prefixed with "=== <region>/<app>/<profile>/<env> ===" so the
+combined stream stays unambiguous regardless of target count.`,
 		RunE:         runDiff,
 		SilenceUsage: true, // Don't show usage on runtime errors
 	}
@@ -53,42 +50,17 @@ func runDiff(cmd *cobra.Command, args []string) error {
 	ctx := commandContext(cmd)
 	rep := cli.GetReporter(isSilent())
 
-	// Single-config keeps the existing path so the row identifier still
-	// shows the SDK-resolved default region when cfg.Region is empty
-	// (multi-config requires region in yml).
-	if len(configFiles) <= 1 {
-		path := defaultConfigFile
-		if len(configFiles) == 1 {
-			path = configFiles[0]
-		}
-		opts := &diff.Options{
-			ConfigFile:  path,
-			ExitNonzero: diffExitNonzero,
-		}
-		err := diff.NewExecutor(rep).Execute(ctx, opts)
-		if errors.Is(err, diff.ErrDiffFound) {
-			os.Exit(1)
-		}
-		return err
-	}
-
 	targets, err := batch.LoadAll(configFiles)
 	if err != nil {
 		return fmt.Errorf("failed to load configurations: %w", err)
 	}
 
 	executor := diff.NewExecutor(rep)
-	// Per-target stdout payloads are collected in argument order so the
-	// combined stdout stays deterministic regardless of completion order.
-	// Indexed by target slot — distinct goroutines write to distinct
-	// slots so a sync.Mutex around the slice header is sufficient.
-	payloads := make([][]byte, len(targets))
-	hasChanges := make([]bool, len(targets))
-	indexByID := make(map[string]int, len(targets))
-	for i, t := range targets {
-		indexByID[t.Identifier] = i
-	}
-	var mu sync.Mutex
+	// Per-target stdout payloads are collected via PayloadCollector so
+	// the synchronisation needed to translate completion order into
+	// argument order stays inside internal/batch — see
+	// payload_collector.go for why this lives there rather than here.
+	collector := batch.NewPayloadCollector(targets)
 
 	o := &batch.Orchestrator{
 		Targets:         targets,
@@ -97,25 +69,20 @@ func runDiff(cmd *cobra.Command, args []string) error {
 		Reporter:        rep,
 		Execute: func(ctx context.Context, t *batch.Target, tr reporter.TargetReporter) error {
 			payload, changed, runErr := executor.RunOnTarget(ctx, t, tr)
-			mu.Lock()
-			idx := indexByID[t.Identifier]
-			payloads[idx] = payload
-			hasChanges[idx] = changed
-			mu.Unlock()
+			collector.Set(t.Identifier, payload, changed)
 			return runErr
 		},
 	}
 	summary, runErr := o.Run(ctx)
 
-	flushDiffPayloads(rep, targets, payloads)
+	flushDiffPayloads(rep, targets, collector.Payloads())
 
-	renderBatchSummary(summary, len(targets), summaryConfig{noopVerb: "no-op"}, isSilent())
+	renderBatchSummary(summary, summaryConfig{noopVerb: "no-op"}, isSilent())
 
-	// --exit-nonzero collapses "any change" across all targets, matching
-	// the single-target contract. Even if some targets failed we still
-	// exit 1 — both conditions yield non-zero.
+	// --exit-nonzero collapses "any change" across all targets. Even if
+	// some targets failed we still exit 1 — both conditions yield non-zero.
 	if diffExitNonzero {
-		for _, c := range hasChanges {
+		for _, c := range collector.HasChanges() {
 			if c {
 				os.Exit(1)
 			}
@@ -125,10 +92,10 @@ func runDiff(cmd *cobra.Command, args []string) error {
 }
 
 // flushDiffPayloads writes per-target diff bodies to stdout in argument
-// order with a `=== <id> ===` header per target (N>=2 always carries
-// headers). Empty payloads (no-op targets / failed targets) are
-// skipped. A blank line is inserted before every non-first non-empty
-// payload so the stream stays readable when piped through `less`.
+// order with a `=== <id> ===` header per target. Empty payloads (no-op
+// targets / failed targets) are skipped. A blank line is inserted before
+// every non-first non-empty payload so the stream stays readable when
+// piped through `less`.
 func flushDiffPayloads(rep reporter.Reporter, targets []*batch.Target, payloads [][]byte) {
 	first := true
 	for i, t := range targets {

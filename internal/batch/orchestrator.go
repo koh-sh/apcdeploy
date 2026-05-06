@@ -3,7 +3,6 @@ package batch
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -184,15 +183,25 @@ func (o *Orchestrator) Run(ctx context.Context) (Summary, error) {
 	}
 
 	if len(errs) > 0 {
-		return summary, fmt.Errorf("%d target(s) failed", len(errs))
+		// AggregateError summarises in Error() but keeps Unwrap()
+		// returning the per-target errors so callers can inspect
+		// sentinel values via errors.Is — most importantly
+		// cmd/root.go's exit-code classifier, which maps
+		// aws.ErrNoDeployment to exit 2. Using a dedicated type
+		// (rather than errors.Join) keeps the top-level
+		// Reporter.Error line a single sentence instead of
+		// duplicating the per-target Errors: section that
+		// cmd/batch_render.go already prints.
+		return summary, &AggregateError{Total: len(o.Targets), Errs: errs}
 	}
 	return summary, nil
 }
 
 // NewTargetReporter returns a TargetReporter that drives a single row of
-// an existing Targets handle. Used by single-target executor entry points
-// (e.g. pull.Executor.Execute) that share their per-target body with the
-// orchestrator path — both routes need the same TargetReporter shape.
+// an existing Targets handle. Used by callers that open a Targets handle
+// outside the orchestrator (e.g. batchtest.BuildTarget for per-command
+// executor tests) and need the same per-row view shape the orchestrator
+// hands to its workers.
 //
 // The returned view is NOT goroutine-safe by itself, but the underlying
 // Targets handle is — each caller should own its own view.

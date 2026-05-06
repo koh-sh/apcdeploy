@@ -46,20 +46,6 @@ func runPull(cmd *cobra.Command, args []string) error {
 	ctx := commandContext(cmd)
 	rep := cli.GetReporter(isSilent())
 
-	// Single-config keeps the existing path so the row identifier still
-	// shows the SDK-resolved default region when cfg.Region is empty.
-	// Multi-config requires region in yml and flows through the
-	// orchestrator.
-	if len(configFiles) <= 1 {
-		path := defaultConfigFile
-		if len(configFiles) == 1 {
-			path = configFiles[0]
-		}
-		opts := &pull.Options{ConfigFile: path}
-		executor := pull.NewExecutor(rep)
-		return executor.Execute(ctx, opts)
-	}
-
 	targets, err := batch.LoadAll(configFiles)
 	if err != nil {
 		return fmt.Errorf("failed to load configurations: %w", err)
@@ -74,6 +60,6 @@ func runPull(cmd *cobra.Command, args []string) error {
 		Execute:         executor.RunOnTarget,
 	}
 	summary, runErr := o.Run(ctx)
-	renderBatchSummary(summary, len(targets), summaryConfig{noopVerb: "no-op"}, isSilent())
+	renderBatchSummary(summary, summaryConfig{noopVerb: "no-op"}, isSilent())
 	return runErr
 }
