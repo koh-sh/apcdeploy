@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	bspinner "github.com/charmbracelet/bubbles/spinner"
+	bspinner "charm.land/bubbles/v2/spinner"
 )
 
 // ttyTargets renders the multi-row Targets block in place. It pre-prints

@@ -37,8 +37,12 @@ cover.html
 # bin
 apcdeploy
 
+# goreleaser output
+dist/
+
 # tmp dir
 tmp/*
+.tmp/
 
 # outputs
 apcdeploy.yml

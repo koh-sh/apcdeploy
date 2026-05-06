@@ -4,6 +4,8 @@ A declarative CLI tool for managing AWS AppConfig deployments. Roll out configur
 
 Note: This tool only supports AWS AppConfig hosted configuration store. You must create AppConfig resources (application, configuration profile, environment, deployment strategy) before using this tool.
 
+Why not Terraform or CDK? AppConfig's hosted configuration versions are append-only — every deploy produces a new immutable version, and the deployment itself has its own lifecycle (deploy → bake → complete or rollback). That stateful, monotonically-incrementing shape doesn't fit the desired-state model Terraform and CDK assume. Just as importantly, the resource shells (application / profile / environment) and the configuration values inside them often have different owners — the platform team manages the shells in IaC; the application team ships value changes at a faster cadence. `apcdeploy` separates those layers: your IaC owns the resources, this tool owns the value rollout.
+
 ![apcdeploy demo](vhs/demo.gif)
 
 ## Features
@@ -161,7 +163,7 @@ deployment_strategy: AppConfig.AllAtOnce
 # Required: Path to your configuration data file (relative or absolute)
 data_file: data.json
 
-# Optional: AWS region (uses AWS SDK default if omitted)
+# Required: AWS region
 region: us-west-2
 ```
 
@@ -244,7 +246,7 @@ Deploy configuration changes:
 apcdeploy run -c apcdeploy.yml [--wait-deploy|--wait-bake] [--force]
 ```
 
-Pass `-c` multiple times to deploy several configs in one invocation. Each YAML must specify `region:` explicitly when using multiple `-c` (otherwise targets without a region collide on identifier).
+Pass `-c` multiple times to deploy several configs in one invocation.
 
 ```bash
 apcdeploy run -c environments/dev.yml -c environments/stg.yml -c environments/prod.yml --wait-bake
@@ -298,7 +300,7 @@ Preview configuration changes:
 apcdeploy diff -c apcdeploy.yml [--exit-nonzero]
 ```
 
-Pass `-c` multiple times to diff several configs in one invocation. Each YAML must specify `region:` explicitly. Each target's diff is prefixed with `=== <region>/<app>/<profile>/<env> ===`; the single-target form omits the header so it can be piped into `patch` / `git apply`.
+Pass `-c` multiple times to diff several configs in one invocation. Each target's diff is prefixed with `=== <region>/<app>/<profile>/<env> ===`; the single-target form omits the header so it can be piped into `patch` / `git apply`.
 
 ```bash
 apcdeploy diff -c environments/dev.yml -c environments/stg.yml -c environments/prod.yml
@@ -344,7 +346,7 @@ Pull the latest deployed configuration and update your local data file:
 apcdeploy pull -c apcdeploy.yml
 ```
 
-Pass `-c` multiple times to pull several configurations in one invocation. Each YAML must specify `region:` explicitly:
+Pass `-c` multiple times to pull several configurations in one invocation:
 
 ```bash
 apcdeploy pull -c environments/dev.yml -c environments/stg.yml -c environments/prod.yml
@@ -367,7 +369,7 @@ apcdeploy rollback -c apcdeploy.yml
 
 This command stops an in-progress deployment (DEPLOYING or BAKING state) by calling the AWS AppConfig StopDeployment API. It automatically detects the current ongoing deployment and stops it.
 
-**Note:** This only stops deployments currently in progress. It does not revert previously completed deployments.
+**Note:** This only stops deployments currently in progress. It does not revert previously completed deployments. Exits with code 2 when no deployment is currently in flight.
 
 Options:
 

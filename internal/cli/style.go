@@ -1,7 +1,9 @@
 package cli
 
 import (
-	"github.com/charmbracelet/lipgloss"
+	"image/color"
+
+	"charm.land/lipgloss/v2"
 )
 
 // Symbols used as line prefixes by the Reporter. The contract limits visual
@@ -37,7 +39,7 @@ var styles = struct {
 	boxTitle lipgloss.Style
 
 	tableHeader lipgloss.Style
-	tableBorder lipgloss.Color
+	tableBorder color.Color
 
 	diffAdd   lipgloss.Style
 	diffDel   lipgloss.Style

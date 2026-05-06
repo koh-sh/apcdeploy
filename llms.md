@@ -111,7 +111,7 @@ deployment_strategy: AppConfig.Linear
 # Relative paths are interpreted from apcdeploy.yml location
 data_file: data.json
 
-# Optional: AWS region (uses AWS SDK default if omitted)
+# Required: AWS region
 region: us-west-2
 ```
 
@@ -596,12 +596,13 @@ apcdeploy run -c apcdeploy.yml
 
 | Cause | Resolution |
 |---|---|
-| No ongoing deployment in `DEPLOYING` or `BAKING` state | Nothing to stop. If you intended to revert a completed deployment, use Git revert + `apcdeploy run`. |
+| No ongoing deployment in `DEPLOYING` or `BAKING` state (exit code `2`) | Nothing to stop. If you intended to revert a completed deployment, use Git revert + `apcdeploy run`. |
 
 #### Exit Codes
 
 - `0`: success
-- `1`: AWS error, no ongoing deployment, user declined the prompt, or TTY error when `--yes` is missing in a non-interactive environment
+- `1`: AWS error, user declined the prompt, or TTY error when `--yes` is missing in a non-interactive environment
+- `2`: no ongoing deployment to stop
 
 #### Examples
 
@@ -680,7 +681,6 @@ Behavior:
 - Each target's `--timeout` is independent (it is per-target, not a global wall-clock cap).
 - After all targets settle, a single aggregate line is printed: `N ok, N no-op, N failed [(elapsed)]`. Failed targets are also expanded into an `Errors:` section with optional `Resolution:` hints.
 - `diff`'s stdout is buffered per target and emitted in argument order (so the combined diff stream is deterministic regardless of completion order). Each per-target body is prefixed with `=== <region>/<app>/<profile>/<env> ===`. Single-target output (`-c` once) keeps the existing no-header format so the body still pipes into `patch` / `git apply`.
-- Multi-config requires `region:` to be set in each yml. Single-config keeps the SDK-default region resolution as before.
 - **For AI assistants**: prefer single-target invocations unless the multi-config behavior is explicitly desired. Multi-target output is denser and harder to read step-by-step; failures are aggregated at the end of the run.
 
 ## Silent Mode

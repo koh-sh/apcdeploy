@@ -11,6 +11,7 @@ import (
 	smithy "github.com/aws/smithy-go"
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
 	reportertest "github.com/koh-sh/apcdeploy/internal/reporter/testing"
+	"github.com/koh-sh/apcdeploy/internal/rollback"
 )
 
 func TestRootCommand(t *testing.T) {
@@ -150,6 +151,18 @@ func TestClassifyAndReport(t *testing.T) {
 			err:          fmt.Errorf("pull failed: %w", awsInternal.ErrNoDeployment),
 			wantCode:     exitNoDeployment,
 			wantMessages: []string{"error: pull failed"},
+		},
+		{
+			name:         "ErrNoOngoingDeployment returns 2 with error line",
+			err:          rollback.ErrNoOngoingDeployment,
+			wantCode:     exitNoDeployment,
+			wantMessages: []string{"error: " + rollback.ErrNoOngoingDeployment.Error()},
+		},
+		{
+			name:         "wrapped ErrNoOngoingDeployment also returns 2",
+			err:          fmt.Errorf("rollback failed: %w", rollback.ErrNoOngoingDeployment),
+			wantCode:     exitNoDeployment,
+			wantMessages: []string{"error: rollback failed"},
 		},
 		{
 			name:         "generic error returns 1 with error line and no resolution",

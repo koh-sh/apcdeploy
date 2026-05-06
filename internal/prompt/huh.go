@@ -3,7 +3,7 @@ package prompt
 import (
 	"errors"
 
-	"github.com/charmbracelet/huh"
+	"charm.land/huh/v2"
 )
 
 // HuhPrompter implements Prompter using huh library

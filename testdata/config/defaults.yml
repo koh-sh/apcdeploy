@@ -2,4 +2,5 @@ application: TestApp
 configuration_profile: TestProfile
 environment: Production
 data_file: data.json
+region: us-east-1
 # deployment_strategy not specified - should use default

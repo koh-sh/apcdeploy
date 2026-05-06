@@ -61,7 +61,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 		return fmt.Errorf("failed to initialize AWS client: %w", err)
 	}
 
-	id := config.Identifier(awsClient.Region, cfg)
+	id := config.Identifier(cfg)
 
 	resolver := aws.NewResolver(awsClient)
 	resources, err := resolver.ResolveAll(ctx, cfg.Application, cfg.ConfigurationProfile, cfg.Environment, cfg.DeploymentStrategy)

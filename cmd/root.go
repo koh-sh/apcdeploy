@@ -13,12 +13,19 @@ import (
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/cli"
 	"github.com/koh-sh/apcdeploy/internal/reporter"
+	"github.com/koh-sh/apcdeploy/internal/rollback"
 	"github.com/spf13/cobra"
 )
 
 // Exit codes used by the CLI. Anything other than 0/1 is considered a
 // distinguishable condition that scripts can branch on.
 const (
+	// exitNoDeployment is returned for the "no relevant deployment to operate
+	// on" family of errors:
+	//   - awsInternal.ErrNoDeployment (pull / edit: never been deployed)
+	//   - rollback.ErrNoOngoingDeployment (rollback: nothing in flight to stop)
+	// Scripts can use this code to branch on "no work to do" without parsing
+	// stderr.
 	exitNoDeployment = 2
 	// exitInterrupted matches the Unix convention `128 + SIGINT (2)`. Used
 	// for both the graceful-cancellation path (first Ctrl+C → ctx canceled
@@ -187,9 +194,11 @@ func classifyAndReport(err error, rep reporter.Reporter) int {
 	if hint := apcerrors.Resolution(err); hint != "" {
 		rep.Warn("Resolution: " + hint)
 	}
-	// Exit 2 when the failure is "no prior deployment" so scripts can
-	// distinguish that condition (e.g. first-time setup) from real errors.
-	if errors.Is(err, awsInternal.ErrNoDeployment) {
+	// Exit 2 for the "no relevant deployment" family — pull/edit when no
+	// prior deployment exists, and rollback when nothing is in flight to
+	// stop. Scripts can distinguish these "no work" conditions from real
+	// errors without parsing stderr.
+	if errors.Is(err, awsInternal.ErrNoDeployment) || errors.Is(err, rollback.ErrNoOngoingDeployment) {
 		return exitNoDeployment
 	}
 	return 1

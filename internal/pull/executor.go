@@ -49,9 +49,6 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
-	// Resolve the AWS client first so the row identifier reflects the
-	// SDK-default region when cfg.Region was omitted (multi-config users
-	// are expected to set region in yml).
 	awsClient, err := e.clientFactory(ctx, cfg.Region)
 	if err != nil {
 		return fmt.Errorf("failed to initialize AWS client: %w", err)
@@ -60,7 +57,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	target := &batch.Target{
 		Path:       opts.ConfigFile,
 		Config:     cfg,
-		Identifier: config.Identifier(awsClient.Region, cfg),
+		Identifier: config.Identifier(cfg),
 	}
 
 	tg := e.reporter.Targets([]string{target.Identifier})
