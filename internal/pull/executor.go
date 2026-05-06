@@ -34,57 +34,27 @@ func NewExecutorWithFactory(rep reporter.Reporter, factory func(context.Context,
 	}
 }
 
-// Execute performs the pull workflow for a single config file. The
-// per-target body is shared with the multi-config orchestrator path
-// (RunOnTarget) so both routes produce identical Targets output.
+// RunOnTarget runs the pull workflow for one pre-loaded target. It is
+// invoked from cmd/pull.go via batch.Orchestrator (single-target runs
+// flow through the orchestrator with a single goroutine). Callers MUST
+// drive the supplied TargetReporter to a terminal state via Done /
+// Skip / Fail (this function does).
 //
 // Output shape:
 //   - updated:        ✓ updated <data-file-path>
 //   - no changes:     ✓ no changes
 //   - no deployment:  ✗ failed: no deployment found  (returns aws.ErrNoDeployment)
 //   - resolve/fetch/write errors: ✗ failed: <message> (returns wrapped error)
-func (e *Executor) Execute(ctx context.Context, opts *Options) error {
-	cfg, err := config.LoadConfig(opts.ConfigFile)
-	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
-	}
-
-	awsClient, err := e.clientFactory(ctx, cfg.Region)
-	if err != nil {
-		return fmt.Errorf("failed to initialize AWS client: %w", err)
-	}
-
-	target := &batch.Target{
-		Path:       opts.ConfigFile,
-		Config:     cfg,
-		Identifier: config.Identifier(cfg),
-	}
-
-	tg := e.reporter.Targets([]string{target.Identifier})
-	defer tg.Close()
-	tr := batch.NewTargetReporter(tg, target.Identifier)
-
-	return e.runOnTargetWithClient(ctx, target, tr, awsClient)
-}
-
-// RunOnTarget runs the pull workflow for one pre-loaded target. Used by
-// the multi-config orchestrator (cmd/pull.go wires it as the
-// batch.ExecuteFunc); callers MUST drive the returned TargetReporter to
-// a terminal state via tr.Done / tr.Skip / tr.Fail (this function does).
+//
+// t.Config.DataFile is already resolved to an absolute path by
+// config.LoadConfig, so no relative-path fix-up is needed.
 func (e *Executor) RunOnTarget(ctx context.Context, t *batch.Target, tr reporter.TargetReporter) error {
 	awsClient, err := e.clientFactory(ctx, t.Config.Region)
 	if err != nil {
 		tr.Fail(err)
 		return fmt.Errorf("failed to initialize AWS client: %w", err)
 	}
-	return e.runOnTargetWithClient(ctx, t, tr, awsClient)
-}
 
-// runOnTargetWithClient is the per-target body shared by Execute (single
-// config) and RunOnTarget (orchestrator). t.Config.DataFile is already
-// resolved to an absolute path by config.LoadConfig, so no relative-path
-// fix-up is needed here.
-func (e *Executor) runOnTargetWithClient(ctx context.Context, t *batch.Target, tr reporter.TargetReporter, awsClient *aws.Client) error {
 	cfg := t.Config
 
 	tr.SetPhase("fetching", "")

@@ -36,9 +36,9 @@ func NewExecutorWithFactory(rep reporter.Reporter, factory func(context.Context,
 	}
 }
 
-// Execute performs the deployment workflow for a single config file. The
-// per-target body is shared with the multi-config orchestrator path
-// (RunOnTarget) so both routes produce identical Targets output.
+// RunOnTarget performs the deployment workflow for one pre-loaded target.
+// It is invoked from cmd/run.go via batch.Orchestrator (single-target runs
+// flow through the orchestrator with a single goroutine).
 //
 // Output shape:
 //   - wait none:    ✓ started — v<N>, <Strategy>
@@ -50,62 +50,27 @@ func NewExecutorWithFactory(rep reporter.Reporter, factory func(context.Context,
 // Sub-phases:
 //
 //	preparing → comparing → creating-version → deploying → baking
-func (e *Executor) Execute(ctx context.Context, opts *Options) error {
-	if err := validateOpts(opts); err != nil {
-		return err
+func (e *Executor) RunOnTarget(ctx context.Context, t *batch.Target, tr reporter.TargetReporter, opts *Options) error {
+	if opts.Timeout < 0 {
+		return fmt.Errorf("timeout must be a non-negative value")
+	}
+	if opts.WaitDeploy && opts.WaitBake {
+		return fmt.Errorf("--wait-deploy and --wait-bake cannot be used together")
 	}
 
-	cfg, dataContent, err := loadConfiguration(opts.ConfigFile)
+	cfg := t.Config
+
+	dataContent, err := config.LoadDataFile(cfg.DataFile)
 	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
+		tr.Fail(err)
+		return fmt.Errorf("failed to read data file %s: %w", cfg.DataFile, err)
 	}
 
 	deployer, err := e.deployerFactory(ctx, cfg)
 	if err != nil {
-		return fmt.Errorf("failed to create deployer: %w", err)
-	}
-
-	target := &batch.Target{
-		Path:       opts.ConfigFile,
-		Config:     cfg,
-		Identifier: config.Identifier(cfg),
-	}
-
-	tg := e.reporter.Targets([]string{target.Identifier})
-	defer tg.Close()
-	tr := batch.NewTargetReporter(tg, target.Identifier)
-
-	return e.runOnTargetWithDeployer(ctx, target, dataContent, tr, deployer, opts)
-}
-
-// RunOnTarget runs the deployment for one pre-loaded target. Used by the
-// multi-config orchestrator (cmd/run.go wires it via RunOnTargetWithOpts
-// closure since ExecuteFunc has no opts parameter).
-func (e *Executor) RunOnTarget(ctx context.Context, t *batch.Target, tr reporter.TargetReporter, opts *Options) error {
-	if err := validateOpts(opts); err != nil {
-		return err
-	}
-
-	dataContent, err := config.LoadDataFile(t.Config.DataFile)
-	if err != nil {
-		tr.Fail(err)
-		return fmt.Errorf("failed to read data file %s: %w", t.Config.DataFile, err)
-	}
-
-	deployer, err := e.deployerFactory(ctx, t.Config)
-	if err != nil {
 		tr.Fail(err)
 		return fmt.Errorf("failed to create deployer: %w", err)
 	}
-
-	return e.runOnTargetWithDeployer(ctx, t, dataContent, tr, deployer, opts)
-}
-
-// runOnTargetWithDeployer is the per-target body shared by Execute and
-// RunOnTarget. It assumes the AWS deployer is already constructed and
-// the data file content has been read.
-func (e *Executor) runOnTargetWithDeployer(ctx context.Context, t *batch.Target, dataContent []byte, tr reporter.TargetReporter, deployer *Deployer, opts *Options) error {
-	cfg := t.Config
 
 	tr.SetPhase("preparing", "")
 
@@ -201,18 +166,5 @@ func (e *Executor) runOnTargetWithDeployer(ctx context.Context, t *batch.Target,
 		tr.Done(cli.FormatDeploymentSummary("started", 0, versionNumber, strategyName, fmt.Sprintf("deployment #%d", deploymentNumber)))
 	}
 
-	return nil
-}
-
-// validateOpts checks Options invariants that don't depend on AWS state.
-// Extracted so single-target Execute and the multi-config orchestrator
-// path apply the same checks before doing any AWS work.
-func validateOpts(opts *Options) error {
-	if opts.Timeout < 0 {
-		return fmt.Errorf("timeout must be a non-negative value")
-	}
-	if opts.WaitDeploy && opts.WaitBake {
-		return fmt.Errorf("--wait-deploy and --wait-bake cannot be used together")
-	}
 	return nil
 }

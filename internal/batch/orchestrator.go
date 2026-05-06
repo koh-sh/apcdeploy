@@ -3,7 +3,6 @@ package batch
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -184,7 +183,17 @@ func (o *Orchestrator) Run(ctx context.Context) (Summary, error) {
 	}
 
 	if len(errs) > 0 {
-		return summary, fmt.Errorf("%d target(s) failed", len(errs))
+		// Join the per-target errors so callers can inspect sentinel
+		// values via errors.Is — most importantly cmd/root.go's
+		// exit-code classifier, which maps aws.ErrNoDeployment to
+		// exit 2. errors.Join preserves every wrapped error in the
+		// chain regardless of count, so single- and multi-target
+		// failures behave identically.
+		joined := make([]error, len(errs))
+		for i, e := range errs {
+			joined[i] = e.Err
+		}
+		return summary, errors.Join(joined...)
 	}
 	return summary, nil
 }

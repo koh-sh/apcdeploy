@@ -79,33 +79,17 @@ func runRun(cmd *cobra.Command, args []string) error {
 
 	rep := cli.GetReporter(isSilent())
 
-	// Single-config keeps the existing path so the row identifier still
-	// shows the SDK-resolved default region when cfg.Region is empty
-	// (multi-config requires region in yml).
-	if len(configFiles) <= 1 {
-		path := defaultConfigFile
-		if len(configFiles) == 1 {
-			path = configFiles[0]
-		}
-		opts := &run.Options{
-			ConfigFile:  path,
-			WaitDeploy:  runWaitDeploy,
-			WaitBake:    runWaitBake,
-			Timeout:     runTimeout,
-			Force:       runForce,
-			Description: description,
-		}
-		executor := run.NewExecutor(rep)
-		return executor.Execute(ctx, opts)
-	}
-
 	targets, err := batch.LoadAll(configFiles)
 	if err != nil {
 		return fmt.Errorf("failed to load configurations: %w", err)
 	}
 
 	executor := run.NewExecutor(rep)
-	baseOpts := &run.Options{
+	// opts is shared (by pointer) across all per-target goroutines launched
+	// by the orchestrator below. All fields MUST be treated as read-only
+	// after construction. If a future change needs per-target mutation,
+	// switch to a per-target copy inside the Execute closure.
+	opts := &run.Options{
 		WaitDeploy:  runWaitDeploy,
 		WaitBake:    runWaitBake,
 		Timeout:     runTimeout,
@@ -119,17 +103,11 @@ func runRun(cmd *cobra.Command, args []string) error {
 		ContinueOnError: runContinueOnError,
 		Reporter:        rep,
 		Execute: func(ctx context.Context, t *batch.Target, tr reporter.TargetReporter) error {
-			// Each call gets its own Options copy via the per-target
-			// ConfigFile (kept for parity with single-config — the
-			// executor reads it for diagnostics but the data file path
-			// already lives in t.Config.DataFile).
-			perTarget := *baseOpts
-			perTarget.ConfigFile = t.Path
-			return executor.RunOnTarget(ctx, t, tr, &perTarget)
+			return executor.RunOnTarget(ctx, t, tr, opts)
 		},
 	}
 	summary, runErr := o.Run(ctx)
 	withElapsed := runWaitDeploy || runWaitBake
-	renderBatchSummary(summary, len(targets), summaryConfig{noopVerb: "no-op", withElapsed: withElapsed}, isSilent())
+	renderBatchSummary(summary, summaryConfig{noopVerb: "no-op", withElapsed: withElapsed}, isSilent())
 	return runErr
 }

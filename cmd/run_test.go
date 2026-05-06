@@ -133,44 +133,6 @@ func TestRunCommandWaitFlags(t *testing.T) {
 	}
 }
 
-func TestRunTimeoutValidation(t *testing.T) {
-	tests := []struct {
-		name    string
-		timeout int
-		wantErr bool
-		errMsg  string
-	}{
-		{
-			name:    "negative timeout is invalid",
-			timeout: -1,
-			wantErr: true,
-			errMsg:  "timeout must be a non-negative value",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// resolveDescription inside runRun reads cmd.Flags(), so a nil cmd
-			// would panic. Build a real run command, then override the timeout
-			// global AFTER newRunCmd() — IntVar registration resets the flag
-			// to its default during construction.
-			cmd := newRunCmd()
-			runTimeout = tt.timeout
-			runDescription = ""
-
-			err := runRun(cmd, nil)
-
-			if tt.wantErr {
-				if err == nil {
-					t.Error("Expected timeout validation error, got nil")
-				} else if err.Error() != tt.errMsg {
-					t.Errorf("Expected error message '%s', got: %v", tt.errMsg, err)
-				}
-			}
-		})
-	}
-}
-
 func TestRunCommandSilenceUsage(t *testing.T) {
 	cmd := newRunCmd()
 

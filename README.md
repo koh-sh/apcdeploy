@@ -300,7 +300,7 @@ Preview configuration changes:
 apcdeploy diff -c apcdeploy.yml [--exit-nonzero]
 ```
 
-Pass `-c` multiple times to diff several configs in one invocation. Each target's diff is prefixed with `=== <region>/<app>/<profile>/<env> ===`; the single-target form omits the header so it can be piped into `patch` / `git apply`.
+Pass `-c` multiple times to diff several configs in one invocation. Every diff body — single- or multi-target — is prefixed with `=== <region>/<app>/<profile>/<env> ===`. Strip the header line if you want to pipe the body into `patch` / `git apply`.
 
 ```bash
 apcdeploy diff -c environments/dev.yml -c environments/stg.yml -c environments/prod.yml

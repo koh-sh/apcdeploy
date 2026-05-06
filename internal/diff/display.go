@@ -7,33 +7,12 @@ import (
 	"strings"
 
 	"github.com/koh-sh/apcdeploy/internal/aws"
-	"github.com/koh-sh/apcdeploy/internal/reporter"
 )
 
 // inProgressWarningSink is the writer used by the "deployment in progress"
 // notice. It is a package-level variable so tests can intercept it; in
 // production it is always os.Stderr.
 var inProgressWarningSink io.Writer = os.Stderr
-
-// display finalises the Targets row for id with either "diff (N lines
-// changed)" or "no changes", emits the unified diff to stdout when changes
-// exist, and surfaces the in-progress warning when the latest deployment is
-// still rolling out.
-//
-// For N=1 (single -c) callers, the unified diff body is emitted without a
-// `=== <id> ===` header so it can be piped straight into patch/git apply.
-func display(r reporter.Reporter, tg reporter.Targets, id string, result *Result, deployment *aws.DeploymentInfo) {
-	if !result.HasChanges {
-		tg.Done(id, "no changes")
-		displayDeploymentWarning(deployment)
-		return
-	}
-
-	r.Diff([]byte(ensureTrailingNewline(result.UnifiedDiff)))
-	added, removed := countChanges(result.UnifiedDiff)
-	tg.Done(id, formatDiffSummary(added, removed))
-	displayDeploymentWarning(deployment)
-}
 
 // formatDiffSummary renders the post-icon Targets summary for a diff with
 // changes. The wording is "diff (N lines changed)" augmented with the

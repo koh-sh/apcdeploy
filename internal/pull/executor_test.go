@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/appconfig/types"
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/aws/mock"
+	batchtest "github.com/koh-sh/apcdeploy/internal/batch/testing"
 	reportertest "github.com/koh-sh/apcdeploy/internal/reporter/testing"
 )
 
@@ -27,25 +28,13 @@ func TestNewExecutor(t *testing.T) {
 	}
 }
 
-func TestExecutorLoadConfigurationError(t *testing.T) {
-	t.Parallel()
-
-	reporter := &reportertest.MockReporter{}
-	executor := NewExecutor(reporter)
-
-	opts := &Options{
-		ConfigFile: "nonexistent.yml",
-	}
-
-	err := executor.Execute(context.Background(), opts)
-
-	if err == nil {
-		t.Error("expected error when loading non-existent config file")
-	}
-
-	if !strings.Contains(err.Error(), "failed to load configuration") {
-		t.Errorf("expected 'failed to load configuration' error, got: %v", err)
-	}
+// runOnTargetForTest defers the per-target plumbing to
+// batchtest.BuildTarget and invokes RunOnTarget.
+func runOnTargetForTest(t *testing.T, rep *reportertest.MockReporter, executor *Executor, configPath string) error {
+	t.Helper()
+	target, tr, cleanup := batchtest.BuildTarget(t, rep, configPath)
+	defer cleanup()
+	return executor.RunOnTarget(context.Background(), target, tr)
 }
 
 // TestExecutorFullWorkflowWithMock tests the complete pull workflow with mocked AWS
@@ -158,11 +147,7 @@ region: us-east-1
 	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, clientFactory)
 
-	opts := &Options{
-		ConfigFile: configPath,
-	}
-
-	err = executor.Execute(context.Background(), opts)
+	err = runOnTargetForTest(t, reporter, executor, configPath)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -261,11 +246,7 @@ region: us-east-1
 	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, clientFactory)
 
-	opts := &Options{
-		ConfigFile: configPath,
-	}
-
-	err = executor.Execute(context.Background(), opts)
+	err = runOnTargetForTest(t, reporter, executor, configPath)
 
 	if err == nil {
 		t.Fatal("expected error when no deployment found")
@@ -317,11 +298,7 @@ region: us-east-1
 	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, clientFactory)
 
-	opts := &Options{
-		ConfigFile: configPath,
-	}
-
-	err = executor.Execute(context.Background(), opts)
+	err = runOnTargetForTest(t, reporter, executor, configPath)
 
 	if err == nil {
 		t.Fatal("expected error when application not found")
@@ -364,11 +341,7 @@ region: us-east-1
 	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, clientFactory)
 
-	opts := &Options{
-		ConfigFile: configPath,
-	}
-
-	err = executor.Execute(context.Background(), opts)
+	err = runOnTargetForTest(t, reporter, executor, configPath)
 
 	if err == nil {
 		t.Fatal("expected error from factory")
@@ -438,11 +411,7 @@ region: us-east-1
 	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, clientFactory)
 
-	opts := &Options{
-		ConfigFile: configPath,
-	}
-
-	err = executor.Execute(context.Background(), opts)
+	err = runOnTargetForTest(t, reporter, executor, configPath)
 
 	if err == nil {
 		t.Fatal("expected error during deployment retrieval")
@@ -527,11 +496,7 @@ region: us-east-1
 	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, clientFactory)
 
-	opts := &Options{
-		ConfigFile: configPath,
-	}
-
-	err = executor.Execute(context.Background(), opts)
+	err = runOnTargetForTest(t, reporter, executor, configPath)
 
 	if err == nil {
 		t.Fatal("expected error during configuration version retrieval")
@@ -635,11 +600,7 @@ region: us-east-1
 	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, clientFactory)
 
-	opts := &Options{
-		ConfigFile: configPath,
-	}
-
-	err = executor.Execute(context.Background(), opts)
+	err = runOnTargetForTest(t, reporter, executor, configPath)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -761,11 +722,7 @@ region: us-east-1
 	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, clientFactory)
 
-	opts := &Options{
-		ConfigFile: configPath,
-	}
-
-	err = executor.Execute(context.Background(), opts)
+	err = runOnTargetForTest(t, reporter, executor, configPath)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/koh-sh/apcdeploy/internal/batch"
@@ -14,7 +16,9 @@ import (
 // TestRunOnTarget_DeployerFactoryError covers the early-return path of
 // RunOnTarget when the deployer factory fails (e.g. AWS client creation
 // error). The TargetReporter must be moved to Fail before the helper
-// returns so the orchestrator's row never stays in "running".
+// returns so the orchestrator's row never stays in "running", and the
+// error must be wrapped with "failed to create deployer:" so callers
+// can pattern-match on the wrapper text.
 func TestRunOnTarget_DeployerFactoryError(t *testing.T) {
 	t.Parallel()
 
@@ -56,6 +60,9 @@ func TestRunOnTarget_DeployerFactoryError(t *testing.T) {
 	if !errors.Is(err, failure) {
 		t.Errorf("err = %v, want wrapping %v", err, failure)
 	}
+	if !strings.Contains(err.Error(), "failed to create deployer") {
+		t.Errorf("expected 'failed to create deployer' wrapper, got: %v", err)
+	}
 
 	var sawFail bool
 	for _, call := range rep.TargetsCalls {
@@ -70,32 +77,104 @@ func TestRunOnTarget_DeployerFactoryError(t *testing.T) {
 	}
 }
 
-// TestRunOnTarget_ValidatesOptsBeforeAWS covers RunOnTarget's
-// validateOpts call: invalid options must be rejected without making
-// any AWS / file calls.
-func TestRunOnTarget_ValidatesOptsBeforeAWS(t *testing.T) {
+// TestRunOnTarget_DataFileReadError covers the early-return path when
+// the local data file cannot be read. The error must wrap with
+// "failed to read data file" and finalise the Targets row to Fail.
+func TestRunOnTarget_DataFileReadError(t *testing.T) {
 	t.Parallel()
 
-	executor := NewExecutorWithFactory(&reportertest.MockReporter{},
+	rep := &reportertest.MockReporter{}
+	executor := NewExecutorWithFactory(rep,
 		func(ctx context.Context, cfg *config.Config) (*Deployer, error) {
-			t.Fatal("deployerFactory must not be called when opts are invalid")
+			t.Fatal("deployerFactory must not be called when data-file load fails")
 			return nil, nil
 		},
 	)
+
 	target := &batch.Target{
+		Path: "test.yml",
+		Config: &config.Config{
+			Region:               "us-east-1",
+			Application:          "app",
+			ConfigurationProfile: "profile",
+			Environment:          "env",
+			DataFile:             filepath.Join(t.TempDir(), "does-not-exist.json"),
+		},
 		Identifier: "us-east-1/app/profile/env",
-		Config:     &config.Config{Region: "us-east-1"},
 	}
-	rep := &reportertest.MockReporter{}
 	tg := rep.Targets([]string{target.Identifier})
 	defer tg.Close()
 	tr := batch.NewTargetReporter(tg, target.Identifier)
 
-	err := executor.RunOnTarget(context.Background(), target, tr, &Options{
-		WaitDeploy: true,
-		WaitBake:   true,
-	})
+	err := executor.RunOnTarget(context.Background(), target, tr, &Options{Timeout: 30})
 	if err == nil {
-		t.Fatal("expected error for conflicting wait flags")
+		t.Fatal("expected error from RunOnTarget when data file is missing")
+	}
+	if !strings.Contains(err.Error(), "failed to read data file") {
+		t.Errorf("expected 'failed to read data file' wrapper, got: %v", err)
+	}
+
+	var sawFail bool
+	for _, call := range rep.TargetsCalls {
+		for _, tr := range call.Transitions {
+			if tr.Kind == "fail" && tr.ID == target.Identifier {
+				sawFail = true
+			}
+		}
+	}
+	if !sawFail {
+		t.Errorf("expected Targets.Fail for the row; transitions: %+v", rep.TargetsCalls)
+	}
+}
+
+// TestRunOnTarget_ValidatesOptsBeforeAWS covers RunOnTarget's option
+// validation: invalid options must be rejected without making any
+// AWS / file calls.
+func TestRunOnTarget_ValidatesOptsBeforeAWS(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		opts    *Options
+		wantSub string
+	}{
+		{
+			name:    "wait flags conflict",
+			opts:    &Options{WaitDeploy: true, WaitBake: true},
+			wantSub: "--wait-deploy and --wait-bake cannot be used together",
+		},
+		{
+			name:    "negative timeout",
+			opts:    &Options{Timeout: -1},
+			wantSub: "timeout must be a non-negative value",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			executor := NewExecutorWithFactory(&reportertest.MockReporter{},
+				func(ctx context.Context, cfg *config.Config) (*Deployer, error) {
+					t.Fatal("deployerFactory must not be called when opts are invalid")
+					return nil, nil
+				},
+			)
+			target := &batch.Target{
+				Identifier: "us-east-1/app/profile/env",
+				Config:     &config.Config{Region: "us-east-1"},
+			}
+			rep := &reportertest.MockReporter{}
+			tg := rep.Targets([]string{target.Identifier})
+			defer tg.Close()
+			tr := batch.NewTargetReporter(tg, target.Identifier)
+
+			err := executor.RunOnTarget(context.Background(), target, tr, tt.opts)
+			if err == nil {
+				t.Fatalf("expected error for opts %+v", tt.opts)
+			}
+			if !strings.Contains(err.Error(), tt.wantSub) {
+				t.Errorf("err = %q, want substring %q", err.Error(), tt.wantSub)
+			}
+		})
 	}
 }
