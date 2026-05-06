@@ -225,7 +225,7 @@ single-target callers — see "Resolution hints" below.
    payload.
 2. Pick Reporter kinds for everything else. The default shape for a
    deployment-target command is:
-   - Build the canonical identifier with `config.Identifier(region, cfg)`.
+   - Build the canonical identifier with `config.Identifier(cfg)`.
    - Open a `Targets` block, `defer tg.Close()`, drive the row through
      `SetPhase` / `SetProgress` and finalise with `Done` / `Fail` / `Skip`.
    - Optional `Header` + `Table` / `Box` for a final summary or guidance.

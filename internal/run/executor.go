@@ -40,6 +40,10 @@ func NewExecutorWithFactory(rep reporter.Reporter, factory func(context.Context,
 // It is invoked from cmd/run.go via batch.Orchestrator (single-target runs
 // flow through the orchestrator with a single goroutine).
 //
+// Options invariants that don't depend on per-target state (Timeout >= 0,
+// not both WaitDeploy and WaitBake) are validated once in cmd/run.go
+// before the orchestrator starts; this function assumes valid opts.
+//
 // Output shape:
 //   - wait none:    ✓ started — v<N>, <Strategy>
 //   - wait-deploy:  ✓ deployed (<elapsed>) — v<N>, <Strategy>, baking started
@@ -51,13 +55,6 @@ func NewExecutorWithFactory(rep reporter.Reporter, factory func(context.Context,
 //
 //	preparing → comparing → creating-version → deploying → baking
 func (e *Executor) RunOnTarget(ctx context.Context, t *batch.Target, tr reporter.TargetReporter, opts *Options) error {
-	if opts.Timeout < 0 {
-		return fmt.Errorf("timeout must be a non-negative value")
-	}
-	if opts.WaitDeploy && opts.WaitBake {
-		return fmt.Errorf("--wait-deploy and --wait-bake cannot be used together")
-	}
-
 	cfg := t.Config
 
 	dataContent, err := config.LoadDataFile(cfg.DataFile)

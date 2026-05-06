@@ -38,6 +38,21 @@ func RunCommand() *cobra.Command {
 	return newRunCmd()
 }
 
+// validateRunFlags checks the run-command flags whose validity does not
+// depend on per-target state. Run once at the cmd layer (rather than
+// inside each per-target RunOnTarget call) so the user gets the same
+// error regardless of -c count and the orchestrator never starts when
+// the flags are bogus.
+func validateRunFlags() error {
+	if runTimeout < 0 {
+		return fmt.Errorf("timeout must be a non-negative value")
+	}
+	if runWaitDeploy && runWaitBake {
+		return fmt.Errorf("--wait-deploy and --wait-bake cannot be used together")
+	}
+	return nil
+}
+
 func newRunCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "run",
@@ -73,6 +88,9 @@ func runRun(cmd *cobra.Command, args []string) error {
 	ctx := commandContext(cmd)
 
 	if err := validateDescription(runDescription); err != nil {
+		return err
+	}
+	if err := validateRunFlags(); err != nil {
 		return err
 	}
 	description := resolveDescription(cmd, runDescription)

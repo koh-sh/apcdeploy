@@ -209,6 +209,66 @@ func TestValidateDescription(t *testing.T) {
 	}
 }
 
+// TestValidateRunFlags asserts the cmd-layer flag invariants are
+// rejected before LoadAll/orchestrator setup. Validation lives in the
+// cmd layer (not RunOnTarget) so the user gets the same error
+// regardless of -c count and the orchestrator never starts when the
+// flags are bogus.
+func TestValidateRunFlags(t *testing.T) {
+	tests := []struct {
+		name       string
+		waitDeploy bool
+		waitBake   bool
+		timeout    int
+		wantErr    bool
+		wantSub    string
+	}{
+		{name: "default flags pass", timeout: DefaultDeploymentTimeout},
+		{name: "zero timeout pass", timeout: 0},
+		{
+			name:    "negative timeout rejected",
+			timeout: -1,
+			wantErr: true,
+			wantSub: "timeout must be a non-negative value",
+		},
+		{
+			name:       "both wait flags rejected",
+			waitDeploy: true,
+			waitBake:   true,
+			timeout:    DefaultDeploymentTimeout,
+			wantErr:    true,
+			wantSub:    "--wait-deploy and --wait-bake cannot be used together",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			runWaitDeploy = tt.waitDeploy
+			runWaitBake = tt.waitBake
+			runTimeout = tt.timeout
+			t.Cleanup(func() {
+				runWaitDeploy = false
+				runWaitBake = false
+				runTimeout = DefaultDeploymentTimeout
+			})
+
+			err := validateRunFlags()
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got nil")
+				}
+				if !strings.Contains(err.Error(), tt.wantSub) {
+					t.Errorf("err = %q, want substring %q", err.Error(), tt.wantSub)
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
 // TestRunRun_MultiConfigLoadError exercises the multi-config branch in
 // runRun: when one of the supplied -c paths fails to load, the
 // orchestrator never starts and the error wraps "failed to load
