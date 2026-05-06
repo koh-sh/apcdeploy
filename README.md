@@ -4,6 +4,8 @@ A declarative CLI tool for managing AWS AppConfig deployments. Roll out configur
 
 Note: This tool only supports AWS AppConfig hosted configuration store. You must create AppConfig resources (application, configuration profile, environment, deployment strategy) before using this tool.
 
+Why not Terraform or CDK? AppConfig's hosted configuration versions are append-only — every deploy produces a new immutable version, and the deployment itself has its own lifecycle (deploy → bake → complete or rollback). That stateful, monotonically-incrementing shape doesn't fit the desired-state model Terraform and CDK assume. Just as importantly, the resource shells (application / profile / environment) and the configuration values inside them often have different owners — the platform team manages the shells in IaC; the application team ships value changes at a faster cadence. `apcdeploy` separates those layers: your IaC owns the resources, this tool owns the value rollout.
+
 ![apcdeploy demo](vhs/demo.gif)
 
 ## Features
