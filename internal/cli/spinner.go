@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	bspinner "github.com/charmbracelet/bubbles/spinner"
+	bspinner "charm.land/bubbles/v2/spinner"
 )
 
 // spinner is the concrete reporter.Spinner implementation. In TTY mode it
