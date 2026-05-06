@@ -56,7 +56,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 		return fmt.Errorf("failed to initialize AWS client: %w", err)
 	}
 
-	id := config.Identifier(awsClient.Region, cfg)
+	id := config.Identifier(cfg)
 	tg := e.reporter.Targets([]string{id})
 	defer tg.Close()
 	detail := ""

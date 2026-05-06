@@ -18,7 +18,7 @@ func TestTarget_FieldsRoundTrip(t *testing.T) {
 	tgt := &Target{
 		Path:       "./envs/prod.yml",
 		Config:     cfg,
-		Identifier: config.Identifier("", cfg),
+		Identifier: config.Identifier(cfg),
 	}
 
 	if got, want := tgt.Identifier, "us-east-1/my-app/my-profile/production"; got != want {

@@ -58,7 +58,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	target := &batch.Target{
 		Path:       opts.ConfigFile,
 		Config:     cfg,
-		Identifier: config.Identifier(awsClient.Region, cfg),
+		Identifier: config.Identifier(cfg),
 	}
 
 	tg := e.reporter.Targets([]string{target.Identifier})

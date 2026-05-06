@@ -73,7 +73,7 @@ func TestLoadConfigValues(t *testing.T) {
 			expectedProfile:            "TestProfile",
 			expectedEnvironment:        "Production",
 			expectedDeploymentStrategy: "AppConfig.AllAtOnce",
-			expectedRegion:             "",
+			expectedRegion:             "us-east-1",
 			expectedDataFileBase:       "data.json",
 			checkDataFileAbsolute:      true,
 		},

@@ -66,7 +66,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 		return fmt.Errorf("failed to resolve resources: %w", err)
 	}
 
-	id := config.Identifier(getter.Region(), cfg)
+	id := config.Identifier(cfg)
 
 	if !opts.SkipConfirmation {
 		if err := e.prompter.CheckTTY(); err != nil {

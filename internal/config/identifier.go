@@ -8,12 +8,8 @@ package config
 // orchestrator so that the identifier shown in logs matches the
 // identifier used for duplicate detection.
 //
-// region argument is used when cfg.Region is empty (e.g. resolved later
-// from the AWS SDK default chain). When cfg.Region is set it always wins.
-func Identifier(region string, cfg *Config) string {
-	r := cfg.Region
-	if r == "" {
-		r = region
-	}
-	return r + "/" + cfg.Application + "/" + cfg.ConfigurationProfile + "/" + cfg.Environment
+// Region is required in apcdeploy.yml as of v1.0 (see Config.validate),
+// so this function trusts cfg.Region and does not consult any fallback.
+func Identifier(cfg *Config) string {
+	return cfg.Region + "/" + cfg.Application + "/" + cfg.ConfigurationProfile + "/" + cfg.Environment
 }

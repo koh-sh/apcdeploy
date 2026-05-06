@@ -53,13 +53,7 @@ func LoadAll(paths []string) ([]*Target, error) {
 			return nil, fmt.Errorf("%s: %w", p, err)
 		}
 
-		// At load time the only region we know is whatever the user put
-		// in the yml. The CLI default-region fallback only applies once
-		// an AWS client is built, by which point dedup has already run.
-		// Configs that omit `region:` therefore collide on identifier —
-		// that's the documented behavior: specify region when using
-		// multi-config.
-		id := config.Identifier("", cfg)
+		id := config.Identifier(cfg)
 
 		if prev, dup := byID[id]; dup {
 			return nil, fmt.Errorf(

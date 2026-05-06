@@ -9,7 +9,7 @@ type Config struct {
 	Environment          string `yaml:"environment"`
 	DeploymentStrategy   string `yaml:"deployment_strategy"`
 	DataFile             string `yaml:"data_file"`
-	Region               string `yaml:"region,omitempty"`
+	Region               string `yaml:"region"`
 }
 
 // validate checks if the configuration is valid
@@ -25,6 +25,14 @@ func (c *Config) validate() error {
 	}
 	if c.DataFile == "" {
 		return fmt.Errorf("data_file is required")
+	}
+	// Region became required in v1.0. Previously omitting it meant "use the
+	// AWS SDK default region", but that made yml non-portable across machines
+	// (env / profile differences) and let multi-config users silently collide
+	// on identifier when several files all defaulted. Point users at
+	// `init --force` rather than have them hand-edit yml.
+	if c.Region == "" {
+		return fmt.Errorf("region is required (add `region: <aws-region>` to apcdeploy.yml, or regenerate with `apcdeploy init --force`)")
 	}
 	return nil
 }

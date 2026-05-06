@@ -161,7 +161,7 @@ deployment_strategy: AppConfig.AllAtOnce
 # Required: Path to your configuration data file (relative or absolute)
 data_file: data.json
 
-# Optional: AWS region (uses AWS SDK default if omitted)
+# Required: AWS region
 region: us-west-2
 ```
 
@@ -244,7 +244,7 @@ Deploy configuration changes:
 apcdeploy run -c apcdeploy.yml [--wait-deploy|--wait-bake] [--force]
 ```
 
-Pass `-c` multiple times to deploy several configs in one invocation. Each YAML must specify `region:` explicitly when using multiple `-c` (otherwise targets without a region collide on identifier).
+Pass `-c` multiple times to deploy several configs in one invocation.
 
 ```bash
 apcdeploy run -c environments/dev.yml -c environments/stg.yml -c environments/prod.yml --wait-bake
@@ -298,7 +298,7 @@ Preview configuration changes:
 apcdeploy diff -c apcdeploy.yml [--exit-nonzero]
 ```
 
-Pass `-c` multiple times to diff several configs in one invocation. Each YAML must specify `region:` explicitly. Each target's diff is prefixed with `=== <region>/<app>/<profile>/<env> ===`; the single-target form omits the header so it can be piped into `patch` / `git apply`.
+Pass `-c` multiple times to diff several configs in one invocation. Each target's diff is prefixed with `=== <region>/<app>/<profile>/<env> ===`; the single-target form omits the header so it can be piped into `patch` / `git apply`.
 
 ```bash
 apcdeploy diff -c environments/dev.yml -c environments/stg.yml -c environments/prod.yml
@@ -344,7 +344,7 @@ Pull the latest deployed configuration and update your local data file:
 apcdeploy pull -c apcdeploy.yml
 ```
 
-Pass `-c` multiple times to pull several configurations in one invocation. Each YAML must specify `region:` explicitly:
+Pass `-c` multiple times to pull several configurations in one invocation:
 
 ```bash
 apcdeploy pull -c environments/dev.yml -c environments/stg.yml -c environments/prod.yml
