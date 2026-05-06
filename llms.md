@@ -596,12 +596,13 @@ apcdeploy run -c apcdeploy.yml
 
 | Cause | Resolution |
 |---|---|
-| No ongoing deployment in `DEPLOYING` or `BAKING` state | Nothing to stop. If you intended to revert a completed deployment, use Git revert + `apcdeploy run`. |
+| No ongoing deployment in `DEPLOYING` or `BAKING` state (exit code `2`) | Nothing to stop. If you intended to revert a completed deployment, use Git revert + `apcdeploy run`. |
 
 #### Exit Codes
 
 - `0`: success
-- `1`: AWS error, no ongoing deployment, user declined the prompt, or TTY error when `--yes` is missing in a non-interactive environment
+- `1`: AWS error, user declined the prompt, or TTY error when `--yes` is missing in a non-interactive environment
+- `2`: no ongoing deployment to stop
 
 #### Examples
 
