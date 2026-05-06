@@ -324,6 +324,8 @@ Options:
 
 - `--deployment`: Deployment number to check (defaults to latest)
 
+Exits with code 2 when no deployment exists for the profile + environment.
+
 ### get
 
 Retrieve the currently deployed configuration:

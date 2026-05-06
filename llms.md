@@ -446,12 +446,13 @@ State values:
 
 | Cause | Resolution |
 |---|---|
-| No deployment has ever been made for the profile + environment | Run `apcdeploy run -c apcdeploy.yml` first to create the initial deployment, then `status` will have something to report. |
+| No deployment has ever been made for the profile + environment (exit code `2`) | Run `apcdeploy run -c apcdeploy.yml` first to create the initial deployment, then `status` will have something to report. |
 
 #### Exit Codes
 
 - `0`: success
-- `1`: AWS error, or no deployment exists for the profile + environment
+- `1`: AWS error
+- `2`: no deployment exists for the profile + environment
 
 #### Examples
 
