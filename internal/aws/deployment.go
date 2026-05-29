@@ -18,10 +18,13 @@ func (c *Client) CheckOngoingDeployment(ctx context.Context, applicationID, envi
 		return false, nil, wrapAWSError(err, "failed to list deployments")
 	}
 
-	// Check for ongoing deployments (DEPLOYING or BAKING state)
+	// Check for ongoing deployments (any in-flight state)
 	for _, deployment := range deployments {
 		if deployment.State == types.DeploymentStateDeploying ||
-			deployment.State == types.DeploymentStateBaking {
+			deployment.State == types.DeploymentStateBaking ||
+			deployment.State == types.DeploymentStateValidating ||
+			deployment.State == types.DeploymentStateRollingBack ||
+			deployment.State == types.DeploymentStateReverted {
 			return true, &deployment, nil
 		}
 	}
