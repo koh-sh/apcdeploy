@@ -607,43 +607,100 @@ func TestGetLatestDeployment_AllGetDeploymentFail(t *testing.T) {
 	}
 }
 
-// TestGetLatestDeployment_PartialGetDeploymentFail covers the case where some
-// GetDeployment calls fail but others succeed: the function should still find
-// and return the latest deployment from the successful subset, not error out.
-func TestGetLatestDeployment_PartialGetDeploymentFail(t *testing.T) {
+// TestGetLatestDeployment_NewestGetDeploymentFails verifies that when the newest
+// deployment's GetDeployment call fails, the function surfaces that error rather
+// than silently returning an older deployment as "latest".
+//
+// Before the fix, if deployments [1, 2, 3] existed and GetDeployment(3) failed
+// transiently (e.g. throttling) while GetDeployment(2) and GetDeployment(1)
+// succeeded, the loop would accept deployment 2 as "latest" with no error.
+// Downstream run / diff / pull would then compare against the wrong (older)
+// version, producing wrong diffs or incorrect no-op decisions.
+//
+// The fix sorts deployments newest-first and fails fast on any GetDeployment
+// error, so a transient failure on the newest deployment propagates as an error
+// instead of being silently swallowed.
+func TestGetLatestDeployment_NewestGetDeploymentFails(t *testing.T) {
 	t.Parallel()
-	mockClient := &mock.MockAppConfigClient{
-		ListDeploymentsFunc: func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
-			return &appconfig.ListDeploymentsOutput{
-				Items: []types.DeploymentSummary{
-					{DeploymentNumber: 1},
-					{DeploymentNumber: 2},
-				},
-			}, nil
+	tests := []struct {
+		name              string
+		deployments       []types.DeploymentSummary
+		getDeploymentFunc func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error)
+		profileID         string
+		wantErr           bool
+		wantDeployNum     int32
+	}{
+		{
+			name: "newest deployment fetch fails, older succeeds — must error",
+			deployments: []types.DeploymentSummary{
+				{DeploymentNumber: 1},
+				{DeploymentNumber: 3},
+				{DeploymentNumber: 2},
+			},
+			getDeploymentFunc: func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
+				if *params.DeploymentNumber == 3 {
+					return nil, errors.New("ThrottlingException: rate exceeded for deployment 3")
+				}
+				return &appconfig.GetDeploymentOutput{
+					DeploymentNumber:       *params.DeploymentNumber,
+					ConfigurationProfileId: new("profile-123"),
+					ConfigurationVersion:   new("5"),
+					State:                  types.DeploymentStateComplete,
+				}, nil
+			},
+			profileID: "profile-123",
+			wantErr:   true,
 		},
-		GetDeploymentFunc: func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
-			if *params.DeploymentNumber == 1 {
-				return nil, errors.New("transient throttle on deployment 1")
-			}
-			return &appconfig.GetDeploymentOutput{
-				DeploymentNumber:       *params.DeploymentNumber,
-				ConfigurationProfileId: new("profile-123"),
-				ConfigurationVersion:   new("9"),
-				State:                  types.DeploymentStateComplete,
-			}, nil
+		{
+			name: "oldest deployment fetch fails, newest succeeds — must succeed",
+			deployments: []types.DeploymentSummary{
+				{DeploymentNumber: 1},
+				{DeploymentNumber: 2},
+			},
+			getDeploymentFunc: func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
+				if *params.DeploymentNumber == 1 {
+					return nil, errors.New("ThrottlingException: rate exceeded for deployment 1")
+				}
+				return &appconfig.GetDeploymentOutput{
+					DeploymentNumber:       *params.DeploymentNumber,
+					ConfigurationProfileId: new("profile-123"),
+					ConfigurationVersion:   new("9"),
+					State:                  types.DeploymentStateComplete,
+				}, nil
+			},
+			profileID:     "profile-123",
+			wantErr:       false,
+			wantDeployNum: 2,
 		},
 	}
 
-	client := &Client{appConfig: mockClient}
-	deployment, err := GetLatestDeployment(context.Background(), client, "app-123", "env-123", "profile-123")
-	if err != nil {
-		t.Fatalf("expected partial failure to be tolerated, got %v", err)
-	}
-	if deployment == nil {
-		t.Fatal("expected deployment from successful subset, got nil")
-	}
-	if deployment.DeploymentNumber != 2 {
-		t.Errorf("DeploymentNumber = %d, want 2", deployment.DeploymentNumber)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			mockClient := &mock.MockAppConfigClient{
+				ListDeploymentsFunc: func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
+					return &appconfig.ListDeploymentsOutput{
+						Items: tt.deployments,
+					}, nil
+				},
+				GetDeploymentFunc: tt.getDeploymentFunc,
+			}
+
+			client := &Client{appConfig: mockClient}
+			deployment, err := GetLatestDeployment(context.Background(), client, "app-123", "env-123", tt.profileID)
+
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("GetLatestDeployment() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if !tt.wantErr {
+				if deployment == nil {
+					t.Fatal("expected a deployment, got nil")
+				}
+				if deployment.DeploymentNumber != tt.wantDeployNum {
+					t.Errorf("DeploymentNumber = %d, want %d", deployment.DeploymentNumber, tt.wantDeployNum)
+				}
+			}
+		})
 	}
 }
 
