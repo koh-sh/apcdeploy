@@ -662,6 +662,62 @@ func TestExecutorTargetsDoneOnSuccess(t *testing.T) {
 	}
 }
 
+func TestExecutorConfirmationPromptLabel(t *testing.T) {
+	t.Parallel()
+
+	configPath := createTestConfig(t)
+
+	mockClient := createStandardMockClient(
+		func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
+			return &appconfig.ListDeploymentsOutput{
+				Items: []types.DeploymentSummary{
+					{DeploymentNumber: 3, State: types.DeploymentStateDeploying},
+				},
+			}, nil
+		},
+		func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
+			n := int32(3)
+			return &appconfig.GetDeploymentOutput{
+				DeploymentNumber:       n,
+				ConfigurationProfileId: aws.String("profile-123"),
+				ConfigurationVersion:   aws.String("1"),
+				DeploymentStrategyId:   aws.String("strategy-123"),
+				State:                  types.DeploymentStateDeploying,
+				StartedAt:              aws.Time(time.Now()),
+			}, nil
+		},
+		func(ctx context.Context, params *appconfig.StopDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.StopDeploymentOutput, error) {
+			return &appconfig.StopDeploymentOutput{}, nil
+		},
+	)
+
+	var capturedMessage string
+	rep := &reportertest.MockReporter{}
+	prompter := &prompttest.MockPrompter{
+		InputFunc: func(message string, placeholder string) (string, error) {
+			capturedMessage = message
+			return "y", nil
+		},
+	}
+	executor := NewExecutorWithFactory(rep, prompter, func(ctx context.Context, region string) (*awsInternal.Client, error) {
+		return awsInternal.NewTestClient(mockClient), nil
+	})
+
+	err := executor.Execute(context.Background(), &Options{ConfigFile: configPath})
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+
+	// The prompt label must use (y/N) style, consistent with get's confirmation prompt.
+	// (Y/Yes) was misleading because empty input defaults to No.
+	if !strings.Contains(capturedMessage, "(y/N)") {
+		t.Errorf("expected confirmation prompt to contain '(y/N)', got %q", capturedMessage)
+	}
+	if strings.Contains(capturedMessage, "(Y/Yes)") {
+		t.Errorf("confirmation prompt must not use '(Y/Yes)' style, got %q", capturedMessage)
+	}
+}
+
 func TestExecutorTargetsFailOnStopError(t *testing.T) {
 	t.Parallel()
 

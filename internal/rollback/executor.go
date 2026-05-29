@@ -101,7 +101,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 		// Targets avoids the in-place renderer fighting with the prompt.
 		display.DeploymentStatus(e.reporter, details, cfg, resources)
 
-		message := fmt.Sprintf("Stop deployment #%d? This will rollback the deployment. (Y/Yes)", deploymentNumber)
+		message := fmt.Sprintf("Stop deployment #%d? This will rollback the deployment. (y/N)", deploymentNumber)
 		response, err := e.prompter.Input(message, "")
 		if err != nil {
 			return fmt.Errorf("failed to get user confirmation: %w", err)
