@@ -18,13 +18,17 @@ func (c *Client) CheckOngoingDeployment(ctx context.Context, applicationID, envi
 		return false, nil, wrapAWSError(err, "failed to list deployments")
 	}
 
-	// Check for ongoing deployments (any in-flight state)
+	// Check for ongoing (in-flight) deployments. The transitional states
+	// are DEPLOYING, BAKING, VALIDATING and ROLLING_BACK. The terminal
+	// states COMPLETE, ROLLED_BACK and REVERTED are deliberately excluded:
+	// they persist in the deployment history indefinitely, so treating one
+	// as "ongoing" would permanently block run/edit (false "already in
+	// progress") and make rollback try to stop a finished deployment.
 	for _, deployment := range deployments {
 		if deployment.State == types.DeploymentStateDeploying ||
 			deployment.State == types.DeploymentStateBaking ||
 			deployment.State == types.DeploymentStateValidating ||
-			deployment.State == types.DeploymentStateRollingBack ||
-			deployment.State == types.DeploymentStateReverted {
+			deployment.State == types.DeploymentStateRollingBack {
 			return true, &deployment, nil
 		}
 	}

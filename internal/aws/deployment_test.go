@@ -83,14 +83,14 @@ func TestCheckOngoingDeployment(t *testing.T) {
 			expectedErr:     false,
 		},
 		{
-			name: "has reverted deployment",
+			name: "reverted deployment is not ongoing",
 			deployments: []types.DeploymentSummary{
 				{
 					DeploymentNumber: 1,
 					State:            types.DeploymentStateReverted,
 				},
 			},
-			expectedOngoing: true,
+			expectedOngoing: false,
 			expectedErr:     false,
 		},
 		{
