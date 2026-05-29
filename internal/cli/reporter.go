@@ -164,13 +164,9 @@ func colorizeDiffLine(line string) string {
 	}
 }
 
-// visibleWidth returns the rune count of s, used for header underline width.
-// Lipgloss color codes never reach this helper because callers pass the raw
-// string before styling.
+// visibleWidth returns the terminal display width of s in cells.
+// Full-width characters (e.g. CJK) each count as 2 cells; ANSI escape
+// sequences count as 0. Uses lipgloss.Width which already handles both.
 func visibleWidth(s string) int {
-	n := 0
-	for range s {
-		n++
-	}
-	return n
+	return lipgloss.Width(s)
 }
