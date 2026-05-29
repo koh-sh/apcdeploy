@@ -487,6 +487,20 @@ func Test_formatJSON(t *testing.T) {
 			input:   []byte(`{invalid`),
 			wantErr: true,
 		},
+		{
+			// Integers > 2^53 cannot be represented exactly as float64.
+			// formatJSON must preserve them without precision loss.
+			name:    "large integer preserves precision",
+			input:   []byte(`{"id":9007199254740993}`),
+			want:    "{\n  \"id\": 9007199254740993\n}\n",
+			wantErr: false,
+		},
+		{
+			name:    "multiple large integers preserve precision",
+			input:   []byte(`{"a":9007199254740993,"b":9007199254740994}`),
+			want:    "{\n  \"a\": 9007199254740993,\n  \"b\": 9007199254740994\n}\n",
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {

@@ -110,11 +110,15 @@ func WriteDataFile(content []byte, contentType, outputPath, profileType string, 
 	return nil
 }
 
-// formatJSON formats JSON data with proper indentation
-// For FeatureFlags profile type, it removes _updatedAt and _createdAt fields recursively
+// formatJSON formats JSON data with proper indentation.
+// For FeatureFlags profile type, it removes _updatedAt and _createdAt fields recursively.
+// UseNumber is used during decoding so that large integers (> 2^53) are preserved
+// exactly instead of being converted to float64, which would cause precision loss.
 func formatJSON(data []byte, profileType string) ([]byte, error) {
 	var obj any
-	if err := json.Unmarshal(data, &obj); err != nil {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.UseNumber()
+	if err := dec.Decode(&obj); err != nil {
 		return nil, fmt.Errorf("invalid JSON: %w", err)
 	}
 
