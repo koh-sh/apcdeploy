@@ -130,6 +130,118 @@ func TestListEnabledRegions(t *testing.T) {
 	}
 }
 
+func TestListEnabledRegions_MultiPage(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		setupMock   func() *mock.MockAccountClient
+		wantRegions []string
+		wantErr     bool
+	}{
+		{
+			name: "two pages are combined and sorted",
+			setupMock: func() *mock.MockAccountClient {
+				callCount := 0
+				return &mock.MockAccountClient{
+					ListRegionsFunc: func(ctx context.Context, params *account.ListRegionsInput, optFns ...func(*account.Options)) (*account.ListRegionsOutput, error) {
+						callCount++
+						if callCount == 1 {
+							return &account.ListRegionsOutput{
+								Regions: []accountTypes.Region{
+									{RegionName: aws.String("us-west-2"), RegionOptStatus: accountTypes.RegionOptStatusEnabled},
+									{RegionName: aws.String("eu-west-1"), RegionOptStatus: accountTypes.RegionOptStatusEnabledByDefault},
+								},
+								NextToken: aws.String("page2"),
+							}, nil
+						}
+						return &account.ListRegionsOutput{
+							Regions: []accountTypes.Region{
+								{RegionName: aws.String("ap-northeast-1"), RegionOptStatus: accountTypes.RegionOptStatusEnabled},
+								{RegionName: aws.String("us-east-1"), RegionOptStatus: accountTypes.RegionOptStatusEnabledByDefault},
+							},
+						}, nil
+					},
+				}
+			},
+			wantRegions: []string{"ap-northeast-1", "eu-west-1", "us-east-1", "us-west-2"},
+		},
+		{
+			name: "three pages are combined and sorted",
+			setupMock: func() *mock.MockAccountClient {
+				callCount := 0
+				return &mock.MockAccountClient{
+					ListRegionsFunc: func(ctx context.Context, params *account.ListRegionsInput, optFns ...func(*account.Options)) (*account.ListRegionsOutput, error) {
+						callCount++
+						switch callCount {
+						case 1:
+							return &account.ListRegionsOutput{
+								Regions: []accountTypes.Region{
+									{RegionName: aws.String("us-west-2"), RegionOptStatus: accountTypes.RegionOptStatusEnabled},
+								},
+								NextToken: aws.String("page2"),
+							}, nil
+						case 2:
+							return &account.ListRegionsOutput{
+								Regions: []accountTypes.Region{
+									{RegionName: aws.String("eu-west-1"), RegionOptStatus: accountTypes.RegionOptStatusEnabled},
+								},
+								NextToken: aws.String("page3"),
+							}, nil
+						default:
+							return &account.ListRegionsOutput{
+								Regions: []accountTypes.Region{
+									{RegionName: aws.String("ap-southeast-1"), RegionOptStatus: accountTypes.RegionOptStatusEnabledByDefault},
+								},
+							}, nil
+						}
+					},
+				}
+			},
+			wantRegions: []string{"ap-southeast-1", "eu-west-1", "us-west-2"},
+		},
+		{
+			name: "second page API error is returned",
+			setupMock: func() *mock.MockAccountClient {
+				callCount := 0
+				return &mock.MockAccountClient{
+					ListRegionsFunc: func(ctx context.Context, params *account.ListRegionsInput, optFns ...func(*account.Options)) (*account.ListRegionsOutput, error) {
+						callCount++
+						if callCount == 1 {
+							return &account.ListRegionsOutput{
+								Regions: []accountTypes.Region{
+									{RegionName: aws.String("us-east-1"), RegionOptStatus: accountTypes.RegionOptStatusEnabled},
+								},
+								NextToken: aws.String("page2"),
+							}, nil
+						}
+						return nil, errors.New("page 2 API error")
+					},
+				}
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			mockClient := tt.setupMock()
+
+			regions, err := awsInternal.ListEnabledRegions(ctx, mockClient)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantRegions, regions)
+		})
+	}
+}
+
 func TestListEnabledRegions_RequestsCorrectFilter(t *testing.T) {
 	t.Parallel()
 
