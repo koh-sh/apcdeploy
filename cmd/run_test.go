@@ -224,12 +224,18 @@ func TestValidateRunFlags(t *testing.T) {
 		wantSub    string
 	}{
 		{name: "default flags pass", timeout: DefaultDeploymentTimeout},
-		{name: "zero timeout pass", timeout: 0},
+		{name: "positive timeout passes", timeout: 1},
+		{
+			name:    "zero timeout rejected",
+			timeout: 0,
+			wantErr: true,
+			wantSub: "timeout must be greater than 0",
+		},
 		{
 			name:    "negative timeout rejected",
 			timeout: -1,
 			wantErr: true,
-			wantSub: "timeout must be a non-negative value",
+			wantSub: "timeout must be greater than 0",
 		},
 		{
 			name:       "both wait flags rejected",

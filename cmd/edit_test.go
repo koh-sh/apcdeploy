@@ -117,6 +117,71 @@ func TestEditCommand(t *testing.T) {
 	}
 }
 
+// TestValidateEditFlags asserts timeout and mutually-exclusive wait-flag
+// constraints are enforced before any AWS work begins. The edit command uses
+// the same validateEditFlags helper as the run command, so regressions in
+// either helper show up here.
+func TestValidateEditFlags(t *testing.T) {
+	tests := []struct {
+		name       string
+		waitDeploy bool
+		waitBake   bool
+		timeout    int
+		wantErr    bool
+		wantSub    string
+	}{
+		{name: "default flags pass", timeout: DefaultDeploymentTimeout},
+		{name: "positive timeout passes", timeout: 1},
+		{
+			name:    "zero timeout rejected",
+			timeout: 0,
+			wantErr: true,
+			wantSub: "timeout must be greater than 0",
+		},
+		{
+			name:    "negative timeout rejected",
+			timeout: -1,
+			wantErr: true,
+			wantSub: "timeout must be greater than 0",
+		},
+		{
+			name:       "both wait flags rejected",
+			waitDeploy: true,
+			waitBake:   true,
+			timeout:    DefaultDeploymentTimeout,
+			wantErr:    true,
+			wantSub:    "--wait-deploy and --wait-bake cannot be used together",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			editWaitDeploy = tt.waitDeploy
+			editWaitBake = tt.waitBake
+			editTimeout = tt.timeout
+			t.Cleanup(func() {
+				editWaitDeploy = false
+				editWaitBake = false
+				editTimeout = DefaultDeploymentTimeout
+			})
+
+			err := validateEditFlags()
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got nil")
+				}
+				if !strings.Contains(err.Error(), tt.wantSub) {
+					t.Errorf("err = %q, want substring %q", err.Error(), tt.wantSub)
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
 // TestRunEditDescriptionValidation ensures the edit command applies the same
 // 1024-rune client-side guard as the run command (CLAUDE.md "validation
 // parity"). We exercise the boundary so a regression in either runEdit's
