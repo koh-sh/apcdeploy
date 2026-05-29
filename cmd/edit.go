@@ -26,6 +26,18 @@ func EditCommand() *cobra.Command {
 	return newEditCmd()
 }
 
+// validateEditFlags checks the edit-command flags whose validity does not
+// depend on per-target state. Mirrors validateRunFlags for parity.
+func validateEditFlags() error {
+	if editTimeout <= 0 {
+		return fmt.Errorf("timeout must be greater than 0")
+	}
+	if editWaitDeploy && editWaitBake {
+		return fmt.Errorf("--wait-deploy and --wait-bake cannot be used together")
+	}
+	return nil
+}
+
 func newEditCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "edit",
@@ -60,6 +72,9 @@ func runEdit(cmd *cobra.Command, args []string) error {
 	ctx := commandContext(cmd)
 
 	if err := validateDescription(editDescription); err != nil {
+		return err
+	}
+	if err := validateEditFlags(); err != nil {
 		return err
 	}
 	description := resolveDescription(cmd, editDescription)

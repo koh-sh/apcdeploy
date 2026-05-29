@@ -44,8 +44,8 @@ func RunCommand() *cobra.Command {
 // error regardless of -c count and the orchestrator never starts when
 // the flags are bogus.
 func validateRunFlags() error {
-	if runTimeout < 0 {
-		return fmt.Errorf("timeout must be a non-negative value")
+	if runTimeout <= 0 {
+		return fmt.Errorf("timeout must be greater than 0")
 	}
 	if runWaitDeploy && runWaitBake {
 		return fmt.Errorf("--wait-deploy and --wait-bake cannot be used together")
