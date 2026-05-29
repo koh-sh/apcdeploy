@@ -197,9 +197,18 @@ func (c *Client) waitForDeploymentWithCondition(
 		case types.DeploymentStateRolledBack:
 			return false, rolledBackError(output.EventLog)
 
-		case types.DeploymentStateDeploying:
-			// Still deploying
+		case types.DeploymentStateDeploying, types.DeploymentStateValidating:
+			// Still in progress
 			return false, nil
+
+		case types.DeploymentStateRollingBack:
+			// Auto-rollback in progress; keep polling until ROLLED_BACK
+			// so that rolledBackError can surface the reason from the event log.
+			return false, nil
+
+		case types.DeploymentStateReverted:
+			// Terminal state: deployment was explicitly reverted to a previous version.
+			return false, fmt.Errorf("deployment was reverted")
 
 		default:
 			// Unexpected state
@@ -330,6 +339,15 @@ func (c *Client) WaitForBakingComplete(
 
 		case types.DeploymentStateRolledBack:
 			return false, rolledBackError(output.EventLog)
+
+		case types.DeploymentStateRollingBack:
+			// Auto-rollback in progress; keep polling until ROLLED_BACK
+			// so that rolledBackError can surface the reason from the event log.
+			return false, nil
+
+		case types.DeploymentStateReverted:
+			// Terminal state: deployment was explicitly reverted to a previous version.
+			return false, fmt.Errorf("deployment was reverted")
 
 		default:
 			return false, fmt.Errorf("unexpected deployment state during bake wait: %s", output.State)

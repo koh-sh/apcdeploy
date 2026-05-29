@@ -976,6 +976,73 @@ func TestWaitForDeploymentPhase(t *testing.T) {
 			wantErr:       true,
 			wantErrMsg:    "deployment timed out",
 		},
+		// VALIDATING: transient state right after StartDeployment; must keep polling
+		{
+			name:          "wait for deploy: VALIDATING then DEPLOYING then BAKING succeeds",
+			deploymentNum: 10,
+			waitForBaking: false,
+			mockStates:    []types.DeploymentState{types.DeploymentStateValidating, types.DeploymentStateDeploying, types.DeploymentStateBaking},
+			timeout:       10 * time.Second,
+			wantErr:       false,
+		},
+		{
+			name:          "wait for bake: VALIDATING then DEPLOYING then BAKING then COMPLETE succeeds",
+			deploymentNum: 11,
+			waitForBaking: true,
+			mockStates:    []types.DeploymentState{types.DeploymentStateValidating, types.DeploymentStateDeploying, types.DeploymentStateBaking, types.DeploymentStateComplete},
+			timeout:       10 * time.Second,
+			wantErr:       false,
+		},
+		// ROLLING_BACK: keep polling until ROLLED_BACK so we can surface the reason
+		{
+			name:          "wait for deploy: ROLLING_BACK then ROLLED_BACK surfaces rollback reason",
+			deploymentNum: 12,
+			waitForBaking: false,
+			mockStates:    []types.DeploymentState{types.DeploymentStateDeploying, types.DeploymentStateRollingBack, types.DeploymentStateRolledBack},
+			mockEventLog: []types.DeploymentEvent{
+				{
+					EventType:   types.DeploymentEventTypeRollbackStarted,
+					Description: new("CloudWatch alarm triggered rollback"),
+				},
+			},
+			timeout:    10 * time.Second,
+			wantErr:    true,
+			wantErrMsg: "deployment was rolled back: CloudWatch alarm triggered rollback",
+		},
+		{
+			name:          "wait for bake: BAKING then ROLLING_BACK then ROLLED_BACK surfaces rollback reason",
+			deploymentNum: 13,
+			waitForBaking: true,
+			mockStates:    []types.DeploymentState{types.DeploymentStateBaking, types.DeploymentStateRollingBack, types.DeploymentStateRolledBack},
+			mockEventLog: []types.DeploymentEvent{
+				{
+					EventType:   types.DeploymentEventTypeRollbackStarted,
+					Description: new("auto-rollback due to alarm"),
+				},
+			},
+			timeout:    10 * time.Second,
+			wantErr:    true,
+			wantErrMsg: "deployment was rolled back: auto-rollback due to alarm",
+		},
+		// REVERTED: terminal state — surface as error
+		{
+			name:          "wait for deploy: REVERTED is a terminal error",
+			deploymentNum: 14,
+			waitForBaking: false,
+			mockStates:    []types.DeploymentState{types.DeploymentStateReverted},
+			timeout:       10 * time.Second,
+			wantErr:       true,
+			wantErrMsg:    "deployment was reverted",
+		},
+		{
+			name:          "wait for bake: REVERTED is a terminal error",
+			deploymentNum: 15,
+			waitForBaking: true,
+			mockStates:    []types.DeploymentState{types.DeploymentStateReverted},
+			timeout:       10 * time.Second,
+			wantErr:       true,
+			wantErrMsg:    "deployment was reverted",
+		},
 	}
 
 	for _, tt := range tests {
@@ -1269,6 +1336,25 @@ func TestWaitForBakingComplete(t *testing.T) {
 			timeout:     2 * time.Second,
 			wantErr:     true,
 			wantErrMsg:  "unexpected deployment state during bake wait",
+		},
+		// ROLLING_BACK: auto-rollback during bake; keep polling until ROLLED_BACK
+		{
+			name:         "ROLLING_BACK then ROLLED_BACK surfaces rollback reason",
+			mockStates:   []types.DeploymentState{types.DeploymentStateBaking, types.DeploymentStateRollingBack, types.DeploymentStateRolledBack},
+			mockEventLog: []types.DeploymentEvent{{EventType: types.DeploymentEventTypeRollbackStarted, Description: new("alarm fired")}},
+			bakeMinutes:  1,
+			timeout:      2 * time.Second,
+			wantErr:      true,
+			wantErrMsg:   "deployment was rolled back: alarm fired",
+		},
+		// REVERTED: terminal state — surface as error
+		{
+			name:        "REVERTED is a terminal error",
+			mockStates:  []types.DeploymentState{types.DeploymentStateReverted},
+			bakeMinutes: 1,
+			timeout:     2 * time.Second,
+			wantErr:     true,
+			wantErrMsg:  "deployment was reverted",
 		},
 		{
 			name:        "timeout while still baking",
