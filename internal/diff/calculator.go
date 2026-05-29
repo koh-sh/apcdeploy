@@ -99,7 +99,10 @@ func calculate(remoteContent, localContent, fileName, profileType string) (*Resu
 //   - "-" for deleted lines
 //   - " " for context lines (unchanged)
 //
-// Empty lines are skipped to produce a cleaner output.
+// go-diff splits text on "\n", which produces a trailing empty token after
+// every newline-terminated line. That sentinel is skipped; all other lines
+// (including intentionally blank ones) are emitted so the rendered body
+// agrees with HasChanges and the "N lines changed" count.
 //
 // Parameters:
 //   - diffs: Slice of diff chunks from go-diff library
@@ -110,10 +113,13 @@ func formatDiffs(diffs []diffmatchpatch.Diff) string {
 	var result strings.Builder
 
 	for _, diff := range diffs {
-		lines := strings.SplitSeq(diff.Text, "\n")
-		for line := range lines {
-			// Skip empty lines
-			if line == "" {
+		lines := strings.Split(diff.Text, "\n")
+		for i, line := range lines {
+			// Skip the trailing empty token produced by a newline-terminated
+			// chunk (the last element after splitting "a\nb\n" is "").
+			// Genuine blank lines in the middle of the text have a non-last
+			// index, so they are still rendered.
+			if line == "" && i == len(lines)-1 {
 				continue
 			}
 

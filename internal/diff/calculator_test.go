@@ -418,6 +418,77 @@ func TestCalculateResult(t *testing.T) {
 	}
 }
 
+// TestFormatDiffs_BlankLines verifies that blank-line additions and removals are
+// rendered in the diff body (prefixed with '+'/'-') so the visible output agrees
+// with HasChanges and the "N lines changed" summary.
+// Regression test for issue #108.
+func TestFormatDiffs_BlankLines(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		remoteContent  string
+		localContent   string
+		fileName       string
+		wantHasChanges bool
+		// wantDiffContains is the prefix character ('+' or '-') that must
+		// appear on at least one line of the rendered diff.
+		wantDiffContains string
+	}{
+		{
+			name:             "blank line added",
+			remoteContent:    "line1\nline2\n",
+			localContent:     "line1\n\nline2\n",
+			fileName:         "config.txt",
+			wantHasChanges:   true,
+			wantDiffContains: "+",
+		},
+		{
+			name:             "blank line removed",
+			remoteContent:    "line1\n\nline2\n",
+			localContent:     "line1\nline2\n",
+			fileName:         "config.txt",
+			wantHasChanges:   true,
+			wantDiffContains: "-",
+		},
+		{
+			name:             "blank line added in text file (multiple lines)",
+			remoteContent:    "line1\nline2\nline3\n",
+			localContent:     "line1\n\nline2\nline3\n",
+			fileName:         "config.txt",
+			wantHasChanges:   true,
+			wantDiffContains: "+",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			result, err := calculate(tt.remoteContent, tt.localContent, tt.fileName, "")
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if result.HasChanges != tt.wantHasChanges {
+				t.Errorf("HasChanges = %v, want %v", result.HasChanges, tt.wantHasChanges)
+			}
+			if result.UnifiedDiff == "" {
+				t.Error("UnifiedDiff is empty but HasChanges is true: body must reflect the change")
+			}
+			found := false
+			for line := range strings.SplitSeq(result.UnifiedDiff, "\n") {
+				if strings.HasPrefix(line, tt.wantDiffContains) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("expected at least one line prefixed with %q in UnifiedDiff, got:\n%s",
+					tt.wantDiffContains, result.UnifiedDiff)
+			}
+		})
+	}
+}
+
 func TestCalculateFeatureFlags(t *testing.T) {
 	tests := []struct {
 		name          string
