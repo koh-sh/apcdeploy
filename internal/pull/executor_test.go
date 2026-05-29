@@ -616,18 +616,18 @@ region: us-east-1
 		t.Error("expected data file to NOT be modified when no changes exist")
 	}
 
-	// The no-change branch finalises the Targets row with Done("no changes")
-	// — pull is idempotent so a no-op is a successful outcome.
-	foundDone := false
+	// The no-change branch finalises the Targets row with Skip("no changes")
+	// so the orchestrator counts it as no-op, consistent with run/diff.
+	foundSkip := false
 	for _, call := range reporter.TargetsCalls {
 		for _, tr := range call.Transitions {
-			if tr.Kind == "done" && strings.Contains(tr.Summary, "no changes") {
-				foundDone = true
+			if tr.Kind == "skip" && strings.Contains(tr.Reason, "no changes") {
+				foundSkip = true
 			}
 		}
 	}
-	if !foundDone {
-		t.Errorf("expected Targets.Done('no changes'); got: %+v", reporter.TargetsCalls)
+	if !foundSkip {
+		t.Errorf("expected Targets.Skip('no changes'); got: %+v", reporter.TargetsCalls)
 	}
 }
 

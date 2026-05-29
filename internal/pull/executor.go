@@ -42,7 +42,7 @@ func NewExecutorWithFactory(rep reporter.Reporter, factory func(context.Context,
 //
 // Output shape:
 //   - updated:        ✓ updated <data-file-path>
-//   - no changes:     ✓ no changes
+//   - no changes:     ⊘ no changes  (Skip — counted as no-op by the orchestrator)
 //   - no deployment:  ✗ failed: no deployment found  (returns aws.ErrNoDeployment)
 //   - resolve/fetch/write errors: ✗ failed: <message> (returns wrapped error)
 //
@@ -90,7 +90,7 @@ func (e *Executor) RunOnTarget(ctx context.Context, t *batch.Target, tr reporter
 			return fmt.Errorf("failed to check for changes: %w", err)
 		}
 		if !hasChanges {
-			tr.Done("no changes")
+			tr.Skip("no changes")
 			return nil
 		}
 	}
