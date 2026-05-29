@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strconv"
 	"time"
 
@@ -372,24 +373,29 @@ func GetLatestDeploymentIncludingRollback(ctx context.Context, client *Client, a
 	return getLatestDeploymentInternal(ctx, client, applicationID, environmentID, profileID, false)
 }
 
-// getLatestDeploymentInternal is the internal implementation for retrieving the latest deployment
+// getLatestDeploymentInternal is the internal implementation for retrieving the latest deployment.
+//
+// Deployments are sorted descending by DeploymentNumber before scanning so that the
+// newest deployment is examined first. Any GetDeployment error causes an immediate
+// return — if we cannot fetch details for a deployment we have no way to determine
+// whether it is the true latest for the requested profile, so silently skipping it
+// could cause callers (run / diff / pull) to compare against an older version.
 func getLatestDeploymentInternal(ctx context.Context, client *Client, applicationID, environmentID, profileID string, skipRolledBack bool) (*DeploymentInfo, error) {
 	deployments, err := client.ListAllDeployments(ctx, applicationID, environmentID)
 	if err != nil {
 		return nil, wrapAWSError(err, "failed to list deployments")
 	}
 
-	// Find the latest deployment for this configuration profile
-	// We need to get full deployment details to access ConfigurationProfileId
-	var (
-		latestDeployment *DeploymentInfo
-		lastErr          error
-		fetchedCount     int
-	)
+	// Sort newest-first so we examine the highest deployment number first.
+	sort.Slice(deployments, func(i, j int) bool {
+		return deployments[i].DeploymentNumber > deployments[j].DeploymentNumber
+	})
+
+	// Find the latest deployment for this configuration profile.
+	// We need to get full deployment details to access ConfigurationProfileId.
 	for i := range deployments {
 		summary := &deployments[i]
 
-		// Get full deployment details
 		getInput := &appconfig.GetDeploymentInput{
 			ApplicationId:    aws.String(applicationID),
 			EnvironmentId:    aws.String(environmentID),
@@ -398,41 +404,32 @@ func getLatestDeploymentInternal(ctx context.Context, client *Client, applicatio
 
 		deployment, err := client.appConfig.GetDeployment(ctx, getInput)
 		if err != nil {
-			// Track the failure but keep going — a single transient error
-			// shouldn't hide an otherwise-discoverable deployment.
-			lastErr = err
+			// Fail fast: if any GetDeployment call errors we cannot be certain
+			// which deployment is truly the latest for this profile, so surfacing
+			// the error is safer than silently returning an older deployment.
+			return nil, wrapAWSError(err, "failed to fetch deployment details")
+		}
+
+		// Skip deployments that belong to a different configuration profile.
+		if aws.ToString(deployment.ConfigurationProfileId) != profileID {
 			continue
 		}
-		fetchedCount++
 
-		// Check if this is for the target configuration profile
-		if aws.ToString(deployment.ConfigurationProfileId) == profileID {
-			// Skip ROLLED_BACK deployments if requested
-			if skipRolledBack && deployment.State == types.DeploymentStateRolledBack {
-				continue
-			}
-
-			if latestDeployment == nil || summary.DeploymentNumber > latestDeployment.DeploymentNumber {
-				latestDeployment = &DeploymentInfo{
-					DeploymentNumber:     summary.DeploymentNumber,
-					ConfigurationVersion: aws.ToString(deployment.ConfigurationVersion),
-					DeploymentStrategyID: aws.ToString(deployment.DeploymentStrategyId),
-					State:                deployment.State,
-					Description:          aws.ToString(deployment.Description),
-				}
-			}
+		// Skip ROLLED_BACK deployments if requested.
+		if skipRolledBack && deployment.State == types.DeploymentStateRolledBack {
+			continue
 		}
+
+		return &DeploymentInfo{
+			DeploymentNumber:     summary.DeploymentNumber,
+			ConfigurationVersion: aws.ToString(deployment.ConfigurationVersion),
+			DeploymentStrategyID: aws.ToString(deployment.DeploymentStrategyId),
+			State:                deployment.State,
+			Description:          aws.ToString(deployment.Description),
+		}, nil
 	}
 
-	// If every GetDeployment failed (e.g. throttling, IAM regression),
-	// surface the underlying error rather than returning nil — a nil
-	// result is the "no deployment" signal and would be misinterpreted
-	// as "first-time setup" by callers (pull / edit / run skip-unchanged).
-	if latestDeployment == nil && fetchedCount == 0 && lastErr != nil {
-		return nil, wrapAWSError(lastErr, "failed to fetch any deployment details")
-	}
-
-	return latestDeployment, nil
+	return nil, nil
 }
 
 // GetHostedConfigurationVersion retrieves the content of a specific hosted configuration version
