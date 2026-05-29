@@ -172,15 +172,19 @@ func TestVisibleWidth(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		name string
 		in   string
 		want int
 	}{
-		{"", 0},
-		{"abc", 3},
-		{"日本語", 3},
+		{name: "empty", in: "", want: 0},
+		{name: "ascii", in: "abc", want: 3},
+		// Full-width CJK: each rune is 2 display cells, so 3 runes → 6 cells.
+		{name: "CJK three runes", in: "日本語", want: 6},
+		// ANSI escape sequences must contribute 0 cells.
+		{name: "ANSI stripped", in: "\x1b[31mred\x1b[0m", want: 3},
 	}
 	for _, tt := range tests {
-		t.Run(tt.in, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			if got := visibleWidth(tt.in); got != tt.want {
 				t.Errorf("visibleWidth(%q) = %d, want %d", tt.in, got, tt.want)

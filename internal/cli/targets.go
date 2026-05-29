@@ -110,27 +110,40 @@ func idColumnWidth(ids []string) int {
 	return w + targetsIDGap
 }
 
-// truncateRunes shortens s to at most limit runes, appending an ellipsis
-// (…) when truncation actually happens. Returns "" for limit <= 0 and "…"
-// for limit == 1 — at one rune of budget the ellipsis itself is the only
-// thing that fits.
+// truncateCells shortens s so that its terminal display width does not exceed
+// limit cells, appending an ellipsis (…, 1 cell wide) when truncation
+// actually happens. Returns "" for limit <= 0 and "…" for limit == 1 — at
+// one cell of budget the ellipsis itself is the only thing that fits.
 //
-// Used by the TTY Targets renderer to keep each row within terminal
-// width: row contents that wrap to a second visual line break the redraw
-// math (\033[NA assumes one terminal line per row), and either accumulate
-// stale fragments or eat earlier rows.
-func truncateRunes(s string, limit int) string {
+// Used by the TTY Targets renderer to keep each row within terminal width:
+// row contents that wrap to a second visual line break the redraw math
+// (\033[NA assumes one terminal line per row), and either accumulate stale
+// fragments or eat earlier rows. Full-width (CJK) characters each occupy 2
+// cells, so rune-counting underestimates their display cost.
+func truncateCells(s string, limit int) string {
 	if limit <= 0 {
 		return ""
 	}
-	runes := []rune(s)
-	if len(runes) <= limit {
+	if visibleWidth(s) <= limit {
 		return s
 	}
 	if limit == 1 {
 		return "…"
 	}
-	return string(runes[:limit-1]) + "…"
+	// Walk runes left-to-right, accumulating cell width until we exhaust the
+	// budget (limit-1 cells, reserving 1 for the ellipsis).
+	budget := limit - 1 // cells available for content (ellipsis takes 1)
+	used := 0
+	var b strings.Builder
+	for _, r := range s {
+		w := visibleWidth(string(r))
+		if used+w > budget {
+			break
+		}
+		b.WriteRune(r)
+		used += w
+	}
+	return b.String() + "…"
 }
 
 // padID returns id padded with spaces to width.

@@ -134,13 +134,12 @@ func TestTTYTargets_TruncatesLongFields(t *testing.T) {
 	tt.Close()
 
 	out := stripANSI(buf.String())
-	// Each line printed by ttyTargets must be ≤ cols runes (the
-	// trailing "\n" is not counted). The output may contain ANSI
-	// movement sequences but stripANSI removes them, leaving only
-	// the payload lines.
+	// Each line printed by ttyTargets must be ≤ cols display cells (the
+	// trailing "\n" is not counted). visibleWidth measures terminal cells
+	// so full-width CJK characters are counted as 2, ANSI as 0.
 	for line := range strings.SplitSeq(out, "\n") {
-		if n := len([]rune(line)); n > tt.cols {
-			t.Errorf("line of %d runes exceeds cols=%d:\n%q", n, tt.cols, line)
+		if n := visibleWidth(line); n > tt.cols {
+			t.Errorf("line of %d cells exceeds cols=%d:\n%q", n, tt.cols, line)
 		}
 	}
 	if !strings.Contains(out, "…") {

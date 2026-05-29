@@ -111,10 +111,10 @@ func (t *ttyTargets) formatLine(row *targetsRow, frame string) string {
 		// case). Floor at 10 so very narrow terminals still get
 		// something visible rather than a string of just ellipses.
 		budget := max(t.cols-t.idWidth-12, 10)
-		r.errMsg = truncateRunes(r.errMsg, budget)
-		r.summary = truncateRunes(r.summary, budget)
-		r.detail = truncateRunes(r.detail, budget)
-		r.reason = truncateRunes(r.reason, budget)
+		r.errMsg = truncateCells(r.errMsg, budget)
+		r.summary = truncateCells(r.summary, budget)
+		r.detail = truncateCells(r.detail, budget)
+		r.reason = truncateCells(r.reason, budget)
 	}
 	return padID(r.id, t.idWidth) + renderRow(&r, frame)
 }
