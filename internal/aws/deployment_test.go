@@ -61,6 +61,50 @@ func TestCheckOngoingDeployment(t *testing.T) {
 			expectedErr:     false,
 		},
 		{
+			name: "has validating deployment",
+			deployments: []types.DeploymentSummary{
+				{
+					DeploymentNumber: 1,
+					State:            types.DeploymentStateValidating,
+				},
+			},
+			expectedOngoing: true,
+			expectedErr:     false,
+		},
+		{
+			name: "has rolling back deployment",
+			deployments: []types.DeploymentSummary{
+				{
+					DeploymentNumber: 1,
+					State:            types.DeploymentStateRollingBack,
+				},
+			},
+			expectedOngoing: true,
+			expectedErr:     false,
+		},
+		{
+			name: "reverted deployment is not ongoing",
+			deployments: []types.DeploymentSummary{
+				{
+					DeploymentNumber: 1,
+					State:            types.DeploymentStateReverted,
+				},
+			},
+			expectedOngoing: false,
+			expectedErr:     false,
+		},
+		{
+			name: "rolled back deployment is not ongoing",
+			deployments: []types.DeploymentSummary{
+				{
+					DeploymentNumber: 1,
+					State:            types.DeploymentStateRolledBack,
+				},
+			},
+			expectedOngoing: false,
+			expectedErr:     false,
+		},
+		{
 			name: "mixed states",
 			deployments: []types.DeploymentSummary{
 				{
