@@ -11,6 +11,7 @@ import (
 
 	"github.com/koh-sh/apcdeploy/internal/apcerrors"
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
+	"github.com/koh-sh/apcdeploy/internal/batch"
 	"github.com/koh-sh/apcdeploy/internal/cli"
 	"github.com/koh-sh/apcdeploy/internal/reporter"
 	"github.com/koh-sh/apcdeploy/internal/rollback"
@@ -183,7 +184,18 @@ func classifyAndReport(err error, rep reporter.Reporter) int {
 	// Funnel the top-level error through the Reporter so the styled "✗"
 	// prefix is consistent with the rest of stderr output. Both real and
 	// silent reporters always emit Error.
-	rep.Error(err.Error())
+	//
+	// Exception: a single-target batch failure is already surfaced in full
+	// by the per-target Targets.Fail (which forwards the detailed error
+	// through Error even under --silent). Emitting the aggregate
+	// "1 of 1 targets failed" summary on top would just duplicate that line,
+	// so suppress the top-level Error for that case. The multi-target
+	// "N of M" count is informative, so it is still emitted. See issue #109.
+	var aggErr *batch.AggregateError
+	singleTargetBatch := errors.As(err, &aggErr) && aggErr.Total == 1
+	if !singleTargetBatch {
+		rep.Error(err.Error())
+	}
 	// Append a Resolution: <hint> line when the underlying AWS error code
 	// has a documented remediation.
 	// Emitted via Warn (⚠) instead of Error (✗) so the visual hierarchy is
