@@ -10,6 +10,7 @@ import (
 
 	smithy "github.com/aws/smithy-go"
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
+	"github.com/koh-sh/apcdeploy/internal/batch"
 	reportertest "github.com/koh-sh/apcdeploy/internal/reporter/testing"
 	"github.com/koh-sh/apcdeploy/internal/rollback"
 )
@@ -178,6 +179,34 @@ func TestClassifyAndReport(t *testing.T) {
 				"error: ",
 				"warn: Resolution: wait for the current deployment to complete or run 'apcdeploy rollback'",
 			},
+		},
+		{
+			// Single-target batch failure: the per-target Targets.Fail
+			// already surfaced the detailed error, so the aggregate
+			// "1 of 1 targets failed" summary would just duplicate it.
+			// classifyAndReport must NOT emit the top-level Error line.
+			name: "single-target AggregateError suppresses redundant aggregate line",
+			err: &batch.AggregateError{
+				Total: 1,
+				Errs:  []batch.TargetError{{Identifier: "app/prof/env", Err: errors.New("boom")}},
+			},
+			wantCode:    1,
+			wantNoError: true,
+		},
+		{
+			// Multi-target batch failure: the "N of M" count is
+			// informative (it tells the user how many of several targets
+			// failed), so the aggregate line is still emitted.
+			name: "multi-target AggregateError emits aggregate line",
+			err: &batch.AggregateError{
+				Total: 3,
+				Errs: []batch.TargetError{
+					{Identifier: "a", Err: errors.New("boom1")},
+					{Identifier: "b", Err: errors.New("boom2")},
+				},
+			},
+			wantCode:     1,
+			wantMessages: []string{"error: 2 of 3 targets failed"},
 		},
 	}
 
