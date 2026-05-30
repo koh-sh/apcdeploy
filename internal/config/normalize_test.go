@@ -35,6 +35,23 @@ func TestNormalizeJSON(t *testing.T) {
 			wantErr:     false,
 		},
 		{
+			// Integers > 2^53 cannot be represented exactly as float64.
+			// NormalizeJSON must preserve them without precision loss so that
+			// comparison/diff paths agree with formatJSON's written output.
+			name:        "large integer preserves precision",
+			content:     `{"id":9007199254740993}`,
+			profileType: ProfileTypeFreeform,
+			want:        "{\n  \"id\": 9007199254740993\n}",
+			wantErr:     false,
+		},
+		{
+			name:        "multiple large integers preserve precision",
+			content:     `{"a":9007199254740993,"b":9007199254740994}`,
+			profileType: ProfileTypeFreeform,
+			want:        "{\n  \"a\": 9007199254740993,\n  \"b\": 9007199254740994\n}",
+			wantErr:     false,
+		},
+		{
 			name:        "invalid JSON",
 			content:     `{invalid}`,
 			profileType: ProfileTypeFreeform,
@@ -220,6 +237,24 @@ func TestHasContentChanged(t *testing.T) {
 			after:       []byte(`{"flags":{"f":{"name":"f"}}}`),
 			ext:         ".json",
 			profileType: ProfileTypeFeatureFlags,
+		},
+		{
+			// 9007199254740993 rounds to 9007199254740992 as float64, so a
+			// float64-based normalizer would treat this genuine change as a
+			// no-op. UseNumber must keep the two integers distinct.
+			name:        "large integer change is detected",
+			before:      []byte(`{"id":9007199254740992}`),
+			after:       []byte(`{"id":9007199254740993}`),
+			ext:         ".json",
+			profileType: ProfileTypeFreeform,
+			wantChanged: true,
+		},
+		{
+			name:        "identical large integer is not a change",
+			before:      []byte(`{"id":9007199254740993}`),
+			after:       []byte(`{"id": 9007199254740993}`),
+			ext:         ".json",
+			profileType: ProfileTypeFreeform,
 		},
 		{
 			name:        "invalid before propagates error",

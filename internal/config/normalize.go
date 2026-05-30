@@ -12,6 +12,10 @@ import (
 // NormalizeJSON normalizes JSON content by parsing and re-formatting with sorted keys.
 // For FeatureFlags profile type, it removes _updatedAt and _createdAt fields recursively.
 //
+// UseNumber is used during decoding so that large integers (> 2^53) are preserved
+// exactly instead of being converted to float64, which would cause precision loss.
+// This keeps the comparison/diff path consistent with formatJSON's written output.
+//
 // Parameters:
 //   - content: JSON string to normalize
 //   - profileType: AWS AppConfig profile type (e.g., "AWS.AppConfig.FeatureFlags")
@@ -21,7 +25,9 @@ import (
 //   - error: Any error during parsing or formatting
 func NormalizeJSON(content string, profileType string) (string, error) {
 	var data any
-	if err := json.Unmarshal([]byte(content), &data); err != nil {
+	dec := json.NewDecoder(strings.NewReader(content))
+	dec.UseNumber()
+	if err := dec.Decode(&data); err != nil {
 		return "", fmt.Errorf("invalid JSON: %w", err)
 	}
 
