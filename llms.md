@@ -315,7 +315,7 @@ apcdeploy run -c apcdeploy.yml
 | `--wait-deploy` | Wait until the deployment phase completes (transition to BAKING). Mutually exclusive with `--wait-bake`. |
 | `--wait-bake` | Wait until the full deployment completes (DEPLOYING → BAKING → COMPLETE). Mutually exclusive with `--wait-deploy`. |
 | `--force` | Deploy even when content is unchanged (bypasses auto-skip). |
-| `--timeout <seconds>` | Timeout for deployment wait (default: 1800). Shared across both phases when `--wait-bake` is used. |
+| `--timeout <seconds>` | Timeout for deployment wait (default: 1800). Must be greater than 0. Shared across both phases when `--wait-bake` is used. |
 | `--description <text>` | Description attached to the configuration version and deployment. Visible in the AppConfig console and in `apcdeploy status` output. Defaults to `"Deployed by apcdeploy"`. Pass `--description ""` to clear. Maximum 1024 Unicode characters (counted by rune); rejected client-side when exceeded. |
 
 #### Operation Details
@@ -347,7 +347,7 @@ When `--wait-bake` is used, the deploy phase is rendered as a progress bar (AppC
 
 | Cause | Resolution |
 |---|---|
-| Another deployment is in progress (DEPLOYING or BAKING) for the same environment | Wait for it to finish, or stop it with `apcdeploy rollback -c apcdeploy.yml --yes`. AppConfig allows only one active deployment per environment. |
+| Another deployment is in progress (DEPLOYING, BAKING, VALIDATING, or ROLLING_BACK) for the same environment | Wait for it to finish, or stop it with `apcdeploy rollback -c apcdeploy.yml --yes`. AppConfig allows only one active deployment per environment. |
 | Wait timed out before the deployment reached the requested phase | Raise `--timeout` (e.g. `AppConfig.Linear` needs ≈ 30 min deploy + 10 min bake), or drop `--wait-*` and poll with `apcdeploy status`. |
 
 #### Exit Codes
@@ -437,10 +437,13 @@ State values:
 
 | State | Meaning |
 |---|---|
+| `VALIDATING` | AppConfig is validating the configuration before the rollout begins (in-flight). |
 | `DEPLOYING` | Configuration is being gradually rolled out to targets. |
 | `BAKING` | Rollout reached all targets; the strategy is in its validation window. |
 | `COMPLETE` | Deployment finished successfully. |
+| `ROLLING_BACK` | Deployment is being rolled back, automatically (e.g. a CloudWatch alarm) or via `apcdeploy rollback` (in-flight). |
 | `ROLLED_BACK` | Deployment was stopped (or rolled back by AppConfig); previous version is in effect. |
+| `REVERTED` | Deployment was reverted to the previous configuration version (terminal). |
 
 #### Errors
 
@@ -559,7 +562,7 @@ apcdeploy pull -c apcdeploy.yml  # "already up to date"
 
 ### rollback command
 
-Stops an ongoing deployment by calling AWS AppConfig `StopDeployment`. Only deployments in `DEPLOYING` or `BAKING` state can be stopped — completed deployments cannot be rolled back through this command (use Git-based revert + `apcdeploy run` instead).
+Stops an ongoing deployment by calling AWS AppConfig `StopDeployment`. Only in-flight deployments (`DEPLOYING`, `BAKING`, `VALIDATING`, or `ROLLING_BACK`) can be stopped — terminal deployments cannot be rolled back through this command (use Git-based revert + `apcdeploy run` instead).
 
 #### Usage
 
@@ -575,7 +578,7 @@ apcdeploy rollback -c apcdeploy.yml --yes
 
 #### Operation Details
 
-1. Find the current ongoing deployment for the environment (errors if none is in `DEPLOYING` / `BAKING`)
+1. Find the current ongoing deployment for the environment (errors if none is in-flight: `DEPLOYING` / `BAKING` / `VALIDATING` / `ROLLING_BACK`)
 2. If `--yes` is not set, check TTY and prompt for confirmation (errors before any AWS write if no TTY)
 3. Call `StopDeployment`; AppConfig transitions the deployment to `ROLLED_BACK` and reverts to the previous version
 
@@ -598,7 +601,7 @@ apcdeploy run -c apcdeploy.yml
 
 | Cause | Resolution |
 |---|---|
-| No ongoing deployment in `DEPLOYING` or `BAKING` state (exit code `2`) | Nothing to stop. If you intended to revert a completed deployment, use Git revert + `apcdeploy run`. |
+| No ongoing deployment in an in-flight state (`DEPLOYING` / `BAKING` / `VALIDATING` / `ROLLING_BACK`) (exit code `2`) | Nothing to stop. If you intended to revert a completed deployment, use Git revert + `apcdeploy run`. |
 
 #### Exit Codes
 

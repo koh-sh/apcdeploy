@@ -141,7 +141,7 @@ Check the status of your latest deployment:
 apcdeploy status -c apcdeploy.yml
 ```
 
-This shows the current deployment state (DEPLOYING, BAKING, COMPLETE, or ROLLED_BACK) and progress percentage.
+This shows the current deployment state (VALIDATING, DEPLOYING, BAKING, COMPLETE, ROLLING_BACK, ROLLED_BACK, or REVERTED) and progress percentage.
 
 ## Configuration File Reference
 
@@ -369,7 +369,7 @@ Stop an ongoing deployment:
 apcdeploy rollback -c apcdeploy.yml
 ```
 
-This command stops an in-progress deployment (DEPLOYING or BAKING state) by calling the AWS AppConfig StopDeployment API. It automatically detects the current ongoing deployment and stops it.
+This command stops an in-flight deployment (DEPLOYING, BAKING, VALIDATING, or ROLLING_BACK state) by calling the AWS AppConfig StopDeployment API. It automatically detects the current ongoing deployment and stops it.
 
 **Note:** This only stops deployments currently in progress. It does not revert previously completed deployments. Exits with code 2 when no deployment is currently in flight.
 
