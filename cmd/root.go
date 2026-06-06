@@ -278,10 +278,10 @@ func resolveConfigTargets(args []string) ([]string, error) {
 // is an error.
 func expandConfigGlobs(paths []string) ([]string, error) {
 	out := make([]string, 0, len(paths))
-	seen := make(map[string]bool)
+	seen := make(map[string]struct{})
 	add := func(p string) {
-		if !seen[p] {
-			seen[p] = true
+		if _, ok := seen[p]; !ok {
+			seen[p] = struct{}{}
 			out = append(out, p)
 		}
 	}
