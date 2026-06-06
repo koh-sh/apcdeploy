@@ -602,8 +602,8 @@ apcdeploy validate -c apcdeploy.yml
 #### Examples
 
 ```bash
-# Validate every environment before deploying
-apcdeploy validate -c environments/*.yml --continue-on-error
+# Validate every environment before deploying (quote globs; see Multi-config Mode)
+apcdeploy validate -c 'environments/*.yml' --continue-on-error
 ```
 
 ### rollback command
@@ -710,22 +710,24 @@ Global flags (`-c`, `--silent`) have no effect on this command.
 
 Available for all commands:
 
-- `-c, --config <path>`: Configuration file path (default: `apcdeploy.yml`). May be repeated for `run` / `diff` / `pull` / `validate` to operate on several configs in one invocation (see "Multi-config Mode" below); all other commands accept exactly one `-c` and reject multiple.
+- `-c, --config <path>`: Configuration file path (default: `apcdeploy.yml`). For `run` / `diff` / `pull` / `validate` it may be repeated, comma-separated, or a quoted glob pattern to operate on several configs in one invocation (see "Multi-config Mode" below); all other commands accept exactly one `-c` and reject multiple.
 - `-s, --silent`: Suppress verbose output (see "Silent Mode" below).
 
 ## Multi-config Mode (run / diff / pull / validate)
 
-`run`, `diff`, `pull`, and `validate` support running against multiple configurations in one invocation. Pass `-c` repeatedly:
+`run`, `diff`, `pull`, and `validate` support running against multiple configurations in one invocation. Pass `-c` repeatedly, comma-separate values, or pass a **quoted** glob pattern:
 
 ```bash
 apcdeploy diff -c environments/dev.yml -c environments/stg.yml -c environments/prod.yml
-apcdeploy run  -c environments/*.yml --parallel 3 --wait-bake
-apcdeploy pull -c environments/*.yml --continue-on-error
-apcdeploy validate -c environments/*.yml --continue-on-error
+apcdeploy run  -c 'environments/*.yml' --parallel 3 --wait-bake
+apcdeploy pull -c 'environments/*.yml' --continue-on-error
+apcdeploy validate -c 'environments/*.yml' --continue-on-error
 ```
 
 Behavior:
 
+- Glob patterns are expanded by apcdeploy itself (via Go's `filepath.Glob`), so they **must be quoted** (`-c 'environments/*.yml'`). An unquoted glob is expanded by the shell into positional arguments; apcdeploy rejects positional arguments with an error pointing back to quoting, rather than silently using only the first match. A pattern matching no files is an error; duplicates across patterns are de-duplicated preserving order.
+- Comma-separated values (`-c a.yml,b.yml`) are split by the CLI framework (Cobra), not by apcdeploy. Because of this, a path that itself contains a comma will be split incorrectly — repeat `-c` for such paths.
 - Each `-c` is loaded and validated up-front; any single load failure aborts the batch before any AWS call.
 - Targets are identified by the 4-tuple `region/app/profile/env`. Two configs that resolve to the same identifier produce `ErrDuplicateTarget`.
 - Default execution is fully parallel (equivalent to `--parallel 0`). Use `--parallel N` to cap concurrency or `--parallel 1` for strict serial order.
@@ -805,7 +807,7 @@ apcdeploy run -c environments/production/apcdeploy.yml
 Or deploy several at once via multi-config mode (see "Multi-config Mode" above):
 
 ```bash
-apcdeploy run -c environments/*/apcdeploy.yml --parallel 3
+apcdeploy run -c 'environments/*/apcdeploy.yml' --parallel 3
 ```
 
 ### CI/CD Pattern

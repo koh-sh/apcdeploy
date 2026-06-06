@@ -246,10 +246,11 @@ Deploy configuration changes:
 apcdeploy run -c apcdeploy.yml [--wait-deploy|--wait-bake] [--force]
 ```
 
-Pass `-c` multiple times to deploy several configs in one invocation.
+Pass `-c` multiple times to deploy several configs in one invocation. You can also pass a comma-separated list or a quoted glob pattern (quote it so the shell does not expand it). Comma-separation is handled by the CLI framework, so repeat `-c` for any path that itself contains a comma.
 
 ```bash
 apcdeploy run -c environments/dev.yml -c environments/stg.yml -c environments/prod.yml --wait-bake
+apcdeploy run -c 'environments/*.yml' --wait-bake
 ```
 
 Options:
