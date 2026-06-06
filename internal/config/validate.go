@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/goccy/go-yaml"
+	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
 // ValidateData validates configuration data against the AppConfig size limit
@@ -38,5 +39,37 @@ func ValidateData(data []byte, contentType string) error {
 		return fmt.Errorf("unsupported content type: %s", contentType)
 	}
 
+	return nil
+}
+
+// ValidateConfigData runs the full local validation for configuration data:
+// the size + syntax check from ValidateData, followed by schema validation
+// appropriate to the profile type.
+//
+//   - FeatureFlags: structural check against the built-in schema (layer A) plus
+//     per-attribute constraint checking against `values` (layer B). schema is
+//     ignored.
+//   - Freeform JSON: validated against schema (the profile's JSON_SCHEMA
+//     validator) when one is supplied; skipped when schema is empty.
+//   - Freeform YAML/text: syntax only — JSON Schema cannot apply, so schema is
+//     ignored.
+//
+// AWS AppConfig draft 4.X is assumed for Freeform schemas that omit $schema.
+func ValidateConfigData(data []byte, profileType, contentType string, schema []byte) error {
+	if err := ValidateData(data, contentType); err != nil {
+		return err
+	}
+
+	if profileType == ProfileTypeFeatureFlags {
+		if err := ValidateFeatureFlagsStructure(data); err != nil {
+			return err
+		}
+		return ValidateFeatureFlagsConstraints(data)
+	}
+
+	// Freeform
+	if contentType == ContentTypeJSON && len(schema) > 0 {
+		return validateAgainstJSONSchema(data, schema, jsonschema.Draft4, "")
+	}
 	return nil
 }

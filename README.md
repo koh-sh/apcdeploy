@@ -183,7 +183,7 @@ For detailed usage information and advanced features, see [llms.md](./llms.md).
 
 All commands support these global flags:
 
-- `-c, --config`: Config file path (default: `apcdeploy.yml`). May be passed multiple times for `run` / `diff` / `pull` to operate on several configs in one invocation
+- `-c, --config`: Config file path (default: `apcdeploy.yml`). May be passed multiple times for `run` / `diff` / `pull` / `validate` to operate on several configs in one invocation
 - `-s, --silent`: Suppress verbose output, show only essential information (useful for CI/CD and scripting)
 
 ### ls-resources
@@ -360,6 +360,27 @@ Options:
 - `--continue-on-error`: Run remaining targets after one fails (default: fail-fast)
 
 This command is useful when configuration changes are made directly in the AWS Console and you want to sync your local files with the deployed state. Exits with code 2 when no prior deployment exists.
+
+### validate
+
+Validate your local data file against its schema without deploying:
+
+```bash
+apcdeploy validate -c apcdeploy.yml
+```
+
+Pass `-c` multiple times to validate several configurations in one invocation:
+
+```bash
+apcdeploy validate -c environments/dev.yml -c environments/stg.yml -c environments/prod.yml
+```
+
+Options:
+
+- `--parallel`: Maximum concurrent targets when `-c` is repeated (default: 0, meaning all in parallel)
+- `--continue-on-error`: Run remaining targets after one fails (default: fail-fast)
+
+This read-only check does not create a configuration version. FeatureFlags are validated against the built-in AWS schema and their declared constraints; Freeform JSON is validated against the profile's JSON_SCHEMA validator (syntax only when none is present). YAML and text are syntax-checked only, and LAMBDA validators are skipped.
 
 ### rollback
 

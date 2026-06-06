@@ -6,6 +6,8 @@
 *.tfvars
 *.tfplan
 crash.log
+# Generated Lambda deployment package (S10 validator)
+*.zip
 override.tf
 override.tf.json
 *_override.tf

@@ -88,11 +88,7 @@ func (e *Executor) RunOnTarget(ctx context.Context, t *batch.Target, tr reporter
 		return ongoingErr
 	}
 
-	contentType, err := deployer.DetermineContentType(resolved.Profile.Type, cfg.DataFile)
-	if err != nil {
-		tr.Fail(err)
-		return fmt.Errorf("failed to determine content type: %w", err)
-	}
+	contentType := config.DetermineContentType(resolved.Profile.Type, cfg.DataFile)
 
 	if err := deployer.ValidateLocalData(dataContent, contentType); err != nil {
 		tr.Fail(err)

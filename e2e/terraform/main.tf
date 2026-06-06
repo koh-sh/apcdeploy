@@ -110,6 +110,100 @@ resource "aws_appconfig_configuration_profile" "error_test" {
   }
 }
 
+# 6. Freeform JSON profile with a JSON_SCHEMA validator, used by `validate`
+# to exercise the remote-validator path (S10). The schema requires an integer
+# `port` >= 1.
+resource "aws_appconfig_configuration_profile" "json_validated" {
+  application_id = aws_appconfig_application.e2e_test.id
+  name           = "json-validated"
+  description    = "Freeform JSON with a JSON_SCHEMA validator for validate testing"
+  location_uri   = "hosted"
+  type           = "AWS.Freeform"
+
+  validator {
+    type = "JSON_SCHEMA"
+    content = jsonencode({
+      type     = "object"
+      required = ["port"]
+      properties = {
+        port = {
+          type    = "integer"
+          minimum = 1
+        }
+      }
+    })
+  }
+
+  tags = {
+    ContentType = "application/json"
+  }
+}
+
+# Lambda validator infrastructure (for S10 "lambda validator skipped" check).
+# `validate` never invokes the Lambda, but AppConfig requires a real, invokable
+# function ARN to attach a LAMBDA validator — hence the minimal function, role,
+# and invoke permission below.
+data "archive_file" "validator_lambda" {
+  type        = "zip"
+  output_path = "${path.module}/.validator_lambda.zip"
+
+  source {
+    content  = "def handler(event, context):\n    return {}\n"
+    filename = "index.py"
+  }
+}
+
+resource "aws_iam_role" "validator_lambda" {
+  name = "${var.app_name}-validator-lambda"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
+      Principal = { Service = "lambda.amazonaws.com" }
+    }]
+  })
+}
+
+resource "aws_lambda_function" "validator" {
+  function_name    = "${var.app_name}-validator"
+  role             = aws_iam_role.validator_lambda.arn
+  handler          = "index.handler"
+  runtime          = "python3.13"
+  filename         = data.archive_file.validator_lambda.output_path
+  source_code_hash = data.archive_file.validator_lambda.output_base64sha256
+}
+
+resource "aws_lambda_permission" "appconfig_invoke_validator" {
+  statement_id  = "AllowAppConfigInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.validator.function_name
+  principal     = "appconfig.amazonaws.com"
+}
+
+# 7. Freeform JSON profile with a LAMBDA validator. `validate` must SKIP it
+# (report syntax-only) because Lambda validators run only inside AWS.
+resource "aws_appconfig_configuration_profile" "json_lambda" {
+  application_id = aws_appconfig_application.e2e_test.id
+  name           = "json-lambda"
+  description    = "Freeform JSON with a LAMBDA validator (validate skips it)"
+  location_uri   = "hosted"
+  type           = "AWS.Freeform"
+
+  validator {
+    type    = "LAMBDA"
+    content = aws_lambda_function.validator.arn
+  }
+
+  # AppConfig checks invoke permission when the LAMBDA validator is attached.
+  depends_on = [aws_lambda_permission.appconfig_invoke_validator]
+
+  tags = {
+    ContentType = "application/json"
+  }
+}
+
 # Deployment Strategies
 # Note: AWS provides predefined deployment strategies:
 # - AppConfig.AllAtOnce (0% growth, 0 min bake time)

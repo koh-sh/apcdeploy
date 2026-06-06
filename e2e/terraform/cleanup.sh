@@ -23,6 +23,8 @@ PROFILE_NAMES=(
     "yaml-config"
     "text-config"
     "error-test"
+    "json-validated"
+    "json-lambda"
 )
 
 for PROFILE_NAME in "${PROFILE_NAMES[@]}"; do

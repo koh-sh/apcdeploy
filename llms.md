@@ -15,6 +15,7 @@ Documentation for `apcdeploy`, served by `apcdeploy context` for AI assistants a
 - Monitor deployment status (`status`)
 - Retrieve deployed configurations (`get`)
 - Sync local files with deployed configurations (`pull`)
+- Validate local configuration data against its schema without deploying (`validate`)
 - Stop ongoing deployments (`rollback`)
 - Edit deployed configuration directly in `$EDITOR` and deploy (`edit`)
 - Print this document (`context`)
@@ -45,7 +46,7 @@ These commands prompt interactively when stdin is a TTY. In non-interactive envi
 | `rollback` | deployment-stop confirmation | `--yes` |
 | `edit` | `$EDITOR` invocation | none — there is no non-interactive mode. AI agents should use `pull` → edit file → `run` instead. |
 
-`run`, `diff`, `status`, `pull`, `ls-resources`, `context` do not require a TTY.
+`run`, `diff`, `status`, `pull`, `validate`, `ls-resources`, `context` do not require a TTY.
 
 ## Recommended Usage Flows
 
@@ -560,6 +561,51 @@ apcdeploy pull -c apcdeploy.yml  # may write
 apcdeploy pull -c apcdeploy.yml  # "already up to date"
 ```
 
+### validate command
+
+Validates the local data file against its schema locally, without creating a configuration version (read-only — no write APIs are called).
+
+#### Usage
+
+```bash
+apcdeploy validate -c apcdeploy.yml
+```
+
+#### Flags
+
+| Flag | Description |
+|---|---|
+| `--parallel <n>` | Maximum concurrent targets when `-c` is repeated (`0` = all in parallel) |
+| `--continue-on-error` | Run remaining targets after one fails (default: fail-fast) |
+
+#### Operation Details
+
+1. Resolve the profile (reads its type and validators; no deployment is fetched)
+2. Read the local data file and determine its content type
+3. Select the schema: FeatureFlags use the built-in AWS schema; Freeform JSON uses the profile's JSON_SCHEMA validator fetched from AWS
+4. Validate, reporting each violation with its location within the data
+
+#### Behavior
+
+- **Read-only**: never calls `CreateHostedConfigurationVersion` or any write API; safe to run anytime.
+- **FeatureFlags**: checks structure against the built-in schema (layer A), then each value against the `constraints` declared in the data — enum / minimum / maximum / pattern / required / type (layer B). Multi-variant flags are checked per variant (`_variants[].attributeValues`).
+- **Freeform JSON**: validated against the profile's JSON_SCHEMA validator (the same validator AWS enforces at deploy time, fetched during resource resolution). When the profile has no JSON_SCHEMA validator, only JSON syntax is checked. AWS AppConfig supports JSON Schema draft 4.X for Freeform, so the schema is evaluated as draft-4 (any in-document `$schema` declaring a different draft is ignored).
+- **Freeform YAML / text**: syntax only — JSON Schema cannot apply.
+- **LAMBDA validators are skipped**: they run only inside AWS, so a passing `validate` does not guarantee a LAMBDA validator will pass at deploy time.
+- Local validation approximates AWS: regex flavor and undocumented internals may differ, so in rare cases a schema-passing config can still be rejected at `run`.
+
+#### Exit Codes
+
+- `0`: all targets valid
+- `1`: validation failed, or a general error (AWS resolution, I/O)
+
+#### Examples
+
+```bash
+# Validate every environment before deploying
+apcdeploy validate -c environments/*.yml --continue-on-error
+```
+
 ### rollback command
 
 Stops an ongoing deployment by calling AWS AppConfig `StopDeployment`. Only in-flight deployments (`DEPLOYING`, `BAKING`, `VALIDATING`, or `ROLLING_BACK`) can be stopped — terminal deployments cannot be rolled back through this command (use Git-based revert + `apcdeploy run` instead).
@@ -664,17 +710,18 @@ Global flags (`-c`, `--silent`) have no effect on this command.
 
 Available for all commands:
 
-- `-c, --config <path>`: Configuration file path (default: `apcdeploy.yml`). May be repeated for `run` / `diff` / `pull` to operate on several configs in one invocation (see "Multi-config Mode" below); all other commands accept exactly one `-c` and reject multiple.
+- `-c, --config <path>`: Configuration file path (default: `apcdeploy.yml`). May be repeated for `run` / `diff` / `pull` / `validate` to operate on several configs in one invocation (see "Multi-config Mode" below); all other commands accept exactly one `-c` and reject multiple.
 - `-s, --silent`: Suppress verbose output (see "Silent Mode" below).
 
-## Multi-config Mode (run / diff / pull)
+## Multi-config Mode (run / diff / pull / validate)
 
-`run`, `diff`, and `pull` support running against multiple configurations in one invocation. Pass `-c` repeatedly:
+`run`, `diff`, `pull`, and `validate` support running against multiple configurations in one invocation. Pass `-c` repeatedly:
 
 ```bash
 apcdeploy diff -c environments/dev.yml -c environments/stg.yml -c environments/prod.yml
 apcdeploy run  -c environments/*.yml --parallel 3 --wait-bake
 apcdeploy pull -c environments/*.yml --continue-on-error
+apcdeploy validate -c environments/*.yml --continue-on-error
 ```
 
 Behavior:
@@ -805,6 +852,8 @@ To use `apcdeploy`, the following AWS AppConfig IAM permissions are required:
 ```
 
 Additionally, the interactive region picker on `init` (when `--region` is omitted) calls `account:ListRegions`. Grant it only if you intend to use interactive `init`; non-interactive flows (`--region` supplied) do not need it.
+
+`validate` needs only these basic permissions: it resolves the profile and reads its validators (`GetConfigurationProfile`) without fetching any deployment.
 
 #### Deployment Permissions (run, edit, diff, status, pull, and rollback commands)
 

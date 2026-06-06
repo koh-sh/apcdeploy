@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"strings"
 
 	"github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/config"
@@ -39,28 +38,6 @@ func NewWithClient(cfg *config.Config, awsClient *aws.Client) *Deployer {
 // ValidateLocalData validates the configuration data locally
 func (d *Deployer) ValidateLocalData(data []byte, contentType string) error {
 	return config.ValidateData(data, contentType)
-}
-
-// DetermineContentType determines the content type based on profile type and file extension
-func (d *Deployer) DetermineContentType(profileType, dataPath string) (string, error) {
-	// Feature Flags always use JSON
-	if profileType == config.ProfileTypeFeatureFlags {
-		return config.ContentTypeJSON, nil
-	}
-
-	// For Freeform, determine from file extension
-	ext := strings.ToLower(filepath.Ext(dataPath))
-	switch ext {
-	case ".json":
-		return config.ContentTypeJSON, nil
-	case ".yaml", ".yml":
-		return config.ContentTypeYAML, nil
-	case ".txt":
-		return config.ContentTypeText, nil
-	default:
-		// Default to text/plain for unknown extensions
-		return config.ContentTypeText, nil
-	}
 }
 
 // ResolveResources resolves all resource names to IDs
