@@ -305,6 +305,7 @@ Pass `-c` multiple times to diff several configs in one invocation. Every diff b
 
 ```bash
 apcdeploy diff -c environments/dev.yml -c environments/stg.yml -c environments/prod.yml
+apcdeploy diff -c 'environments/*.yml'
 ```
 
 Options:
@@ -353,6 +354,7 @@ Pass `-c` multiple times to pull several configurations in one invocation:
 
 ```bash
 apcdeploy pull -c environments/dev.yml -c environments/stg.yml -c environments/prod.yml
+apcdeploy pull -c 'environments/*.yml'
 ```
 
 Options:
@@ -374,6 +376,7 @@ Pass `-c` multiple times to validate several configurations in one invocation:
 
 ```bash
 apcdeploy validate -c environments/dev.yml -c environments/stg.yml -c environments/prod.yml
+apcdeploy validate -c 'environments/*.yml'
 ```
 
 Options:

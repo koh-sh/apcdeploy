@@ -36,6 +36,25 @@ func TestValidateFeatureFlagsConstraints(t *testing.T) {
 			wantContains:  "values/f/color",
 		},
 		{
+			name: "value satisfies string pattern",
+			data: `{
+				"version": "1",
+				"flags": {"f": {"attributes": {"code": {"constraints": {"type": "string", "pattern": "^[a-z]+$"}}}}},
+				"values": {"f": {"enabled": true, "code": "abc"}}
+			}`,
+		},
+		{
+			name: "value violates string pattern",
+			data: `{
+				"version": "1",
+				"flags": {"f": {"attributes": {"code": {"constraints": {"type": "string", "pattern": "^[a-z]+$"}}}}},
+				"values": {"f": {"enabled": true, "code": "ABC123"}}
+			}`,
+			wantSchemaErr: true,
+			wantErr:       true,
+			wantContains:  "values/f/code",
+		},
+		{
 			name: "number below minimum",
 			data: `{
 				"version": "1",

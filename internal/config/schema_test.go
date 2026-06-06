@@ -23,13 +23,13 @@ func TestValidateAgainstJSONSchema(t *testing.T) {
 	}`
 
 	tests := []struct {
-		name         string
-		data         string
-		schema       string
-		forceDraft   *jsonschema.Draft
-		wantSchemaer bool   // expect *SchemaValidationError
-		wantErr      bool   // expect any error
-		wantContains string // substring expected in the error message
+		name          string
+		data          string
+		schema        string
+		forceDraft    *jsonschema.Draft
+		wantSchemaErr bool   // expect *SchemaValidationError
+		wantErr       bool   // expect any error
+		wantContains  string // substring expected in the error message
 	}{
 		{
 			name:    "valid data",
@@ -38,27 +38,27 @@ func TestValidateAgainstJSONSchema(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:         "type violation",
-			data:         `{"name": "alice", "age": "thirty"}`,
-			schema:       objectSchema,
-			wantSchemaer: true,
-			wantErr:      true,
-			wantContains: "/age",
+			name:          "type violation",
+			data:          `{"name": "alice", "age": "thirty"}`,
+			schema:        objectSchema,
+			wantSchemaErr: true,
+			wantErr:       true,
+			wantContains:  "/age",
 		},
 		{
-			name:         "missing required",
-			data:         `{"age": 30}`,
-			schema:       objectSchema,
-			wantSchemaer: true,
-			wantErr:      true,
-			wantContains: "name",
+			name:          "missing required",
+			data:          `{"age": 30}`,
+			schema:        objectSchema,
+			wantSchemaErr: true,
+			wantErr:       true,
+			wantContains:  "name",
 		},
 		{
-			name:         "additional property rejected",
-			data:         `{"name": "alice", "extra": true}`,
-			schema:       objectSchema,
-			wantSchemaer: true,
-			wantErr:      true,
+			name:          "additional property rejected",
+			data:          `{"name": "alice", "extra": true}`,
+			schema:        objectSchema,
+			wantSchemaErr: true,
+			wantErr:       true,
 		},
 		{
 			name:       "draft-4 schema without $schema using default draft",
@@ -71,12 +71,12 @@ func TestValidateAgainstJSONSchema(t *testing.T) {
 			// boolean exclusiveMinimum is draft-4 semantics; with forceDraft the
 			// document's draft-07 $schema is ignored and draft-4 rules apply, so
 			// value 5 fails minimum:5 + exclusiveMinimum:true.
-			name:         "force draft-4 overrides document $schema",
-			data:         `{"n": 5}`,
-			schema:       `{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"n": {"minimum": 5, "exclusiveMinimum": true}}}`,
-			forceDraft:   jsonschema.Draft4,
-			wantSchemaer: true,
-			wantErr:      true,
+			name:          "force draft-4 overrides document $schema",
+			data:          `{"n": 5}`,
+			schema:        `{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"n": {"minimum": 5, "exclusiveMinimum": true}}}`,
+			forceDraft:    jsonschema.Draft4,
+			wantSchemaErr: true,
+			wantErr:       true,
 		},
 		{
 			name:    "invalid schema json",
@@ -115,11 +115,11 @@ func TestValidateAgainstJSONSchema(t *testing.T) {
 			}
 
 			var sve *SchemaValidationError
-			isSchemaer := errors.As(err, &sve)
-			if tt.wantSchemaer && !isSchemaer {
+			isSchemaErr := errors.As(err, &sve)
+			if tt.wantSchemaErr && !isSchemaErr {
 				t.Fatalf("expected *SchemaValidationError, got %T: %v", err, err)
 			}
-			if !tt.wantSchemaer && isSchemaer {
+			if !tt.wantSchemaErr && isSchemaErr {
 				t.Fatalf("did not expect *SchemaValidationError, got: %v", err)
 			}
 			if tt.wantContains != "" && !strings.Contains(err.Error(), tt.wantContains) {

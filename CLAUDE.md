@@ -27,6 +27,7 @@ When implementing new features or fixing bugs, follow these absolute rules:
 - **Code consistency**: Match existing code style and patterns
 - **CI validation**: Ensure `mise run ci` passes before considering work complete
 - **Test coverage**: Maintain or improve test coverage (never decrease it)
+- **English-only artifacts**: All repository content (code, comments, docs) and all GitHub artifacts (commit messages, PR titles/bodies, issue text) MUST be written in English.
 
 ## Common Commands
 

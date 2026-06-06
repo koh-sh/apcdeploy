@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
@@ -72,37 +72,41 @@ func ValidateFeatureFlagsConstraints(data []byte) error {
 		if err != nil {
 			return fmt.Errorf("failed to build constraint schema for flag %q: %w", flagKey, err)
 		}
-
-		// Multi-variant flags carry their attribute values inside `_variants`
-		// (each variant has its own `attributeValues`) rather than at the top
-		// level. Validate each variant's attributeValues against the same
-		// constraint schema; otherwise validate the top-level value directly.
-		if variants, ok := flagVal["_variants"].([]any); ok && len(variants) > 0 {
-			for idx, v := range variants {
-				variant, ok := v.(map[string]any)
-				if !ok {
-					continue
-				}
-				av, _ := variant["attributeValues"].(map[string]any)
-				if av == nil {
-					// Validate an empty object so missing required attributes
-					// are still reported.
-					av = map[string]any{}
-				}
-				prefix := fmt.Sprintf("values/%s/_variants/%d/attributeValues", flagKey, idx)
-				if err := collectValueIssues(schemaJSON, av, prefix, &issues); err != nil {
-					return err
-				}
-			}
-		} else {
-			if err := collectValueIssues(schemaJSON, flagVal, "values/"+flagKey, &issues); err != nil {
-				return err
-			}
+		if err := collectFlagIssues(schemaJSON, flagKey, flagVal, &issues); err != nil {
+			return err
 		}
 	}
 
 	if len(issues) > 0 {
 		return &SchemaValidationError{Issues: issues}
+	}
+	return nil
+}
+
+// collectFlagIssues validates one flag's value(s) against schemaJSON. Multi-variant
+// flags carry their attribute values inside `_variants` (each variant has its own
+// `attributeValues`) rather than at the top level; single-variant flags hold the
+// value directly. Each variant's attributeValues is validated against the same
+// constraint schema.
+func collectFlagIssues(schemaJSON []byte, flagKey string, flagVal map[string]any, issues *[]string) error {
+	variants, ok := flagVal["_variants"].([]any)
+	if !ok || len(variants) == 0 {
+		return collectValueIssues(schemaJSON, flagVal, "values/"+flagKey, issues)
+	}
+	for idx, v := range variants {
+		variant, ok := v.(map[string]any)
+		if !ok {
+			continue
+		}
+		av, _ := variant["attributeValues"].(map[string]any)
+		if av == nil {
+			// Validate an empty object so missing required attributes are still reported.
+			av = map[string]any{}
+		}
+		prefix := fmt.Sprintf("values/%s/_variants/%d/attributeValues", flagKey, idx)
+		if err := collectValueIssues(schemaJSON, av, prefix, issues); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -190,11 +194,12 @@ func constraintToSchema(cons map[string]any) map[string]any {
 	return schema
 }
 
+// sortedKeys returns the keys of m in sorted order for deterministic iteration.
 func sortedKeys(m map[string]any) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 	return keys
 }

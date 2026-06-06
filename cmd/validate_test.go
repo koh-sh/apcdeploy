@@ -56,21 +56,12 @@ func TestRunValidate(t *testing.T) {
 			},
 			wantErr: true,
 		},
-		{
-			name: "valid config but AWS error",
-			setupFiles: func(t *testing.T, dir string) string {
-				configPath := filepath.Join(dir, "valid.yml")
-				content := "application: test-app\nenvironment: test-env\nconfiguration_profile: test-profile\nregion: us-east-1\ndata_file: data.json\n"
-				if err := os.WriteFile(configPath, []byte(content), 0o644); err != nil {
-					t.Fatalf("Failed to create test file: %v", err)
-				}
-				if err := os.WriteFile(filepath.Join(dir, "data.json"), []byte("{}"), 0o644); err != nil {
-					t.Fatalf("Failed to create data file: %v", err)
-				}
-				return configPath
-			},
-			wantErr: true, // Will fail due to AWS credentials/connection
-		},
+		// The success path and AWS-error paths for a valid config (resolve
+		// failure, client-init failure, schema violations) are covered
+		// deterministically with a mock client in
+		// internal/validate/executor_test.go. runValidate has no factory
+		// injection point, so exercising them here would require a real AWS
+		// call — kept out on purpose to keep this test hermetic.
 	}
 
 	for _, tt := range tests {

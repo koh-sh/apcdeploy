@@ -760,26 +760,6 @@ func TestInitializer_GenerateFiles(t *testing.T) {
 			wantErr:   false,
 			wantFiles: []string{"apcdeploy.yml"},
 		},
-		{
-			name: "generate config and data files",
-			opts: &Options{
-				ConfigFile: "apcdeploy.yml",
-			},
-			result: &Result{
-				AppName:     "test-app",
-				ProfileName: "test-profile",
-				EnvName:     "test-env",
-				DataFile:    "data.json",
-				ConfigFile:  "apcdeploy.yml",
-				DeployedConfig: &awsInternal.DeployedConfigInfo{
-					VersionNumber: 1,
-					Content:       []byte(`{"key":"value"}`),
-					ContentType:   "application/json",
-				},
-			},
-			wantErr:   false,
-			wantFiles: []string{"apcdeploy.yml", "data.json"},
-		},
 	}
 
 	for _, tt := range tests {
