@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# S3: Multi-config orchestration — `-c` repeated for run/diff/pull.
+# S3: Multi-config orchestration — `-c` repeated (and quoted globs) for run/diff/pull.
 # Must run before any later section perturbs json-freeform/{dev,staging}.
 
 section "S3" "Multi-config"
@@ -48,6 +48,30 @@ apc_quiet pull --silent \
     -c "$mc_dir/dev/apcdeploy.yml" -c "$mc_dir/stg/apcdeploy.yml"
 assert_jq "$mc_dir/dev/data.json" '.mc == "dev-1"'
 assert_jq "$mc_dir/stg/data.json" '.mc == "stg-1"'
+
+step "quoted glob expands to every matching target"
+# Pattern is quoted so the shell passes it literally; apcdeploy expands it.
+# Both targets are changed so each emits its === <id> === diff header.
+printf '{"mc":"dev-3"}' > "$mc_dir/dev/data.json"
+printf '{"mc":"stg-3"}' > "$mc_dir/stg/data.json"
+glob_out=$(apc_stdout diff -c "$mc_dir/*/apcdeploy.yml" || true)
+assert_contains "$glob_out" "=== ${REGION}/${APP}/json-freeform/dev ===" "glob header dev"
+assert_contains "$glob_out" "=== ${REGION}/${APP}/json-freeform/staging ===" "glob header stg"
+
+step "quoted glob drives pull across both targets"
+apc_quiet pull --silent -c "$mc_dir/*/apcdeploy.yml"
+assert_jq "$mc_dir/dev/data.json" '.mc == "dev-1"'
+assert_jq "$mc_dir/stg/data.json" '.mc == "stg-1"'
+
+step "quoted glob drives validate across both targets"
+apc_quiet validate --silent -c "$mc_dir/*/apcdeploy.yml"
+
+step "glob matching no files is rejected"
+expect_fail "$APCDEPLOY_BIN" diff --silent -c "$mc_dir/nonexistent-*.yml"
+
+step "positional args (unquoted glob leftovers) are rejected"
+expect_fail "$APCDEPLOY_BIN" diff --silent \
+    -c "$mc_dir/dev/apcdeploy.yml" "$mc_dir/stg/apcdeploy.yml"
 
 step "path-level dedup: same -c twice is collapsed silently"
 apc_quiet diff --silent \

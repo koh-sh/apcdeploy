@@ -97,7 +97,11 @@ func runRun(cmd *cobra.Command, args []string) error {
 
 	rep := cli.GetReporter(isSilent())
 
-	targets, err := batch.LoadAll(configFiles)
+	paths, err := resolveConfigTargets(args)
+	if err != nil {
+		return err
+	}
+	targets, err := batch.LoadAll(paths)
 	if err != nil {
 		return fmt.Errorf("failed to load configurations: %w", err)
 	}

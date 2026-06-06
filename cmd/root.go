@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"unicode/utf8"
 
@@ -252,6 +254,54 @@ func requireSingleConfig(cmdName string) (string, error) {
 	default:
 		return "", fmt.Errorf("%s does not support multiple -c flags (got %d)", cmdName, len(configFiles))
 	}
+}
+
+// resolveConfigTargets turns the -c values into a concrete, ordered,
+// de-duplicated list of config paths for the multi-config commands
+// (run/diff/pull/validate). Config files MUST be supplied via -c; glob
+// patterns MUST be quoted so the shell hands them to apcdeploy intact
+// (e.g. -c 'environments/*.yml'). An unquoted glob is expanded by the
+// shell into positional arguments instead, so any positional argument is
+// rejected with a hint to quote — this prevents the silent truncation that
+// would otherwise occur (only the first shell-expanded path reaching -c).
+func resolveConfigTargets(args []string) ([]string, error) {
+	if len(args) > 0 {
+		return nil, fmt.Errorf("unexpected arguments %q: pass config files via -c and quote glob patterns so the shell does not expand them, e.g. -c 'environments/*.yml'", args)
+	}
+	return expandConfigGlobs(configFiles)
+}
+
+// expandConfigGlobs expands each glob pattern in paths via filepath.Glob,
+// preserving order and removing duplicates. Entries without a glob
+// metacharacter pass through unchanged so a missing literal path still
+// produces LoadAll's clear "file not found"; a pattern that matches nothing
+// is an error.
+func expandConfigGlobs(paths []string) ([]string, error) {
+	out := make([]string, 0, len(paths))
+	seen := make(map[string]bool)
+	add := func(p string) {
+		if !seen[p] {
+			seen[p] = true
+			out = append(out, p)
+		}
+	}
+	for _, p := range paths {
+		if !strings.ContainsAny(p, "*?[") {
+			add(p)
+			continue
+		}
+		matches, err := filepath.Glob(p)
+		if err != nil {
+			return nil, fmt.Errorf("invalid glob pattern %q: %w", p, err)
+		}
+		if len(matches) == 0 {
+			return nil, fmt.Errorf("no files matched pattern %q", p)
+		}
+		for _, m := range matches {
+			add(m)
+		}
+	}
+	return out, nil
 }
 
 // maxDescriptionLength matches the AppConfig API limit on the Description

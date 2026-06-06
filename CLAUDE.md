@@ -79,10 +79,12 @@ Dev tools (Go toolchain, golangci-lint, gofumpt, tparse, octocov, goreleaser, te
 ./apcdeploy diff -c apcdeploy.yml --silent
 ./apcdeploy status -c apcdeploy.yml --silent
 
-# Multi-config (run / diff / pull / validate): pass -c repeatedly
+# Multi-config (run / diff / pull / validate): pass -c repeatedly or quote a glob
 ./apcdeploy diff -c environments/dev.yml -c environments/stg.yml -c environments/prod.yml
-./apcdeploy run  -c environments/*.yml --parallel 3 --wait-bake
-./apcdeploy pull -c environments/*.yml --continue-on-error
+# Quote glob patterns so the shell does not expand them (apcdeploy expands them itself).
+# An unquoted glob is shell-expanded into positional args, which apcdeploy rejects.
+./apcdeploy run  -c 'environments/*.yml' --parallel 3 --wait-bake
+./apcdeploy pull -c 'environments/*.yml' --continue-on-error
 ```
 
 ### E2E Testing
