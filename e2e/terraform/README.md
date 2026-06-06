@@ -17,11 +17,18 @@ This directory manages AWS AppConfig resources required for apcdeploy E2E tests.
 - **yaml-config**: YAML profile (YAML format tests)
 - **text-config**: Plain text profile (text format tests)
 - **error-test**: Error testing profile (various error scenarios)
+- **json-validated**: Freeform JSON with a JSON_SCHEMA validator (`validate` remote-schema tests)
+- **json-lambda**: Freeform JSON with a LAMBDA validator (`validate` lambda-skip tests)
 
 ### Deployment Strategies
 - **E2E-Test-Strategy**: Custom strategy (fast deployment + 1 min bake time)
 - **AppConfig.AllAtOnce**: Built-in strategy (immediate deployment)
 - **AppConfig.Linear50PercentEvery30Seconds**: Built-in strategy (gradual deployment)
+
+### Lambda Validator (supporting the json-lambda profile)
+- A minimal Lambda function, IAM role, and AppConfig invoke permission. The
+  function is never invoked by tests — `validate` skips LAMBDA validators — but
+  AppConfig requires a real, invokable function to attach the validator.
 
 ## Setup
 

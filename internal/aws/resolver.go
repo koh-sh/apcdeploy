@@ -40,9 +40,34 @@ func (r *Resolver) ResolveApplication(ctx context.Context, appName string) (stri
 
 // ProfileInfo contains Configuration Profile details
 type ProfileInfo struct {
-	ID   string
-	Name string
-	Type string
+	ID         string
+	Name       string
+	Type       string
+	Validators []types.Validator
+}
+
+// JSONSchemaContent returns the content of the profile's JSON_SCHEMA validator
+// if one is configured. The boolean reports whether such a validator was found.
+// LAMBDA validators are ignored — they cannot be evaluated locally.
+func (p *ProfileInfo) JSONSchemaContent() (string, bool) {
+	for _, v := range p.Validators {
+		if v.Type == types.ValidatorTypeJsonSchema && v.Content != nil {
+			return *v.Content, true
+		}
+	}
+	return "", false
+}
+
+// HasLambdaValidator reports whether the profile has a LAMBDA validator
+// configured. Lambda validators cannot be evaluated locally, so `validate`
+// uses this only to inform the user that they were skipped.
+func (p *ProfileInfo) HasLambdaValidator() bool {
+	for _, v := range p.Validators {
+		if v.Type == types.ValidatorTypeLambda {
+			return true
+		}
+	}
+	return false
 }
 
 // ResolveConfigurationProfile resolves a configuration profile name to its ID and details
@@ -87,6 +112,7 @@ func (r *Resolver) ResolveConfigurationProfile(ctx context.Context, appID, profi
 	if profileOutput.Type != nil {
 		profileInfo.Type = *profileOutput.Type
 	}
+	profileInfo.Validators = profileOutput.Validators
 
 	return profileInfo, nil
 }

@@ -40,6 +40,7 @@ SECTIONS=(
     "S7:s7_rollback.sh"
     "S8:s8_edit.sh"
     "S9:s9_description.sh"
+    "S10:s10_validate.sh"
     "E1:e1_resource_errors.sh"
     "E2:e2_validation.sh"
     "E3:e3_constraints.sh"

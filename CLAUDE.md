@@ -67,6 +67,7 @@ Dev tools (Go toolchain, golangci-lint, gofumpt, tparse, octocov, goreleaser, te
 ./apcdeploy status -c apcdeploy.yml
 ./apcdeploy get -c apcdeploy.yml
 ./apcdeploy pull -c apcdeploy.yml  # Pull latest deployed configuration to local data file
+./apcdeploy validate -c apcdeploy.yml  # Validate local data against its schema (read-only, no deploy)
 ./apcdeploy rollback -c apcdeploy.yml  # Stop ongoing deployment (rollback)
 ./apcdeploy rollback -c apcdeploy.yml --yes  # Skip confirmation
 ./apcdeploy edit  # Edit deployed configuration directly in $EDITOR (no apcdeploy.yml)
@@ -78,7 +79,7 @@ Dev tools (Go toolchain, golangci-lint, gofumpt, tparse, octocov, goreleaser, te
 ./apcdeploy diff -c apcdeploy.yml --silent
 ./apcdeploy status -c apcdeploy.yml --silent
 
-# Multi-config (run / diff / pull): pass -c repeatedly
+# Multi-config (run / diff / pull / validate): pass -c repeatedly
 ./apcdeploy diff -c environments/dev.yml -c environments/stg.yml -c environments/prod.yml
 ./apcdeploy run  -c environments/*.yml --parallel 3 --wait-bake
 ./apcdeploy pull -c environments/*.yml --continue-on-error
@@ -94,7 +95,7 @@ E2E tests require AWS credentials and use Terraform to provision resources:
 - **Full workflow**: `mise run e2e-full` (setup, test, cleanup in one command)
 
 The runner (`e2e/e2e-test.sh`) drives per-scenario case files in
-`e2e/cases/` (S1–S9 success scenarios, E1–E5 error scenarios) using shared
+`e2e/cases/` (S1–S10 success scenarios, E1–E5 error scenarios) using shared
 helpers in `e2e/lib/` (`common.sh` for env / output / traps, `assert.sh`
 for assertions, `apc.sh` for CLI wrappers and fixture helpers). Run a
 subset by passing section IDs (`./e2e/e2e-test.sh S1 S3`); set
@@ -118,11 +119,11 @@ Package-level index. Read the source for details — this only points you at the
 - `internal/config`: Loads / validates `apcdeploy.yml` and data files (JSON/YAML/text). Owns normalization (`HasContentChanged`, `NormalizeByExtension`, FeatureFlags metadata stripping) and pre-deploy validation (size + syntax) shared by `run` / `edit`.
 - `internal/reporter` + `internal/cli`: The single output abstraction. See [Output Contract](.claude/rules/output-contract.md). Executors MUST NOT call `fmt.Fprint*` and MUST NOT branch on `opts.Silent` — Reporter selection in `cmd/root.go` handles silent semantics.
 - `internal/prompt`: Interactive prompt interface (`Select` / `Input` / `CheckTTY`). TTY check prevents hangs in non-interactive environments.
-- `internal/batch`: Multi-config orchestration for `run` / `diff` / `pull`. Pre-loads/validates every `-c` target before any AWS work, runs under a worker pool with fail-fast or `ContinueOnError`. **Single-target invocations flow through the same orchestrator** (with a single goroutine), so executor packages expose just one entry point — `RunOnTarget(ctx, *batch.Target, reporter.TargetReporter, ...)` — and there is no separate single-config path. Commands that produce per-target stdout payloads (currently only `diff`) use `batch.PayloadCollector` to translate completion order into argument order; the collector keeps that synchronisation out of `cmd/`. The `internal/batch/testing` sub-package owns `BuildTarget`, the canonical Target/Targets/TargetReporter assembly used by per-command executor tests so the Identifier rule and Reporter wiring stay in one place.
+- `internal/batch`: Multi-config orchestration for `run` / `diff` / `pull` / `validate`. Pre-loads/validates every `-c` target before any AWS work, runs under a worker pool with fail-fast or `ContinueOnError`. **Single-target invocations flow through the same orchestrator** (with a single goroutine), so executor packages expose just one entry point — `RunOnTarget(ctx, *batch.Target, reporter.TargetReporter, ...)` — and there is no separate single-config path. Commands that produce per-target stdout payloads (currently only `diff`) use `batch.PayloadCollector` to translate completion order into argument order; the collector keeps that synchronisation out of `cmd/`. The `internal/batch/testing` sub-package owns `BuildTarget`, the canonical Target/Targets/TargetReporter assembly used by per-command executor tests so the Identifier rule and Reporter wiring stay in one place.
 - `internal/deploywait`: Helpers between `internal/aws` and `internal/reporter` that adapt deployment polling ticks into `Targets.SetPhase` / `SetProgress`. Lives in its own package to avoid `aws ↔ reporter` reverse dependencies.
 - `internal/apcerrors`: Maps AWS API error codes to short user-facing resolution hints via `Resolution(err)`. Add new hints to `resolutionHints` rather than inlining at call sites — see `.claude/rules/output-contract.md` § "Resolution hints".
 - `internal/display`: Presentation helpers shared by `status` and `rollback` (deployment-status block rendering). Routes everything through `Reporter` so silent mode behaves uniformly — callers MUST NOT branch on `opts.Silent`.
-- Per-command packages (`internal/init`, `internal/run`, `internal/diff`, `internal/edit`, `internal/lsresources`, `internal/pull`, `internal/get`, `internal/status`, `internal/rollback`): each owns an `executor.go` (Factory pattern for testability). Two entry-point shapes coexist: **single-target commands** (`init`, `edit`, `lsresources`, `get`, `status`, `rollback`) expose `Execute(ctx, *Options)` and ship an `options.go`; **multi-target commands** (`run`, `diff`, `pull`) expose `RunOnTarget(ctx, *batch.Target, reporter.TargetReporter, ...)` and ship `options.go` only when there are per-target options beyond the loaded config — currently only `run`. `init` and `edit` additionally own a `workflow.go` for their multi-step interactive flow.
+- Per-command packages (`internal/init`, `internal/run`, `internal/diff`, `internal/edit`, `internal/lsresources`, `internal/pull`, `internal/validate`, `internal/get`, `internal/status`, `internal/rollback`): each owns an `executor.go` (Factory pattern for testability). Two entry-point shapes coexist: **single-target commands** (`init`, `edit`, `lsresources`, `get`, `status`, `rollback`) expose `Execute(ctx, *Options)` and ship an `options.go`; **multi-target commands** (`run`, `diff`, `pull`, `validate`) expose `RunOnTarget(ctx, *batch.Target, reporter.TargetReporter, ...)` and ship `options.go` only when there are per-target options beyond the loaded config — currently only `run`. `init` and `edit` additionally own a `workflow.go` for their multi-step interactive flow.
 
 **IMPORTANT — AWS List API usage:** Always go through the centralized helpers in `internal/aws/client_list_paginated.go` (`ListAllApplications`, `ListAllConfigurationProfiles`, `ListAllEnvironments`, `ListAllDeploymentStrategies`, `ListAllDeployments`, `ListAllHostedConfigurationVersions`). Direct SDK `List*` calls outside that file silently truncate when results exceed AWS page limits.
 
@@ -133,7 +134,7 @@ A few rules don't live cleanly in any one package's source. Spelled out so they 
 - **TTY discipline**: every command that may prompt (`init`, `edit`, `rollback`, `get`) checks TTY before prompting and returns `prompt.ErrNoTTY` with a hint pointing at the bypass flag (`--yes` or "supply all flags") when stdin is not a terminal. The check sits in the executor, not in the prompter.
 - **`pull` / `edit` "no prior deployment"**: both surface failures as errors that wrap `aws.ErrNoDeployment`. New callers of `GetLatestDeployedConfiguration` should preserve that wrap so `errors.Is` works.
 - **`edit` strategy inheritance**: omit `--deployment-strategy` to reuse the previous deployment's strategy via `DeployedConfigInfo.DeploymentStrategyID`. Do not introduce a hard-coded fallback.
-- **`run` / `edit` validation parity**: pre-deploy size + JSON/YAML syntax checks live in `internal/config/validate.go`. New deploy-shape commands MUST reuse it rather than re-implementing.
+- **Validation layering**: `internal/config/validate.go` exposes two levels. `ValidateData` (size + JSON/YAML syntax) is the shared pre-deploy check — `run` / `edit` call it and new deploy-shape commands MUST reuse it rather than re-implementing. `ValidateConfigData` adds JSON-Schema / FeatureFlags-constraint checks on top and is **`validate`-only on purpose**: `run` / `edit` rely on AWS's server-side validator (run at `CreateHostedConfigurationVersion`) as the authority, while `validate` answers "will AWS accept this?" read-only, without creating a version. The schema fed to `ValidateConfigData` is the profile's JSON_SCHEMA validator fetched during resolution — apcdeploy never stores or syncs a local schema copy (no `schema_file`), so there is no local/remote drift to reconcile.
 - **`run` / `pull` no-op detection**: content comparison is normalized via `internal/config/normalize.go` (FeatureFlags `_updatedAt` / `_createdAt` stripped) and gated on `HasContentChanged`. Both commands skip the AWS write when unchanged.
 - **`rollback` semantics**: stops the *current* ongoing deployment only (no `AllowRevert`). Returns `ErrNoOngoingDeployment` when nothing is in flight.
 - **Wait flags**: `--wait-deploy` and `--wait-bake` are mutually exclusive on `run` and `edit`. Both honor `--timeout` (default 1800s, applied across phases).

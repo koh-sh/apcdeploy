@@ -31,7 +31,7 @@ silent-mode behavior, and visual treatment.
 
 | Kind | Channel | `--silent` | Visual (TTY) | Use for |
 |---|---|---|---|---|
-| `Targets(ids) Targets` | stderr | suppressed; non-TTY: line per phase transition / threshold | identifier-aligned multi-row block with state icon, phase, optional progress bar | All deployment-target lifecycles (`run` / `diff` / `pull` / `rollback` / `edit` / `get --yes` / `status`) |
+| `Targets(ids) Targets` | stderr | suppressed; non-TTY: line per phase transition / threshold | identifier-aligned multi-row block with state icon, phase, optional progress bar | All deployment-target lifecycles (`run` / `diff` / `pull` / `validate` / `rollback` / `edit` / `get --yes` / `status`) |
 | `Header(title)` | stderr | suppressed | bold + rule line | Section heading (e.g. `init` / `ls-resources`) |
 | `Box(title, lines)` | stderr | suppressed | bordered card | Multi-line panel (`init`'s "Next steps", `status`'s no-deployment guidance) |
 | `Table(headers, rows)` | stderr | suppressed | lipgloss table | Structured key/value or row data (`status` detail, `ls-resources`) |
@@ -175,7 +175,7 @@ introduce more without adding a similar entry here.
 
 ## Multi-config orchestration
 
-`run`, `diff`, and `pull` accept `-c` repeatedly. The plumbing lives in
+`run`, `diff`, `pull`, and `validate` accept `-c` repeatedly. The plumbing lives in
 `internal/batch`:
 
 - `batch.LoadAll(paths)` pre-loads and validates every `-c` before any
@@ -196,7 +196,7 @@ introduce more without adding a similar entry here.
 single goroutine — there is no separate `Execute(ctx, opts)` path. Each
 executor exposes exactly one entry point,
 `RunOnTarget(ctx, *batch.Target, reporter.TargetReporter, ...)`, which
-`cmd/{run,diff,pull}.go` invokes via `batch.Orchestrator` regardless of
+`cmd/{run,diff,pull,validate}.go` invokes via `batch.Orchestrator` regardless of
 how many `-c` flags were passed. As a consequence, `region` is required
 in every yml (no SDK-default fallback), and the `=== <id> ===` header in
 `diff` output is always emitted.
