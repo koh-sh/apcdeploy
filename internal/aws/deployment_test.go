@@ -1191,6 +1191,103 @@ func TestWaitForDeploymentPhase_StopsAtBaking(t *testing.T) {
 	}
 }
 
+// TestWaitCancelledByParentContext covers Ctrl+C during a deployment wait.
+// Both polling loops derive their working context from the caller's, so a
+// cancelled parent must be reported as cancellation — that is what lets
+// cmd/root.go's errors.Is(err, context.Canceled) branch print "cancelled by
+// user" and exit 130. A naive <-ctx.Done() branch instead fabricates
+// "timed out after <timeout>" (exit 1) with a duration that never elapsed.
+func TestWaitCancelledByParentContext(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// state is the in-progress state the mock keeps reporting so the
+		// wait loop polls instead of returning early.
+		state types.DeploymentState
+		// failInFlight mirrors the SDK behavior when the cancellation lands
+		// while a GetDeployment request is in flight: the call itself fails
+		// rather than returning a response the select loop then observes.
+		failInFlight bool
+		wait         func(ctx context.Context, c *Client) error
+	}{
+		{
+			name:  "deploy wait: cancellation observed by the poll loop",
+			state: types.DeploymentStateDeploying,
+			wait: func(ctx context.Context, c *Client) error {
+				return c.WaitForDeploymentPhase(ctx, "app-123", "env-123", 1, false, time.Hour, nil)
+			},
+		},
+		{
+			name:         "deploy wait: cancellation fails the in-flight request",
+			state:        types.DeploymentStateDeploying,
+			failInFlight: true,
+			wait: func(ctx context.Context, c *Client) error {
+				return c.WaitForDeploymentPhase(ctx, "app-123", "env-123", 1, false, time.Hour, nil)
+			},
+		},
+		{
+			name:  "bake wait: cancellation observed by the poll loop",
+			state: types.DeploymentStateBaking,
+			wait: func(ctx context.Context, c *Client) error {
+				return c.WaitForBakingComplete(ctx, "app-123", "env-123", 1, time.Hour, nil)
+			},
+		},
+		{
+			name:         "bake wait: cancellation fails the in-flight request",
+			state:        types.DeploymentStateBaking,
+			failInFlight: true,
+			wait: func(ctx context.Context, c *Client) error {
+				return c.WaitForBakingComplete(ctx, "app-123", "env-123", 1, time.Hour, nil)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			callCount := 0
+			mockClient := &mock.MockAppConfigClient{
+				GetDeploymentFunc: func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
+					callCount++
+					if callCount == 1 {
+						// Ctrl+C lands during the first poll.
+						cancel()
+						if tt.failInFlight {
+							return nil, ctx.Err()
+						}
+					}
+					return &appconfig.GetDeploymentOutput{
+						DeploymentNumber:       1,
+						State:                  tt.state,
+						FinalBakeTimeInMinutes: 1,
+					}, nil
+				},
+			}
+
+			client := &Client{
+				appConfig:       mockClient,
+				PollingInterval: 10 * time.Millisecond,
+			}
+
+			err := tt.wait(ctx, client)
+			if err == nil {
+				t.Fatal("expected an error after the parent context was cancelled")
+			}
+			if !errors.Is(err, context.Canceled) {
+				t.Errorf("error = %v, want it to wrap context.Canceled", err)
+			}
+			if got := err.Error(); got != context.Canceled.Error() {
+				t.Errorf("error = %q, want %q: neither a fabricated timeout nor transport noise may leak", got, context.Canceled.Error())
+			}
+		})
+	}
+}
+
 func TestStopDeployment(t *testing.T) {
 	t.Parallel()
 

@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -141,6 +142,33 @@ func ExtractRollbackReason(eventLog []types.DeploymentEvent) string {
 	return ""
 }
 
+// normalizeWaitError decides what a polling wait loop reports once it stops.
+//
+// The loop owns a context carrying the caller-supplied timeout, so once that
+// context is done the reason it is done outranks whatever the last poll
+// produced (an in-flight GetDeployment fails with a transport-level error the
+// moment the context is cancelled, which says nothing useful):
+//
+//   - deadline reached — the loop's own timeout expired, so keep the
+//     "<phase> timed out after <timeout>" message.
+//   - anything else — in practice the parent context cancelled by Ctrl+C, so
+//     return ctx.Err() and let cmd/root.go's errors.Is(err, context.Canceled)
+//     branch report "cancelled by user" and exit 130 instead of a fabricated
+//     timeout that never elapsed.
+//
+// With a live context err passes through unchanged, which is how genuine
+// deployment failures (rollback, unexpected state) keep their message.
+func normalizeWaitError(ctx context.Context, err error, phase string, timeout time.Duration) error {
+	ctxErr := ctx.Err()
+	if ctxErr == nil {
+		return err
+	}
+	if errors.Is(ctxErr, context.DeadlineExceeded) {
+		return fmt.Errorf("%s timed out after %v", phase, timeout)
+	}
+	return ctxErr
+}
+
 // DeploymentTickFunc is invoked on each polling tick of a deployment wait
 // loop, with the current state, percentage-complete reported by AWS, and the
 // configured deployment duration (DeploymentDurationInMinutes converted to a
@@ -224,18 +252,26 @@ func (c *Client) waitForDeploymentWithCondition(
 	}
 
 	// Check immediately first
-	if complete, err := checkDeployment(); err != nil || complete {
-		return err
+	complete, err := checkDeployment()
+	if err != nil {
+		return normalizeWaitError(ctx, err, "deployment", timeout)
+	}
+	if complete {
+		return nil
 	}
 
 	// Then check periodically
 	for {
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("deployment timed out after %v", timeout)
+			return normalizeWaitError(ctx, ctx.Err(), "deployment", timeout)
 		case <-ticker.C:
-			if complete, err := checkDeployment(); err != nil || complete {
-				return err
+			complete, err := checkDeployment()
+			if err != nil {
+				return normalizeWaitError(ctx, err, "deployment", timeout)
+			}
+			if complete {
+				return nil
 			}
 		}
 	}
@@ -361,17 +397,25 @@ func (c *Client) WaitForBakingComplete(
 		}
 	}
 
-	if complete, err := checkDeployment(); err != nil || complete {
-		return err
+	complete, err := checkDeployment()
+	if err != nil {
+		return normalizeWaitError(ctx, err, "bake phase", timeout)
+	}
+	if complete {
+		return nil
 	}
 
 	for {
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("bake phase timed out after %v", timeout)
+			return normalizeWaitError(ctx, ctx.Err(), "bake phase", timeout)
 		case <-ticker.C:
-			if complete, err := checkDeployment(); err != nil || complete {
-				return err
+			complete, err := checkDeployment()
+			if err != nil {
+				return normalizeWaitError(ctx, err, "bake phase", timeout)
+			}
+			if complete {
+				return nil
 			}
 		}
 	}
