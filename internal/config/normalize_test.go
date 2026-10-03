@@ -58,6 +58,29 @@ func TestNormalizeJSON(t *testing.T) {
 			want:        "",
 			wantErr:     true,
 		},
+		{
+			// Trailing data after the first value must be rejected so that
+			// diff/pull agree with run/validate (json.Unmarshal rejects it).
+			name:        "trailing garbage after value",
+			content:     `{"a":1} garbage`,
+			profileType: ProfileTypeFreeform,
+			want:        "",
+			wantErr:     true,
+		},
+		{
+			name:        "two concatenated documents",
+			content:     `{"a":1}{"b":2}`,
+			profileType: ProfileTypeFreeform,
+			want:        "",
+			wantErr:     true,
+		},
+		{
+			name:        "trailing whitespace and newline allowed",
+			content:     "{\"a\":1}\n \t\n",
+			profileType: ProfileTypeFreeform,
+			want:        "{\n  \"a\": 1\n}",
+			wantErr:     false,
+		},
 	}
 
 	for _, tt := range tests {

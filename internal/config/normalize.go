@@ -3,7 +3,9 @@ package config
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/goccy/go-yaml"
@@ -24,11 +26,9 @@ import (
 //   - string: Normalized JSON with consistent formatting
 //   - error: Any error during parsing or formatting
 func NormalizeJSON(content string, profileType string) (string, error) {
-	var data any
-	dec := json.NewDecoder(strings.NewReader(content))
-	dec.UseNumber()
-	if err := dec.Decode(&data); err != nil {
-		return "", fmt.Errorf("invalid JSON: %w", err)
+	data, err := decodeJSONUseNumber(strings.NewReader(content))
+	if err != nil {
+		return "", err
 	}
 
 	// For FeatureFlags, remove _updatedAt and _createdAt fields recursively
@@ -43,6 +43,23 @@ func NormalizeJSON(content string, profileType string) (string, error) {
 	}
 
 	return string(normalized), nil
+}
+
+// decodeJSONUseNumber decodes a single JSON value from r with UseNumber enabled.
+// Unlike a bare Decoder.Decode, it rejects any non-whitespace data after the
+// first value (e.g. `{"a":1} garbage` or two concatenated documents), matching
+// json.Unmarshal so normalization agrees with ValidateData.
+func decodeJSONUseNumber(r io.Reader) (any, error) {
+	var data any
+	dec := json.NewDecoder(r)
+	dec.UseNumber()
+	if err := dec.Decode(&data); err != nil {
+		return nil, fmt.Errorf("invalid JSON: %w", err)
+	}
+	if err := dec.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		return nil, errors.New("invalid JSON: unexpected data after top-level value")
+	}
+	return data, nil
 }
 
 // NormalizeYAML normalizes YAML content by parsing and re-formatting.
