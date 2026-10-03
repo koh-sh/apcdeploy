@@ -705,6 +705,92 @@ func TestResolveDeploymentStrategyIDToName(t *testing.T) {
 	}
 }
 
+func TestResolveConfigurationProfileIDToName(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name         string
+		profileID    string
+		mockProfiles []types.ConfigurationProfileSummary
+		mockErr      error
+		wantName     string
+		wantErr      bool
+		errContains  string
+	}{
+		{
+			name:      "profile found",
+			profileID: "prof-b",
+			mockProfiles: []types.ConfigurationProfileSummary{
+				{Id: aws.String("prof-a"), Name: aws.String("profile-a")},
+				{Id: aws.String("prof-b"), Name: aws.String("profile-b")},
+			},
+			wantName: "profile-b",
+		},
+		{
+			name:      "profile not found - return ID",
+			profileID: "prof-x",
+			mockProfiles: []types.ConfigurationProfileSummary{
+				{Id: aws.String("prof-a"), Name: aws.String("profile-a")},
+			},
+			wantName: "prof-x",
+		},
+		{
+			name:      "profile with no name - return ID",
+			profileID: "prof-a",
+			mockProfiles: []types.ConfigurationProfileSummary{
+				{Id: aws.String("prof-a"), Name: nil},
+			},
+			wantName: "prof-a",
+		},
+		{
+			name:        "API error",
+			profileID:   "prof-a",
+			mockErr:     errors.New("API error"),
+			wantErr:     true,
+			errContains: "failed to list configuration profiles",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var gotAppID string
+			mockClient := &mock.MockAppConfigClient{
+				ListAllConfigurationProfilesFunc: func(ctx context.Context, appID string) ([]types.ConfigurationProfileSummary, error) {
+					gotAppID = appID
+					if tt.mockErr != nil {
+						return nil, tt.mockErr
+					}
+					return tt.mockProfiles, nil
+				},
+			}
+
+			resolver := &Resolver{client: mockClient}
+			profileName, err := resolver.ResolveConfigurationProfileIDToName(context.Background(), "app-1", tt.profileID)
+
+			if gotAppID != "app-1" {
+				t.Errorf("ListAllConfigurationProfiles appID = %q, want %q", gotAppID, "app-1")
+			}
+
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				if tt.errContains != "" && !strings.Contains(err.Error(), tt.errContains) {
+					t.Errorf("error = %v, want to contain %v", err, tt.errContains)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if profileName != tt.wantName {
+				t.Errorf("profileName = %v, want %v", profileName, tt.wantName)
+			}
+		})
+	}
+}
+
 func TestResolveDeploymentStrategyIDToNamePagination(t *testing.T) {
 	t.Parallel()
 	t.Run("pagination - strategy found on second page", func(t *testing.T) {

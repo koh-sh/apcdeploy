@@ -27,7 +27,7 @@ func DeploymentStatus(r reporter.Reporter, deployment *aws.DeploymentDetails, cf
 
 	rows := [][]string{
 		{"Application", cfg.Application},
-		{"Profile", resources.Profile.Name},
+		{"Profile", profileLabel(deployment, resources)},
 		{"Environment", cfg.Environment},
 		// "Deployment Number" and "Hosted Config Version" use distinct labels
 		// to make the scope explicit: deployment numbers are
@@ -86,6 +86,18 @@ func DeploymentStatus(r reporter.Reporter, deployment *aws.DeploymentDetails, cf
 			r.Info("Reason: " + reason)
 		}
 	}
+}
+
+// profileLabel returns the label for the deployment's configuration profile.
+// The resolved (apcdeploy.yml) profile name is used only when the deployment
+// actually belongs to that profile; a deployment of another profile is
+// labeled with its own profile ID so the table never shows the wrong profile.
+// An empty ConfigurationProfileID (not reported by AWS) is treated as a match.
+func profileLabel(deployment *aws.DeploymentDetails, resources *aws.ResolvedResources) string {
+	if deployment.ConfigurationProfileID != "" && deployment.ConfigurationProfileID != resources.Profile.ID {
+		return deployment.ConfigurationProfileID
+	}
+	return resources.Profile.Name
 }
 
 // formatTime formats a time.Time for display.

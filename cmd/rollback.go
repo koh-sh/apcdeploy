@@ -21,7 +21,10 @@ func newRollbackCmd() *cobra.Command {
 		Long: `Stop an ongoing deployment in AWS AppConfig.
 
 This command stops an in-progress deployment by calling the AWS AppConfig StopDeployment API.
-It automatically finds the current ongoing deployment and stops it.`,
+It automatically finds the current ongoing deployment in the environment and stops it,
+but only if that deployment belongs to the configuration profile in the config file.
+A deployment of another profile is refused (even with --yes); re-run with a config
+targeting that profile instead.`,
 		RunE:         runRollback,
 		SilenceUsage: true, // Don't show usage on runtime errors
 	}

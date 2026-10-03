@@ -104,6 +104,35 @@ func TestDeploymentStatus(t *testing.T) {
 			wantWarn:     true,
 			wantWarnText: "Deployment was rolled back",
 		},
+		{
+			name: "deployment of the resolved profile is labeled with its name",
+			deployment: &aws.DeploymentDetails{
+				DeploymentNumber:       5,
+				ConfigurationProfileID: "prof-a",
+				State:                  types.DeploymentStateDeploying,
+				ConfigurationVersion:   "3",
+			},
+			cfg:          &config.Config{Application: "test-app", Environment: "prod"},
+			resources:    &aws.ResolvedResources{Profile: &aws.ProfileInfo{ID: "prof-a", Name: "profile-a"}},
+			wantStdout:   "DEPLOYING\n",
+			wantTableHas: []string{"Profile|profile-a|"},
+		},
+		{
+			// The yml's profile name must never label a deployment that
+			// belongs to another profile (issue #152).
+			name: "deployment of another profile is labeled with its own profile ID",
+			deployment: &aws.DeploymentDetails{
+				DeploymentNumber:       6,
+				ConfigurationProfileID: "prof-b",
+				State:                  types.DeploymentStateDeploying,
+				ConfigurationVersion:   "3",
+			},
+			cfg:          &config.Config{Application: "test-app", Environment: "prod"},
+			resources:    &aws.ResolvedResources{Profile: &aws.ProfileInfo{ID: "prof-a", Name: "profile-a"}},
+			wantStdout:   "DEPLOYING\n",
+			wantTableHas: []string{"Profile|prof-b|"},
+			denyTableHas: []string{"profile-a"},
+		},
 	}
 
 	for _, tt := range tests {

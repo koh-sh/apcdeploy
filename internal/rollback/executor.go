@@ -16,6 +16,11 @@ import (
 // ErrNoOngoingDeployment is returned when no ongoing deployment is found
 var ErrNoOngoingDeployment = errors.New("no ongoing deployment found")
 
+// ErrProfileMismatch is returned when the environment's ongoing deployment
+// belongs to a configuration profile other than the one in apcdeploy.yml.
+// rollback refuses to stop it, regardless of --yes.
+var ErrProfileMismatch = errors.New("configuration profile mismatch")
+
 // Executor handles the rollback operation orchestration
 type Executor struct {
 	reporter      reporter.Reporter
@@ -48,6 +53,9 @@ func NewExecutorWithFactory(rep reporter.Reporter, prom prompt.Prompter, factory
 //   - has-ongoing path: optional confirmation block, then a single Targets row
 //     transitioning preparing → stopping → ✓ stopped (deployment #N).
 //   - no-ongoing path: a single Targets row finalized as ⊘ no ongoing deployment.
+//   - profile-mismatch path: the ongoing deployment belongs to another
+//     configuration profile; a single Targets row finalized as ✗ failed with
+//     ErrProfileMismatch, before any prompt and regardless of --yes.
 //   - error path: Targets row finalized as ✗ failed: <message>; the error is
 //     also returned so cmd/root.go sets a non-zero exit code.
 func (e *Executor) Execute(ctx context.Context, opts *Options) error {
@@ -91,6 +99,18 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 		return fmt.Errorf("failed to get deployment details: %w", err)
 	}
 
+	// AppConfig allows one ongoing deployment per environment, so the
+	// deployment found above may belong to another configuration profile.
+	// Refuse before prompting (and regardless of --yes) so rollback never
+	// stops a deployment the config file does not target.
+	if details.ConfigurationProfileID != resources.Profile.ID {
+		err := profileMismatchError(ctx, resolver, resources, details)
+		tg := e.reporter.Targets([]string{id})
+		defer tg.Close()
+		tg.Fail(id, err)
+		return err
+	}
+
 	if !opts.SkipConfirmation {
 		if err := e.prompter.CheckTTY(); err != nil {
 			return fmt.Errorf("use --yes to skip confirmation: %w", err)
@@ -122,4 +142,16 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	}
 	tg.Done(id, fmt.Sprintf("stopped (deployment #%d)", deploymentNumber))
 	return nil
+}
+
+// profileMismatchError builds the ErrProfileMismatch error naming the
+// deployment's actual profile. The name lookup is best-effort: on failure the
+// profile ID is used instead, since the refusal itself must not depend on it.
+func profileMismatchError(ctx context.Context, resolver *aws.Resolver, resources *aws.ResolvedResources, details *aws.DeploymentDetails) error {
+	actualProfile, err := resolver.ResolveConfigurationProfileIDToName(ctx, resources.ApplicationID, details.ConfigurationProfileID)
+	if err != nil {
+		actualProfile = details.ConfigurationProfileID
+	}
+	return fmt.Errorf("%w: ongoing deployment #%d belongs to configuration profile %q, not %q; re-run with a config targeting %q",
+		ErrProfileMismatch, details.DeploymentNumber, actualProfile, resources.Profile.Name, actualProfile)
 }
