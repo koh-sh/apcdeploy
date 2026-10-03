@@ -5,6 +5,7 @@
 #   ./e2e-test.sh              # run all sections in order
 #   ./e2e-test.sh S1 S3        # run only the listed sections
 #   E2E_KEEP_TMP=1 ./e2e-test.sh  # don't clean per-section tempdirs (debug)
+#   E2E_TARGET=local ./e2e-test.sh  # run against MiniStack (mise run e2e-local-up)
 #
 # Each section runs in its own tempdir to prevent local-state leakage between
 # sections. AWS-side state coupling (shared profile/env in Terraform) is NOT

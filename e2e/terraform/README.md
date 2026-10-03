@@ -21,9 +21,12 @@ This directory manages AWS AppConfig resources required for apcdeploy E2E tests.
 - **json-lambda**: Freeform JSON with a LAMBDA validator (`validate` lambda-skip tests)
 
 ### Deployment Strategies
-- **E2E-Test-Strategy**: Custom strategy (fast deployment + 1 min bake time)
-- **AppConfig.AllAtOnce**: Built-in strategy (immediate deployment)
-- **AppConfig.Linear50PercentEvery30Seconds**: Built-in strategy (gradual deployment)
+- **E2E-Test-Strategy**: Custom strategy (instant deployment, no bake time)
+- **E2E-Slow-Strategy**: Custom strategy (1 min deployment; rollback and timeout tests)
+
+The tests also rely on the AWS predefined `AppConfig.AllAtOnce` strategy,
+which AWS provides in every account (not created here). MiniStack does not
+provide predefined strategies.
 
 ### Lambda Validator (supporting the json-lambda profile)
 - A minimal Lambda function, IAM role, and AppConfig invoke permission. The
@@ -45,6 +48,20 @@ terraform apply
 # Destroy resources
 terraform destroy
 ```
+
+### Local (MiniStack)
+
+The same configuration also provisions the resources on the MiniStack
+emulator for local E2E runs. Use the mise tasks from the repository root
+rather than running Terraform directly, so the endpoint, dummy credentials,
+and the separate `local` workspace are applied:
+
+```bash
+mise run e2e-local-full   # up -> setup -> run -> clean
+```
+
+Every Terraform task pins `TF_WORKSPACE` (`default` for real AWS, `local`
+for MiniStack), so the two states never mix.
 
 ## Variables
 
