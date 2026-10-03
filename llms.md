@@ -348,7 +348,7 @@ When `--wait-bake` is used, the deploy phase is rendered as a progress bar (AppC
 
 | Cause | Resolution |
 |---|---|
-| Another deployment is in progress (DEPLOYING, BAKING, VALIDATING, or ROLLING_BACK) for the same environment | Wait for it to finish, or stop it with `apcdeploy rollback -c apcdeploy.yml --yes`. AppConfig allows only one active deployment per environment. |
+| Another deployment is in progress (DEPLOYING, BAKING, VALIDATING, or ROLLING_BACK) for the same environment | Wait for it to finish, or stop it with `apcdeploy rollback -c <config> --yes`, where `<config>` targets the profile that owns the in-flight deployment (rollback refuses to stop another profile's deployment). AppConfig allows only one active deployment per environment. |
 | Wait timed out before the deployment reached the requested phase | Raise `--timeout` (e.g. `AppConfig.Linear` needs ≈ 30 min deploy + 10 min bake), or drop `--wait-*` and poll with `apcdeploy status`. |
 
 #### Exit Codes
@@ -608,7 +608,7 @@ apcdeploy validate -c 'environments/*.yml' --continue-on-error
 
 ### rollback command
 
-Stops an ongoing deployment by calling AWS AppConfig `StopDeployment`. Only in-flight deployments (`DEPLOYING`, `BAKING`, `VALIDATING`, or `ROLLING_BACK`) can be stopped — terminal deployments cannot be rolled back through this command (use Git-based revert + `apcdeploy run` instead).
+Stops an ongoing deployment of the configured configuration profile by calling AWS AppConfig `StopDeployment`. Only in-flight deployments (`DEPLOYING`, `BAKING`, `VALIDATING`, or `ROLLING_BACK`) can be stopped — terminal deployments cannot be rolled back through this command (use Git-based revert + `apcdeploy run` instead).
 
 #### Usage
 
@@ -625,12 +625,14 @@ apcdeploy rollback -c apcdeploy.yml --yes
 #### Operation Details
 
 1. Find the current ongoing deployment for the environment (errors if none is in-flight: `DEPLOYING` / `BAKING` / `VALIDATING` / `ROLLING_BACK`)
-2. If `--yes` is not set, check TTY and prompt for confirmation (errors before any AWS write if no TTY)
-3. Call `StopDeployment`; AppConfig transitions the deployment to `ROLLED_BACK` and reverts to the previous version
+2. If that deployment belongs to a different configuration profile than `configuration_profile`, refuse: nothing is stopped and no prompt is shown, even with `--yes`
+3. If `--yes` is not set, check TTY and prompt for confirmation (errors before any AWS write if no TTY)
+4. Call `StopDeployment`; AppConfig transitions the deployment to `ROLLED_BACK` and reverts to the previous version
 
 #### Behavior
 
 - **Scope**: stops in-flight deployments only. Does **not** use AppConfig's `AllowRevert` feature; does **not** touch completed deployments.
+- **Profile check**: AppConfig allows one in-flight deployment per environment, shared by all profiles in it. `rollback` stops it only when it belongs to the profile in `apcdeploy.yml`; otherwise it fails (exit code `1`) with `configuration profile mismatch: ongoing deployment #N belongs to configuration profile "<actual>", not "<configured>"; re-run with a config targeting "<actual>"`. To stop another profile's deployment, run `rollback` with a config targeting that profile (or use the AWS console/CLI).
 - **Local files unchanged**: `rollback` makes no changes to local files. After it succeeds, local files no longer match the deployed (reverted) configuration.
 - **Post-rollback sync**: choose one before continuing:
   - **Accept the reverted state**: `apcdeploy pull -c apcdeploy.yml` to bring local files in line with the previous version.
@@ -652,7 +654,7 @@ apcdeploy run -c apcdeploy.yml
 #### Exit Codes
 
 - `0`: success
-- `1`: AWS error, user declined the prompt, or TTY error when `--yes` is missing in a non-interactive environment
+- `1`: AWS error, the ongoing deployment belongs to another configuration profile, user declined the prompt, or TTY error when `--yes` is missing in a non-interactive environment
 - `2`: no ongoing deployment to stop
 
 #### Examples

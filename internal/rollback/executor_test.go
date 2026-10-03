@@ -763,3 +763,169 @@ func TestExecutorTargetsFailOnStopError(t *testing.T) {
 		t.Errorf("expected fail.Err to mention ConflictException, got %v", fail.Err)
 	}
 }
+
+// TestExecutorProfileMismatch covers issue #152: rollback must refuse to stop
+// an ongoing deployment that belongs to a configuration profile other than
+// the one named in apcdeploy.yml, regardless of --yes, and must do so before
+// any confirmation prompt.
+func TestExecutorProfileMismatch(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		deployProfileID  string
+		skipConfirmation bool
+		// profileListErrOnLookup makes the profile list call fail after the
+		// initial name→ID resolution, i.e. during the ID→name lookup.
+		profileListErrOnLookup bool
+		wantErr                bool
+		wantErrContains        string
+		wantStop               bool
+		wantPrompt             bool
+		wantProfileRow         string
+	}{
+		{
+			name:             "mismatch with --yes refuses without stopping",
+			deployProfileID:  "profile-456",
+			skipConfirmation: true,
+			wantErr:          true,
+			wantErrContains:  `ongoing deployment #12 belongs to configuration profile "other-profile", not "test-profile"; re-run with a config targeting "other-profile"`,
+		},
+		{
+			name:            "mismatch interactive refuses before prompting",
+			deployProfileID: "profile-456",
+			wantErr:         true,
+			wantErrContains: `belongs to configuration profile "other-profile", not "test-profile"`,
+		},
+		{
+			name:                   "name lookup failure falls back to profile ID",
+			deployProfileID:        "profile-456",
+			skipConfirmation:       true,
+			profileListErrOnLookup: true,
+			wantErr:                true,
+			wantErrContains:        `ongoing deployment #12 belongs to configuration profile "profile-456", not "test-profile"; re-run with a config targeting "profile-456"`,
+		},
+		{
+			name:            "unknown profile ID falls back to profile ID",
+			deployProfileID: "profile-999",
+			wantErr:         true,
+			wantErrContains: `belongs to configuration profile "profile-999"`,
+		},
+		{
+			name:             "matching profile with --yes stops the deployment",
+			deployProfileID:  "profile-123",
+			skipConfirmation: true,
+			wantStop:         true,
+		},
+		{
+			name:            "matching profile interactive prompts then stops",
+			deployProfileID: "profile-123",
+			wantStop:        true,
+			wantPrompt:      true,
+			wantProfileRow:  "test-profile",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			configPath := createTestConfig(t)
+
+			stopCalled := false
+			mockClient := createStandardMockClient(
+				func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
+					return &appconfig.ListDeploymentsOutput{
+						Items: []types.DeploymentSummary{
+							{DeploymentNumber: 12, State: types.DeploymentStateDeploying},
+						},
+					}, nil
+				},
+				func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
+					return &appconfig.GetDeploymentOutput{
+						DeploymentNumber:       12,
+						ConfigurationProfileId: aws.String(tt.deployProfileID),
+						ConfigurationVersion:   aws.String("1"),
+						DeploymentStrategyId:   aws.String("strategy-123"),
+						State:                  types.DeploymentStateDeploying,
+						StartedAt:              aws.Time(time.Now()),
+					}, nil
+				},
+				func(ctx context.Context, params *appconfig.StopDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.StopDeploymentOutput, error) {
+					stopCalled = true
+					return &appconfig.StopDeploymentOutput{}, nil
+				},
+			)
+			profileListCalls := 0
+			mockClient.ListConfigurationProfilesFunc = func(ctx context.Context, params *appconfig.ListConfigurationProfilesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListConfigurationProfilesOutput, error) {
+				profileListCalls++
+				if tt.profileListErrOnLookup && profileListCalls > 1 {
+					return nil, errors.New("API error listing profiles")
+				}
+				return &appconfig.ListConfigurationProfilesOutput{
+					Items: []types.ConfigurationProfileSummary{
+						{Id: aws.String("profile-123"), Name: aws.String("test-profile"), Type: aws.String("AWS.Freeform")},
+						{Id: aws.String("profile-456"), Name: aws.String("other-profile"), Type: aws.String("AWS.Freeform")},
+					},
+				}, nil
+			}
+
+			promptCalled := false
+			rep := &reportertest.MockReporter{}
+			prompter := &prompttest.MockPrompter{
+				InputFunc: func(message string, placeholder string) (string, error) {
+					promptCalled = true
+					return "y", nil
+				},
+			}
+			executor := NewExecutorWithFactory(rep, prompter, func(ctx context.Context, region string) (*awsInternal.Client, error) {
+				return awsInternal.NewTestClient(mockClient), nil
+			})
+
+			err := executor.Execute(context.Background(), &Options{ConfigFile: configPath, SkipConfirmation: tt.skipConfirmation})
+
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				if !errors.Is(err, ErrProfileMismatch) {
+					t.Errorf("expected ErrProfileMismatch, got: %v", err)
+				}
+				if !strings.Contains(err.Error(), tt.wantErrContains) {
+					t.Errorf("error = %q, want to contain %q", err.Error(), tt.wantErrContains)
+				}
+				fail := findTargetsTransition(t, rep.TargetsCalls, "fail")
+				if !errors.Is(fail.Err, ErrProfileMismatch) {
+					t.Errorf("expected Targets.Fail with ErrProfileMismatch, got %v", fail.Err)
+				}
+				if len(rep.Tables) != 0 {
+					t.Errorf("expected no deployment status table on refusal, got %+v", rep.Tables)
+				}
+			} else if err != nil {
+				t.Fatalf("expected nil error, got %v", err)
+			}
+
+			if stopCalled != tt.wantStop {
+				t.Errorf("StopDeployment called = %v, want %v", stopCalled, tt.wantStop)
+			}
+			if promptCalled != tt.wantPrompt {
+				t.Errorf("prompt called = %v, want %v", promptCalled, tt.wantPrompt)
+			}
+			if tt.wantProfileRow != "" && !hasTableRow(rep.Tables, "Profile", tt.wantProfileRow) {
+				t.Errorf("expected confirmation table row Profile=%q, got %+v", tt.wantProfileRow, rep.Tables)
+			}
+		})
+	}
+}
+
+// hasTableRow reports whether any recorded table has a row [key, value].
+func hasTableRow(tables []reportertest.TableCall, key, value string) bool {
+	for _, tbl := range tables {
+		for _, row := range tbl.Rows {
+			if len(row) >= 2 && row[0] == key && row[1] == value {
+				return true
+			}
+		}
+	}
+	return false
+}

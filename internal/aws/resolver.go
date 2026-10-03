@@ -178,6 +178,27 @@ func (r *Resolver) ResolveDeploymentStrategyIDToName(ctx context.Context, strate
 	return strategyID, nil
 }
 
+// ResolveConfigurationProfileIDToName resolves a configuration profile ID to its name
+// within the given application. If the profile is not found or has no name,
+// the ID is returned as is.
+func (r *Resolver) ResolveConfigurationProfileIDToName(ctx context.Context, appID, profileID string) (string, error) {
+	allItems, err := r.client.ListAllConfigurationProfiles(ctx, appID)
+	if err != nil {
+		return "", fmt.Errorf("failed to list configuration profiles: %w", err)
+	}
+
+	for _, profile := range allItems {
+		if profile.Id != nil && *profile.Id == profileID {
+			if profile.Name != nil {
+				return *profile.Name, nil
+			}
+			return profileID, nil
+		}
+	}
+
+	return profileID, nil
+}
+
 // ResolvedResources contains all resolved AWS resource IDs and details
 type ResolvedResources struct {
 	ApplicationID        string
