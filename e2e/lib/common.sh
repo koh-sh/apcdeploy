@@ -24,14 +24,17 @@ E2E_TARGET="${E2E_TARGET:-aws}"
 case "$E2E_TARGET" in
     aws) ;;
     local)
-        # Pin every AWS call to the emulator and drop any real credentials so
-        # a local run can never reach a real account, even outside mise.
-        export AWS_ENDPOINT_URL="${AWS_ENDPOINT_URL:-http://localhost:4566}"
-        export AWS_ACCESS_KEY_ID=test
-        export AWS_SECRET_ACCESS_KEY=test
-        export AWS_CONFIG_FILE=/dev/null
-        export AWS_SHARED_CREDENTIALS_FILE=/dev/null
-        unset AWS_PROFILE AWS_DEFAULT_PROFILE AWS_SESSION_TOKEN
+        # Applied here (not only in mise) so a direct `E2E_TARGET=local
+        # ./e2e-test.sh` run is pinned to the emulator too.
+        # shellcheck source=lib/local-env.sh
+        source "$E2E_ROOT/lib/local-env.sh"
+        # Fail fast when the emulator is down: otherwise expect_fail-style
+        # steps would pass on connection errors.
+        if ! curl -sf "$AWS_ENDPOINT_URL/_ministack/health" >/dev/null; then
+            printf 'MiniStack is not reachable at %s (run: mise run e2e-local-up)\n' \
+                "$AWS_ENDPOINT_URL" >&2
+            exit 1
+        fi
         ;;
     *)
         printf 'Unknown E2E_TARGET: %s (expected aws or local)\n' "$E2E_TARGET" >&2
@@ -184,13 +187,20 @@ __on_exit() {
         if [[ -f "$__SECTIONS_FILE" ]]; then
             total_sections=$(wc -l < "$__SECTIONS_FILE" | tr -d ' ')
         fi
-        local skipped=""
+        # grep -c exits 1 on zero matches; the count is still printed.
+        local skipped_steps=0 skipped_sections=0
         if [[ -s "$__SKIPS_FILE" ]]; then
-            # grep -c exits 1 on zero matches; the count is still printed.
-            local skipped_steps skipped_sections
             skipped_steps=$(grep -cx step "$__SKIPS_FILE" || true)
             skipped_sections=$(grep -cx section "$__SKIPS_FILE" || true)
-            skipped=", skipped: ${skipped_sections} sections, ${skipped_steps} steps"
+        fi
+        # Skipped sections still call section(), so they are part of
+        # total_sections; skipped steps never reach __STEPS_FILE.
+        local sections_note="" steps_note=""
+        if (( skipped_sections > 0 )); then
+            sections_note=" (${skipped_sections} skipped)"
+        fi
+        if (( skipped_steps > 0 )); then
+            steps_note=" (${skipped_steps} skipped)"
         fi
         local elapsed=$(( $(date +%s) - __START_TIME ))
         local mins=$((elapsed / 60))
@@ -198,8 +208,9 @@ __on_exit() {
         local rule="──────────────────────────────────────────────────────────────"
         {
             printf '\n%s%s%s\n' "$C_DIM" "$rule" "$C_RESET"
-            printf ' %s✓%s %d sections, %d steps passed%s (%dm %ds)\n' \
-                "$C_GREEN" "$C_RESET" "$total_sections" "$total_steps" "$skipped" "$mins" "$secs"
+            printf ' %s✓%s %d sections%s, %d steps passed%s (%dm %ds)\n' \
+                "$C_GREEN" "$C_RESET" "$total_sections" "$sections_note" \
+                "$total_steps" "$steps_note" "$mins" "$secs"
             printf '%s%s%s\n' "$C_DIM" "$rule" "$C_RESET"
         } >&2
     fi
