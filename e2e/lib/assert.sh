@@ -54,6 +54,20 @@ expect_fail() {
     fi
 }
 
+# expect_fail_with <needle> <command...>
+# Like expect_fail, but also asserts the combined stdout/stderr contains
+# <needle>, so an unrelated failure (e.g. an API the emulator lacks) cannot
+# pass the step.
+expect_fail_with() {
+    local needle="$1"; shift
+    local rc=0 out
+    out=$("$@" 2>&1) || rc=$?
+    if [[ "$rc" -eq 0 ]]; then
+        fail "command unexpectedly succeeded: $*"
+    fi
+    assert_contains "$out" "$needle" "error output"
+}
+
 # expect_exit <expected_code> <command...>
 # Asserts the command exits with exactly <expected_code>.
 expect_exit() {
