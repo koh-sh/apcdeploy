@@ -72,16 +72,14 @@ func runDiff(cmd *cobra.Command, args []string) error {
 		ContinueOnError: diffContinueOnError,
 		Reporter:        rep,
 		Execute: func(ctx context.Context, t *batch.Target, tr reporter.TargetReporter) error {
-			payload, changed, runErr := executor.RunOnTarget(ctx, t, tr)
-			collector.Set(t.Identifier, payload, changed)
+			res, runErr := executor.RunOnTarget(ctx, t, tr)
+			collector.Set(t.Identifier, res.Payload, res.HasChanges, res.Warning)
 			return runErr
 		},
 	}
 	summary, runErr := o.Run(ctx)
 
-	flushDiffPayloads(rep, targets, collector.Payloads())
-
-	renderBatchSummary(summary, summaryConfig{noopVerb: "no-op"}, isSilent())
+	renderDiffResults(rep, targets, collector, summary, isSilent())
 
 	// --exit-nonzero collapses "any change" across all targets. Even if
 	// some targets failed we still exit 1 — both conditions yield non-zero.
@@ -93,6 +91,24 @@ func runDiff(cmd *cobra.Command, args []string) error {
 		}
 	}
 	return runErr
+}
+
+// renderDiffResults emits everything diff defers until the orchestrator
+// has returned (and so its Targets block is closed), in this order:
+//
+//  1. per-target diff bodies on stdout (flushDiffPayloads),
+//  2. in-progress deployment warnings on stderr, in argument order,
+//  3. the aggregate summary line and Errors: section on stderr.
+//
+// Warnings must not be written while the Targets block is open — the TTY
+// renderer's redraw would overwrite them (issue #151). They go after the
+// bodies so they stay on screen next to the summary even when a long diff
+// scrolls past, and they are emitted regardless of silent (see the
+// "diff in-progress warning" contract exception).
+func renderDiffResults(rep reporter.Reporter, targets []*batch.Target, collector *batch.PayloadCollector, summary batch.Summary, silent bool) {
+	flushDiffPayloads(rep, targets, collector.Payloads())
+	diff.WriteDeploymentWarnings(targets, collector.Warnings())
+	renderBatchSummary(summary, summaryConfig{noopVerb: "no-op"}, silent)
 }
 
 // flushDiffPayloads writes per-target diff bodies to stdout in argument

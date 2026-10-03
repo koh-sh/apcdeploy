@@ -5,6 +5,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/koh-sh/apcdeploy/internal/batch"
+	reportertest "github.com/koh-sh/apcdeploy/internal/reporter/testing"
 )
 
 func TestDiffCommand(t *testing.T) {
@@ -196,5 +199,72 @@ func TestRunDiff_MultiConfigOrchestratorAWSError(t *testing.T) {
 	err = runDiff(cmd, nil)
 	if err == nil {
 		t.Fatal("expected error from multi-config orchestrator path, got nil")
+	}
+}
+
+// TestRenderDiffResults covers the post-run output that runDiff emits once
+// the orchestrator has closed the Targets block (issue #151): in-progress
+// deployment warnings are written in argument order, as whole blocks, and
+// still surface under --silent while the aggregate summary does not.
+func TestRenderDiffResults(t *testing.T) {
+	targets := []*batch.Target{
+		{Identifier: "us-east-1/app/p/dev"},
+		{Identifier: "us-east-1/app/p/stg"},
+		{Identifier: "us-east-1/app/p/prod"},
+	}
+	const (
+		devWarning  = "⚠ us-east-1/app/p/dev: Deployment #1 is currently DEPLOYING\nThe diff is calculated against the currently deploying version.\n"
+		prodWarning = "⚠ us-east-1/app/p/prod: Deployment #9 is currently BAKING\nThe diff is calculated against the currently deploying version.\n"
+		summaryLine = "3 ok, 0 no-op, 0 failed"
+	)
+
+	tests := []struct {
+		name        string
+		silent      bool
+		wantSummary bool
+	}{
+		{name: "non-silent renders warnings before summary", silent: false, wantSummary: true},
+		{name: "silent still renders warnings", silent: true, wantSummary: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			collector := batch.NewPayloadCollector(targets)
+			// Complete out of argument order, as a parallel run would.
+			collector.Set("us-east-1/app/p/prod", []byte("+prod\n"), true, "Deployment #9 is currently BAKING")
+			collector.Set("us-east-1/app/p/stg", nil, false, "")
+			collector.Set("us-east-1/app/p/dev", []byte("+dev\n"), true, "Deployment #1 is currently DEPLOYING")
+
+			rep := &reportertest.MockReporter{}
+			out := captureStderr(t, func() {
+				renderDiffResults(rep, targets, collector, batch.Summary{OK: 3}, tt.silent)
+			})
+
+			devIdx := strings.Index(out, devWarning)
+			prodIdx := strings.Index(out, prodWarning)
+			if devIdx < 0 || prodIdx < 0 {
+				t.Fatalf("expected both warning blocks on stderr; got %q", out)
+			}
+			if devIdx > prodIdx {
+				t.Errorf("warnings must follow argument order (dev before prod); got %q", out)
+			}
+			if strings.Contains(out, "us-east-1/app/p/stg:") {
+				t.Errorf("target without a warning must not be listed; got %q", out)
+			}
+
+			summaryIdx := strings.Index(out, summaryLine)
+			switch {
+			case tt.wantSummary && summaryIdx < 0:
+				t.Errorf("expected summary line; got %q", out)
+			case tt.wantSummary && summaryIdx < prodIdx:
+				t.Errorf("warnings must precede the summary line; got %q", out)
+			case !tt.wantSummary && summaryIdx >= 0:
+				t.Errorf("summary must be suppressed under silent; got %q", out)
+			}
+
+			if !strings.Contains(string(rep.Stdout), "=== us-east-1/app/p/dev ===\n+dev\n") {
+				t.Errorf("expected diff payloads flushed via Reporter.Diff; got %q", rep.Stdout)
+			}
+		})
 	}
 }
