@@ -63,6 +63,19 @@ mise run e2e-local-full   # up -> setup -> run -> clean
 Every Terraform task pins `TF_WORKSPACE` (`default` for real AWS, `local`
 for MiniStack), so the two states never mix.
 
+### Provider lock file
+
+`.terraform.lock.hcl` is committed so every run (local, CI, real AWS) uses
+the same provider versions. When upgrading providers, keep hashes for all
+platforms the suite runs on:
+
+```bash
+terraform init -upgrade
+terraform providers lock \
+  -platform=linux_arm64 -platform=linux_amd64 \
+  -platform=darwin_arm64 -platform=darwin_amd64
+```
+
 ## Variables
 
 | Variable | Default | Description |
