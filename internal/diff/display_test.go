@@ -87,7 +87,12 @@ func Test_countChanges(t *testing.T) {
 		{"additions only", "+added line 1\n+added line 2", 2, 0},
 		{"deletions only", "-removed line 1\n-removed line 2", 0, 2},
 		{"mixed changes", "+added\n-removed\n context", 1, 1},
-		{"ignore file headers", "--- a/file.json\n+++ b/file.json\n+added\n-removed", 1, 1},
+		// formatDiffs never emits unified-diff file headers, so every line
+		// carries exactly one prefix. Content that itself starts with "++"
+		// or "--" must still be counted.
+		{"added line starting with ++", "+++x\n context", 1, 0},
+		{"removed line starting with --", "---x\n context", 0, 1},
+		{"mixed lines starting with ++ and --", "+++counter\n---counter\n+added\n-removed", 2, 2},
 		{"multiple", "+line1\n+line2\n-line3\n-line4\n-line5", 2, 3},
 	}
 

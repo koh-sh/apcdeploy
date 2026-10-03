@@ -58,13 +58,16 @@ func ensureTrailingNewline(s string) string {
 	return s + "\n"
 }
 
-// countChanges counts the number of added and removed lines in a unified diff.
+// countChanges counts the number of added and removed lines in a diff body
+// produced by formatDiffs. That format has no file headers: every line
+// carries exactly one "+", "-", or " " prefix, so content starting with
+// "++" or "--" is still a single added or removed line.
 func countChanges(diff string) (added int, removed int) {
 	for line := range strings.SplitSeq(diff, "\n") {
 		switch {
-		case strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++"):
+		case strings.HasPrefix(line, "+"):
 			added++
-		case strings.HasPrefix(line, "-") && !strings.HasPrefix(line, "---"):
+		case strings.HasPrefix(line, "-"):
 			removed++
 		}
 	}
