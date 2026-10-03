@@ -3,7 +3,6 @@ package pull
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 
 	"github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/batch"
@@ -83,7 +82,7 @@ func (e *Executor) RunOnTarget(ctx context.Context, t *batch.Target, tr reporter
 	// changed. A read error is treated as "file missing" and falls through to
 	// the write path.
 	if localData, readErr := config.LoadDataFile(dataFilePath); readErr == nil {
-		ext := filepath.Ext(dataFilePath)
+		ext := config.NormalizationExtension(resources.Profile.Type, dataFilePath)
 		hasChanges, err := config.HasContentChanged(localData, deployedConfig.Content, ext, resources.Profile.Type)
 		if err != nil {
 			tr.Fail(err)

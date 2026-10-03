@@ -2,7 +2,6 @@ package diff
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/koh-sh/apcdeploy/internal/config"
@@ -28,7 +27,8 @@ type Result struct {
 // before comparing to avoid false positives from auto-generated timestamps.
 //
 // The function normalizes both contents based on file type (JSON/YAML/text)
-// to ensure consistent formatting before comparison.
+// to ensure consistent formatting before comparison. FeatureFlags content is
+// always normalized as JSON regardless of the file extension.
 //
 // Parameters:
 //   - remoteContent: The deployed configuration content
@@ -40,8 +40,8 @@ type Result struct {
 //   - *Result: Diff result containing normalized contents and unified diff
 //   - error: Any error during normalization or diff calculation
 func calculate(remoteContent, localContent, fileName, profileType string) (*Result, error) {
-	// Normalize content based on file extension
-	ext := filepath.Ext(fileName)
+	// Normalize content based on the profile's resolved content type
+	ext := config.NormalizationExtension(profileType, fileName)
 
 	// When remoteContent is empty, treat it as the "no prior deployment"
 	// case: skip normalization on the remote side (empty input would fail

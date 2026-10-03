@@ -585,6 +585,71 @@ func TestHasConfigurationChanges(t *testing.T) {
 				State:                types.DeploymentStateComplete,
 			},
 		},
+		{
+			name:          "feature flags with .yaml data file ignores timestamp-only differences",
+			localContent:  []byte(`{"flags":{"f":{"name":"f"}},"values":{"f":{"enabled":true}},"version":"1"}`),
+			remoteContent: []byte(`{"flags":{"f":{"_createdAt":"2024-01-01T00:00:00Z","_updatedAt":"2024-01-02T00:00:00Z","name":"f"}},"values":{"f":{"_updatedAt":"2024-01-02T00:00:00Z","enabled":true}},"version":"1"}`),
+			fileName:      "flags.yaml",
+			profileType:   config.ProfileTypeFeatureFlags,
+			hasDeployment: true,
+			wantChanges:   false,
+			mockDeployment: &types.DeploymentSummary{
+				ConfigurationVersion: aws.String("1"),
+				State:                types.DeploymentStateComplete,
+			},
+		},
+		{
+			name:          "feature flags with .yml data file ignores timestamp-only differences",
+			localContent:  []byte(`{"flags":{"f":{"name":"f"}},"values":{"f":{"enabled":true}},"version":"1"}`),
+			remoteContent: []byte(`{"flags":{"f":{"_createdAt":"2024-01-01T00:00:00Z","_updatedAt":"2024-01-02T00:00:00Z","name":"f"}},"values":{"f":{"_updatedAt":"2024-01-02T00:00:00Z","enabled":true}},"version":"1"}`),
+			fileName:      "flags.yml",
+			profileType:   config.ProfileTypeFeatureFlags,
+			hasDeployment: true,
+			wantChanges:   false,
+			mockDeployment: &types.DeploymentSummary{
+				ConfigurationVersion: aws.String("1"),
+				State:                types.DeploymentStateComplete,
+			},
+		},
+		{
+			name:          "feature flags with .txt data file ignores timestamp-only differences",
+			localContent:  []byte(`{"flags":{"f":{"name":"f"}},"values":{"f":{"enabled":true}},"version":"1"}`),
+			remoteContent: []byte(`{"flags":{"f":{"_createdAt":"2024-01-01T00:00:00Z","_updatedAt":"2024-01-02T00:00:00Z","name":"f"}},"values":{"f":{"_updatedAt":"2024-01-02T00:00:00Z","enabled":true}},"version":"1"}`),
+			fileName:      "flags.txt",
+			profileType:   config.ProfileTypeFeatureFlags,
+			hasDeployment: true,
+			wantChanges:   false,
+			mockDeployment: &types.DeploymentSummary{
+				ConfigurationVersion: aws.String("1"),
+				State:                types.DeploymentStateComplete,
+			},
+		},
+		{
+			name:          "feature flags with .yaml data file detects real changes",
+			localContent:  []byte(`{"flags":{"f":{"name":"f"}},"values":{"f":{"enabled":false}},"version":"1"}`),
+			remoteContent: []byte(`{"flags":{"f":{"_updatedAt":"2024-01-02T00:00:00Z","name":"f"}},"values":{"f":{"_updatedAt":"2024-01-02T00:00:00Z","enabled":true}},"version":"1"}`),
+			fileName:      "flags.yaml",
+			profileType:   config.ProfileTypeFeatureFlags,
+			hasDeployment: true,
+			wantChanges:   true,
+			mockDeployment: &types.DeploymentSummary{
+				ConfigurationVersion: aws.String("1"),
+				State:                types.DeploymentStateComplete,
+			},
+		},
+		{
+			name:          "freeform yaml keeps timestamp fields as content",
+			localContent:  []byte("data: value\n"),
+			remoteContent: []byte("_updatedAt: \"2024-01-02T00:00:00Z\"\ndata: value\n"),
+			fileName:      "config.yaml",
+			profileType:   config.ProfileTypeFreeform,
+			hasDeployment: true,
+			wantChanges:   true,
+			mockDeployment: &types.DeploymentSummary{
+				ConfigurationVersion: aws.String("1"),
+				State:                types.DeploymentStateComplete,
+			},
+		},
 	}
 
 	for _, tt := range tests {
