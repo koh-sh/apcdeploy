@@ -281,6 +281,13 @@ func TestWriteDataFile(t *testing.T) {
 			wantErr:     true,
 		},
 		{
+			name:        "write json data with trailing garbage",
+			content:     []byte(`{"key":"value"} garbage`),
+			contentType: "application/json",
+			outputPath:  filepath.Join(tempDir, "trailing.json"),
+			wantErr:     true,
+		},
+		{
 			name:        "write yaml data",
 			content:     []byte("key: value\n"),
 			contentType: "application/x-yaml",
@@ -486,6 +493,22 @@ func Test_formatJSON(t *testing.T) {
 			name:    "invalid json",
 			input:   []byte(`{invalid`),
 			wantErr: true,
+		},
+		{
+			name:    "trailing garbage after value",
+			input:   []byte(`{"a":1} garbage`),
+			wantErr: true,
+		},
+		{
+			name:    "two concatenated documents",
+			input:   []byte(`{"a":1}{"b":2}`),
+			wantErr: true,
+		},
+		{
+			name:    "trailing whitespace and newline allowed",
+			input:   []byte("{\"a\":1}\n \t\n"),
+			want:    "{\n  \"a\": 1\n}\n",
+			wantErr: false,
 		},
 		{
 			// Integers > 2^53 cannot be represented exactly as float64.

@@ -115,11 +115,9 @@ func WriteDataFile(content []byte, contentType, outputPath, profileType string, 
 // UseNumber is used during decoding so that large integers (> 2^53) are preserved
 // exactly instead of being converted to float64, which would cause precision loss.
 func formatJSON(data []byte, profileType string) ([]byte, error) {
-	var obj any
-	dec := json.NewDecoder(bytes.NewReader(data))
-	dec.UseNumber()
-	if err := dec.Decode(&obj); err != nil {
-		return nil, fmt.Errorf("invalid JSON: %w", err)
+	obj, err := decodeJSONUseNumber(bytes.NewReader(data))
+	if err != nil {
+		return nil, err
 	}
 
 	// For FeatureFlags, remove _updatedAt and _createdAt fields recursively
