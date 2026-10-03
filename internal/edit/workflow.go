@@ -182,10 +182,12 @@ func (w *workflow) prepareDeployment(ctx context.Context, t *resolvedTargets, op
 
 // editAndDeploy launches the editor and deploys the edited content.
 //
-// Buffer retention (issue #150): once the editor has returned edited
-// content, any failure keeps the buffer file inside its private 0700
-// directory and appends its path to the returned error so the user can
-// recover the edits. Success (deployed or no-op) removes the buffer.
+// Buffer retention (issue #150): any failure after the editor returned
+// edited content and before the deployment started keeps the buffer file
+// inside its private 0700 directory and appends its path to the returned
+// error so the user can recover the edits. The buffer is removed as soon
+// as StartDeployment succeeds (the content then exists on AWS, so later
+// --wait-* failures do not keep it) and on a no-op.
 func (w *workflow) editAndDeploy(ctx context.Context, t *resolvedTargets, deployed *awsInternal.DeployedConfigInfo, strategyID, strategyName string, opts *Options) error {
 	ext := config.ExtensionForContentType(deployed.ContentType)
 
@@ -197,18 +199,28 @@ func (w *workflow) editAndDeploy(ctx context.Context, t *resolvedTargets, deploy
 		return fmt.Errorf("failed to edit configuration: %w", err)
 	}
 
-	if err := w.deployEdited(ctx, t, deployed, edited, ext, strategyID, strategyName, opts); err != nil {
+	// Removal is best-effort, as before #150: a cleanup failure must not
+	// turn a successful edit into a reported error. Remove is idempotent.
+	deploymentStarted := false
+	onDeploymentStarted := func() {
+		deploymentStarted = true
+		_ = buf.Remove()
+	}
+	if err := w.deployEdited(ctx, t, deployed, edited, ext, strategyID, strategyName, opts, onDeploymentStarted); err != nil {
+		if deploymentStarted {
+			// The content already exists on AWS; nothing to recover locally.
+			return err
+		}
 		return fmt.Errorf("%w\nedited content saved to %s (may contain secrets; delete it when done)", err, buf.Path)
 	}
-	// Best-effort cleanup, as before #150: the edit already succeeded, so a
-	// removal failure must not turn it into a reported error.
 	_ = buf.Remove()
 	return nil
 }
 
 // deployEdited validates the edited content, creates a new configuration
-// version when content changed, and starts the deployment.
-func (w *workflow) deployEdited(ctx context.Context, t *resolvedTargets, deployed *awsInternal.DeployedConfigInfo, edited []byte, ext, strategyID, strategyName string, opts *Options) error {
+// version when content changed, and starts the deployment. onDeploymentStarted
+// is called as soon as StartDeployment succeeds, before any --wait-* phase.
+func (w *workflow) deployEdited(ctx context.Context, t *resolvedTargets, deployed *awsInternal.DeployedConfigInfo, edited []byte, ext, strategyID, strategyName string, opts *Options, onDeploymentStarted func()) error {
 	if err := config.ValidateData(edited, deployed.ContentType); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
 	}
@@ -259,6 +271,7 @@ func (w *workflow) deployEdited(ctx context.Context, t *resolvedTargets, deploye
 		tg.Fail(id, err)
 		return fmt.Errorf("failed to start deployment (hosted configuration version %d was created but not deployed): %w", versionNumber, err)
 	}
+	onDeploymentStarted()
 
 	return w.waitIfRequested(ctx, tg, id, t, deploymentNumber, versionNumber, strategyName, deployStart, opts)
 }

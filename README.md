@@ -291,7 +291,7 @@ Options:
 - `--timeout`: Timeout in seconds for deployment wait (default: 1800)
 - `--description`: Description attached to the configuration version and deployment (max 1024 Unicode characters, counted by rune). Defaults to `"Deployed by apcdeploy"`; pass `--description ""` to clear it.
 
-**Note:** This command does not use `apcdeploy.yml`. `$EDITOR` is invoked through `sh -c` (matching `git`'s `GIT_EDITOR` behavior), so its value is shell-evaluated — avoid passing values that contain shell metacharacters in CI environments. Exits with code 2 when no prior deployment exists. If validation or deployment fails after you save, the edited content is kept at the path printed in the error; it may contain secrets, so delete it when done.
+**Note:** This command does not use `apcdeploy.yml`. `$EDITOR` is invoked through `sh -c` (matching `git`'s `GIT_EDITOR` behavior), so its value is shell-evaluated — avoid passing values that contain shell metacharacters in CI environments. Exits with code 2 when no prior deployment exists. If validation or deployment fails after you save but before the deployment starts, the edited content is kept at the path printed in the error; it may contain secrets, so delete it when done.
 
 ### diff
 

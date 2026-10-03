@@ -910,10 +910,28 @@ func recordingEditorScript(t *testing.T, newContent string) string {
 	return recordPath
 }
 
+// failWaitAfterEdit makes GetDeployment fail once the editor has run, so the
+// --wait-* phase fails after StartDeployment succeeded. The error text
+// reports whether the buffer still existed when the wait began.
+func failWaitAfterEdit(client *mock.MockAppConfigClient, recordPath string, _ *bool) {
+	base := client.GetDeploymentFunc
+	client.GetDeploymentFunc = func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
+		recorded, err := os.ReadFile(recordPath)
+		if err != nil {
+			return base(ctx, params, optFns...)
+		}
+		if _, err := os.Stat(strings.TrimSpace(string(recorded))); err == nil {
+			return nil, errors.New("wait failed (buffer present)")
+		}
+		return nil, errors.New("wait failed (buffer removed)")
+	}
+}
+
 // TestWorkflowBufferRetention verifies the edit buffer retention policy
-// (issue #150): once the editor has returned edited content, any failure
-// keeps the buffer file on disk and reports its path in the error, while
-// success and no-op runs remove the private buffer directory.
+// (issue #150): any failure after the editor returned edited content and
+// before the deployment started keeps the buffer file on disk and reports
+// its path in the error. Success, no-op, and failures after StartDeployment
+// succeeded (--wait-* errors) remove the private buffer directory.
 func TestWorkflowBufferRetention(t *testing.T) {
 	errStart := errors.New("ConflictException: deployment in progress")
 
@@ -921,6 +939,7 @@ func TestWorkflowBufferRetention(t *testing.T) {
 		name         string
 		editedText   string
 		setup        func(client *mock.MockAppConfigClient, recordPath string, createCalled *bool)
+		opts         func(o *Options)
 		wantErr      bool
 		wantErrParts []string
 		wantErrIs    error
@@ -1009,6 +1028,25 @@ func TestWorkflowBufferRetention(t *testing.T) {
 			wantErrParts: []string{"failed to check ongoing deployments", "throttled"},
 			wantKept:     true,
 		},
+		{
+			name:       "wait-deploy failure after deployment started removes the buffer",
+			editedText: `{"key":"updated"}`,
+			opts:       func(o *Options) { o.WaitDeploy = true },
+			setup:      failWaitAfterEdit,
+			wantErr:    true,
+			// "buffer removed" proves the buffer was gone before waiting began.
+			wantErrParts: []string{"deployment failed", "buffer removed"},
+			wantCreate:   true,
+		},
+		{
+			name:         "wait-bake failure after deployment started removes the buffer",
+			editedText:   `{"key":"updated"}`,
+			opts:         func(o *Options) { o.WaitBake = true },
+			setup:        failWaitAfterEdit,
+			wantErr:      true,
+			wantErrParts: []string{"deployment failed", "buffer removed"},
+			wantCreate:   true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1028,10 +1066,14 @@ func TestWorkflowBufferRetention(t *testing.T) {
 			awsClient := awsInternal.NewTestClient(client)
 			wf := newWorkflowWithClient(awsClient, &promptTesting.MockPrompter{}, &reporterTesting.MockReporter{})
 
-			err := wf.Run(context.Background(), &Options{
+			opts := &Options{
 				Region: "us-east-1", Application: "test-app", Profile: "test-profile",
 				Environment: "test-env", Timeout: 300,
-			})
+			}
+			if tt.opts != nil {
+				tt.opts(opts)
+			}
+			err := wf.Run(context.Background(), opts)
 
 			recorded, readErr := os.ReadFile(recordPath)
 			if readErr != nil {
@@ -1048,9 +1090,10 @@ func TestWorkflowBufferRetention(t *testing.T) {
 						t.Errorf("expected error to contain %q, got: %v", part, err)
 					}
 				}
-				wantNote := "edited content saved to " + bufferPath + " (may contain secrets; delete it when done)"
-				if !strings.Contains(err.Error(), wantNote) {
-					t.Errorf("expected error to contain %q, got: %v", wantNote, err)
+				// The saved-path note appears exactly when the buffer is kept.
+				note := "edited content saved to " + bufferPath + " (may contain secrets; delete it when done)"
+				if hasNote := strings.Contains(err.Error(), note); hasNote != tt.wantKept {
+					t.Errorf("error contains saved-path note = %v, want %v; err: %v", hasNote, tt.wantKept, err)
 				}
 				if tt.wantErrIs != nil && !errors.Is(err, tt.wantErrIs) {
 					t.Errorf("expected errors.Is(err, %v) to hold, got: %v", tt.wantErrIs, err)
