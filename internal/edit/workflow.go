@@ -2,6 +2,7 @@ package edit
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -187,7 +188,7 @@ func (w *workflow) prepareDeployment(ctx context.Context, t *resolvedTargets, op
 // inside its private 0700 directory and appends its path to the returned
 // error so the user can recover the edits. The buffer is removed as soon
 // as StartDeployment succeeds (the content then exists on AWS, so later
-// --wait-* failures do not keep it) and on a no-op.
+// --wait-* failures do not keep it), on a no-op, and on cancellation.
 func (w *workflow) editAndDeploy(ctx context.Context, t *resolvedTargets, deployed *awsInternal.DeployedConfigInfo, strategyID, strategyName string, opts *Options) error {
 	ext := config.ExtensionForContentType(deployed.ContentType)
 
@@ -209,6 +210,13 @@ func (w *workflow) editAndDeploy(ctx context.Context, t *resolvedTargets, deploy
 	if err := w.deployEdited(ctx, t, deployed, edited, ext, strategyID, strategyName, opts, onDeploymentStarted); err != nil {
 		if deploymentStarted {
 			// The content already exists on AWS; nothing to recover locally.
+			return err
+		}
+		if errors.Is(err, context.Canceled) {
+			// Cancellation is deliberate, and cmd/root.go reports it as
+			// just "cancelled by user", so a saved path would never be
+			// shown. Leave nothing secret-bearing behind.
+			_ = buf.Remove()
 			return err
 		}
 		return fmt.Errorf("%w\nedited content saved to %s (may contain secrets; delete it when done)", err, buf.Path)

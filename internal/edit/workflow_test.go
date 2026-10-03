@@ -1029,6 +1029,22 @@ func TestWorkflowBufferRetention(t *testing.T) {
 			wantKept:     true,
 		},
 		{
+			// cmd/root.go reports cancellation as just "cancelled by user",
+			// so a kept buffer's path would never reach the user.
+			name:       "cancellation before deployment starts removes the buffer",
+			editedText: `{"key":"updated"}`,
+			setup: func(client *mock.MockAppConfigClient, _ string, createCalled *bool) {
+				client.CreateHostedConfigurationVersionFunc = func(ctx context.Context, params *appconfig.CreateHostedConfigurationVersionInput, optFns ...func(*appconfig.Options)) (*appconfig.CreateHostedConfigurationVersionOutput, error) {
+					*createCalled = true
+					return nil, fmt.Errorf("operation error AppConfig: %w", context.Canceled)
+				}
+			},
+			wantErr:      true,
+			wantErrParts: []string{"failed to create configuration version"},
+			wantErrIs:    context.Canceled,
+			wantCreate:   true,
+		},
+		{
 			name:       "wait-deploy failure after deployment started removes the buffer",
 			editedText: `{"key":"updated"}`,
 			opts:       func(o *Options) { o.WaitDeploy = true },
