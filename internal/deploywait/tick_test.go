@@ -101,10 +101,10 @@ func TestMakeTargetsBakeTick(t *testing.T) {
 		total      time.Duration
 		wantDetail string
 	}{
-		{"zero total falls back to <1 min", 0, 0, " (<1 min left)"},
-		{"early in bake shows full window", 0, 10 * time.Minute, " (~10 min left)"},
-		{"mid bake shows remaining", 5 * time.Minute, 10 * time.Minute, " (~5 min left)"},
-		{"elapsed exceeds total clamps to <1 min", 11 * time.Minute, 10 * time.Minute, " (<1 min left)"},
+		{"zero total falls back to <1 min", 0, 0, "(<1 min left)"},
+		{"early in bake shows full window", 0, 10 * time.Minute, "(~10 min left)"},
+		{"mid bake shows remaining", 5 * time.Minute, 10 * time.Minute, "(~5 min left)"},
+		{"elapsed exceeds total clamps to <1 min", 11 * time.Minute, 10 * time.Minute, "(<1 min left)"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -133,9 +133,9 @@ func TestMakeTargetsBakeTick(t *testing.T) {
 	}
 }
 
-// TestRemainingFromElapsedSuffix exercises the time-boundary edge cases
+// TestRemainingFromElapsedDetail exercises the time-boundary edge cases
 // (sub-minute, exact minute, overshoot, zero total) directly.
-func TestRemainingFromElapsedSuffix(t *testing.T) {
+func TestRemainingFromElapsedDetail(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -144,23 +144,23 @@ func TestRemainingFromElapsedSuffix(t *testing.T) {
 		total   time.Duration
 		want    string
 	}{
-		{"zero total falls back to <1 min", 0, 0, " (<1 min left)"},
-		{"negative-looking total falls back to <1 min", 0, -5 * time.Minute, " (<1 min left)"},
-		{"start of window shows full duration", 0, 10 * time.Minute, " (~10 min left)"},
-		{"mid window rounds up partial minute", 3 * time.Minute, 10 * time.Minute, " (~7 min left)"},
-		{"exactly one minute remaining renders as 1 min", 9 * time.Minute, 10 * time.Minute, " (~1 min left)"},
-		{"non-integer remaining rounds up", 0, 2*time.Minute + 30*time.Second, " (~3 min left)"},
-		{"thirty seconds remaining clamps to <1 min", 9*time.Minute + 30*time.Second, 10 * time.Minute, " (<1 min left)"},
-		{"sub-second remaining clamps to <1 min", 9*time.Minute + 59*time.Second + 500*time.Millisecond, 10 * time.Minute, " (<1 min left)"},
-		{"elapsed equals total clamps to <1 min", 10 * time.Minute, 10 * time.Minute, " (<1 min left)"},
-		{"elapsed exceeds total clamps to <1 min", 12 * time.Minute, 10 * time.Minute, " (<1 min left)"},
+		{"zero total falls back to <1 min", 0, 0, "(<1 min left)"},
+		{"negative-looking total falls back to <1 min", 0, -5 * time.Minute, "(<1 min left)"},
+		{"start of window shows full duration", 0, 10 * time.Minute, "(~10 min left)"},
+		{"mid window rounds up partial minute", 3 * time.Minute, 10 * time.Minute, "(~7 min left)"},
+		{"exactly one minute remaining renders as 1 min", 9 * time.Minute, 10 * time.Minute, "(~1 min left)"},
+		{"non-integer remaining rounds up", 0, 2*time.Minute + 30*time.Second, "(~3 min left)"},
+		{"thirty seconds remaining clamps to <1 min", 9*time.Minute + 30*time.Second, 10 * time.Minute, "(<1 min left)"},
+		{"sub-second remaining clamps to <1 min", 9*time.Minute + 59*time.Second + 500*time.Millisecond, 10 * time.Minute, "(<1 min left)"},
+		{"elapsed equals total clamps to <1 min", 10 * time.Minute, 10 * time.Minute, "(<1 min left)"},
+		{"elapsed exceeds total clamps to <1 min", 12 * time.Minute, 10 * time.Minute, "(<1 min left)"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := remainingFromElapsedSuffix(tt.elapsed, tt.total); got != tt.want {
-				t.Errorf("remainingFromElapsedSuffix(%v, %v) = %q, want %q", tt.elapsed, tt.total, got, tt.want)
+			if got := remainingFromElapsedDetail(tt.elapsed, tt.total); got != tt.want {
+				t.Errorf("remainingFromElapsedDetail(%v, %v) = %q, want %q", tt.elapsed, tt.total, got, tt.want)
 			}
 		})
 	}
