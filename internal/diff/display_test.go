@@ -3,10 +3,10 @@ package diff
 import (
 	"bytes"
 	"io"
-	"strings"
 	"testing"
 
 	"github.com/koh-sh/apcdeploy/internal/aws"
+	"github.com/koh-sh/apcdeploy/internal/batch"
 )
 
 // withWarningSink temporarily redirects the package-level warning sink to the
@@ -16,35 +16,87 @@ import (
 func withWarningSink(t *testing.T, w io.Writer) {
 	t.Helper()
 	orig := inProgressWarningSink
-	inProgressWarningSink = w
+	inProgressWarningSink = func() io.Writer { return w }
 	t.Cleanup(func() { inProgressWarningSink = orig })
 }
 
-func TestDisplayDeploymentWarning(t *testing.T) {
+func TestDeploymentWarning(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
-		name         string
-		deployment   *aws.DeploymentInfo
-		wantContains string // substring expected on stderr; "" means no output
+		name       string
+		deployment *aws.DeploymentInfo
+		want       string // "" means no warning
 	}{
 		{
-			name:         "nil deployment is silent",
-			deployment:   nil,
-			wantContains: "",
+			name:       "nil deployment has no warning",
+			deployment: nil,
+			want:       "",
 		},
 		{
-			name:         "COMPLETE state is silent",
-			deployment:   &aws.DeploymentInfo{DeploymentNumber: 1, State: "COMPLETE"},
-			wantContains: "",
+			name:       "COMPLETE state has no warning",
+			deployment: &aws.DeploymentInfo{DeploymentNumber: 1, State: "COMPLETE"},
+			want:       "",
 		},
 		{
-			name:         "DEPLOYING surfaces a notice",
-			deployment:   &aws.DeploymentInfo{DeploymentNumber: 42, State: "DEPLOYING"},
-			wantContains: "Deployment #42 is currently DEPLOYING",
+			name:       "DEPLOYING yields a warning",
+			deployment: &aws.DeploymentInfo{DeploymentNumber: 42, State: "DEPLOYING"},
+			want:       "Deployment #42 is currently DEPLOYING",
 		},
 		{
-			name:         "BAKING surfaces a notice",
-			deployment:   &aws.DeploymentInfo{DeploymentNumber: 7, State: "BAKING"},
-			wantContains: "Deployment #7 is currently BAKING",
+			name:       "BAKING yields a warning",
+			deployment: &aws.DeploymentInfo{DeploymentNumber: 7, State: "BAKING"},
+			want:       "Deployment #7 is currently BAKING",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := deploymentWarning(tt.deployment); got != tt.want {
+				t.Errorf("deploymentWarning() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestWriteDeploymentWarnings(t *testing.T) {
+	targets := []*batch.Target{
+		{Identifier: "us-east-1/app/p/dev"},
+		{Identifier: "us-east-1/app/p/stg"},
+		{Identifier: "us-east-1/app/p/prod"},
+	}
+
+	tests := []struct {
+		name     string
+		warnings []string
+		want     string
+	}{
+		{
+			name:     "no warnings writes nothing",
+			warnings: []string{"", "", ""},
+			want:     "",
+		},
+		{
+			name:     "single warning is prefixed with its identifier",
+			warnings: []string{"", "Deployment #3 is currently BAKING", ""},
+			want: "\n" +
+				"⚠ us-east-1/app/p/stg: Deployment #3 is currently BAKING\n" +
+				"The diff is calculated against the currently deploying version.\n",
+		},
+		{
+			name: "multiple warnings are written as whole blocks in argument order",
+			warnings: []string{
+				"Deployment #1 is currently DEPLOYING",
+				"",
+				"Deployment #9 is currently BAKING",
+			},
+			want: "\n" +
+				"⚠ us-east-1/app/p/dev: Deployment #1 is currently DEPLOYING\n" +
+				"The diff is calculated against the currently deploying version.\n" +
+				"\n" +
+				"⚠ us-east-1/app/p/prod: Deployment #9 is currently BAKING\n" +
+				"The diff is calculated against the currently deploying version.\n",
 		},
 	}
 
@@ -55,20 +107,10 @@ func TestDisplayDeploymentWarning(t *testing.T) {
 			var sink bytes.Buffer
 			withWarningSink(t, &sink)
 
-			displayDeploymentWarning(tt.deployment)
+			WriteDeploymentWarnings(targets, tt.warnings)
 
-			got := sink.String()
-			if tt.wantContains == "" {
-				if got != "" {
-					t.Errorf("expected silent sink, got %q", got)
-				}
-				return
-			}
-			if !strings.Contains(got, tt.wantContains) {
-				t.Errorf("expected sink to contain %q; got %q", tt.wantContains, got)
-			}
-			if !strings.Contains(got, "⚠") {
-				t.Errorf("expected sink to contain warning glyph; got %q", got)
+			if got := sink.String(); got != tt.want {
+				t.Errorf("sink = %q, want %q", got, tt.want)
 			}
 		})
 	}

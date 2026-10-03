@@ -1,6 +1,7 @@
 package diff
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
@@ -33,7 +34,7 @@ func TestNewExecutor(t *testing.T) {
 
 // runOnTargetForTest defers the per-target plumbing to
 // batchtest.BuildTarget and invokes RunOnTarget.
-func runOnTargetForTest(t *testing.T, rep *reportertest.MockReporter, executor *Executor, configPath string) ([]byte, bool, error) {
+func runOnTargetForTest(t *testing.T, rep *reportertest.MockReporter, executor *Executor, configPath string) (TargetResult, error) {
 	t.Helper()
 	target, tr, cleanup := batchtest.BuildTarget(t, rep, configPath)
 	defer cleanup()
@@ -134,7 +135,8 @@ region: us-east-1
 	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, clientFactory)
 
-	payload, hasChanges, err := runOnTargetForTest(t, reporter, executor, configPath)
+	res, err := runOnTargetForTest(t, reporter, executor, configPath)
+	payload, hasChanges := res.Payload, res.HasChanges
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -161,8 +163,40 @@ region: us-east-1
 	}
 }
 
+// TestExecutorWithDeployingState verifies that RunOnTarget does NOT write
+// the in-progress deployment warning while the orchestrator's Targets block
+// is still open (issue #151). The warning is returned on TargetResult.Warning so
+// the cmd layer can emit it after the block is closed.
 func TestExecutorWithDeployingState(t *testing.T) {
-	t.Parallel()
+	tests := []struct {
+		name           string
+		remoteContent  string
+		wantHasChanges bool
+	}{
+		{
+			name:           "with changes",
+			remoteContent:  `{"key": "old-value"}`,
+			wantHasChanges: true,
+		},
+		{
+			name:           "without changes",
+			remoteContent:  `{"key": "value"}`,
+			wantHasChanges: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Not parallel: swaps the package-level inProgressWarningSink.
+			var sink bytes.Buffer
+			withWarningSink(t, &sink)
+			runDeployingStateCase(t, tt.remoteContent, tt.wantHasChanges, &sink)
+		})
+	}
+}
+
+func runDeployingStateCase(t *testing.T, remoteContent string, wantHasChanges bool, sink *bytes.Buffer) {
+	t.Helper()
 	// Create temporary test files
 	tempDir, err := os.MkdirTemp("", "executor-deploying-*")
 	if err != nil {
@@ -232,7 +266,7 @@ region: us-east-1
 		},
 		GetHostedConfigurationVersionFunc: func(ctx context.Context, params *appconfig.GetHostedConfigurationVersionInput, optFns ...func(*appconfig.Options)) (*appconfig.GetHostedConfigurationVersionOutput, error) {
 			return &appconfig.GetHostedConfigurationVersionOutput{
-				Content: []byte(`{"key": "old-value"}`),
+				Content: []byte(remoteContent),
 			}, nil
 		},
 	}
@@ -244,13 +278,19 @@ region: us-east-1
 	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, clientFactory)
 
-	_, _, err = runOnTargetForTest(t, reporter, executor, configPath)
+	res, err := runOnTargetForTest(t, reporter, executor, configPath)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
-	// Test that execution completes successfully with DEPLOYING state
-	// Warning display is tested in display_test.go
+	if res.HasChanges != wantHasChanges {
+		t.Errorf("HasChanges = %v, want %v", res.HasChanges, wantHasChanges)
+	}
+	if want := "Deployment #1 is currently DEPLOYING"; res.Warning != want {
+		t.Errorf("Warning = %q, want %q", res.Warning, want)
+	}
+	if sink.Len() != 0 {
+		t.Errorf("RunOnTarget must not write the warning while Targets is open; sink got %q", sink.String())
+	}
 }
 
 // TestExecutorWithDifferences exercises the changes path: the executor
@@ -338,7 +378,8 @@ region: us-east-1
 	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, clientFactory)
 
-	payload, hasChanges, err := runOnTargetForTest(t, reporter, executor, configPath)
+	res, err := runOnTargetForTest(t, reporter, executor, configPath)
+	payload, hasChanges := res.Payload, res.HasChanges
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -448,7 +489,8 @@ region: us-east-1
 	reporter := &reportertest.MockReporter{}
 	executor := NewExecutorWithFactory(reporter, clientFactory)
 
-	payload, hasChanges, err := runOnTargetForTest(t, reporter, executor, configPath)
+	res, err := runOnTargetForTest(t, reporter, executor, configPath)
+	payload, hasChanges := res.Payload, res.HasChanges
 	if err != nil {
 		t.Fatalf("unexpected error when no differences exist: %v", err)
 	}

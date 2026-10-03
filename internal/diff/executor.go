@@ -33,23 +33,37 @@ func NewExecutorWithFactory(rep reporter.Reporter, factory func(context.Context,
 	}
 }
 
-// RunOnTarget runs diff for one pre-loaded target. It returns the
-// stdout payload (nil when there are no changes), a hasChanges flag
-// (used by --exit-nonzero), and the error.
+// TargetResult is the per-target outcome of RunOnTarget.
+type TargetResult struct {
+	// Payload is the stdout diff body (nil when there are no changes).
+	Payload []byte
+	// HasChanges reports whether local and deployed content differ
+	// (used by --exit-nonzero).
+	HasChanges bool
+	// Warning is the in-progress deployment notice ("" when the latest
+	// deployment is not DEPLOYING / BAKING). RunOnTarget never writes it
+	// itself; the caller emits it via WriteDeploymentWarnings after the
+	// Targets block is closed.
+	Warning string
+}
+
+// RunOnTarget runs diff for one pre-loaded target and returns its
+// TargetResult alongside the error.
 //
-// The orchestrator path in cmd/diff.go collects payloads per target
-// and flushes them to Reporter.Diff in argument order with a
-// `=== <id> ===` header.
+// The orchestrator path in cmd/diff.go collects results per target
+// and, after the orchestrator returns, flushes payloads to
+// Reporter.Diff in argument order with a `=== <id> ===` header and
+// then writes the collected warnings.
 //
 // When there is no prior deployment, the payload is the local data
 // formatted as an "all lines added" unified diff (every line prefixed
 // with `+`) — semantically the would-be initial deployment is "all
 // new content".
-func (e *Executor) RunOnTarget(ctx context.Context, t *batch.Target, tr reporter.TargetReporter) ([]byte, bool, error) {
+func (e *Executor) RunOnTarget(ctx context.Context, t *batch.Target, tr reporter.TargetReporter) (TargetResult, error) {
 	awsClient, err := e.clientFactory(ctx, t.Config.Region)
 	if err != nil {
 		tr.Fail(err)
-		return nil, false, fmt.Errorf("failed to initialize AWS client: %w", err)
+		return TargetResult{}, fmt.Errorf("failed to initialize AWS client: %w", err)
 	}
 
 	cfg := t.Config
@@ -60,19 +74,19 @@ func (e *Executor) RunOnTarget(ctx context.Context, t *batch.Target, tr reporter
 	resources, err := resolver.ResolveAll(ctx, cfg.Application, cfg.ConfigurationProfile, cfg.Environment, cfg.DeploymentStrategy)
 	if err != nil {
 		tr.Fail(err)
-		return nil, false, fmt.Errorf("failed to resolve resources: %w", err)
+		return TargetResult{}, fmt.Errorf("failed to resolve resources: %w", err)
 	}
 
 	deployment, err := aws.GetLatestDeployment(ctx, awsClient, resources.ApplicationID, resources.EnvironmentID, resources.Profile.ID)
 	if err != nil {
 		tr.Fail(err)
-		return nil, false, fmt.Errorf("failed to get latest deployment: %w", err)
+		return TargetResult{}, fmt.Errorf("failed to get latest deployment: %w", err)
 	}
 
 	localData, err := config.LoadDataFile(cfg.DataFile)
 	if err != nil {
 		tr.Fail(err)
-		return nil, false, fmt.Errorf("failed to load local configuration file: %w", err)
+		return TargetResult{}, fmt.Errorf("failed to load local configuration file: %w", err)
 	}
 
 	// remoteData is empty when there is no prior deployment. calculate
@@ -82,27 +96,30 @@ func (e *Executor) RunOnTarget(ctx context.Context, t *batch.Target, tr reporter
 		remoteData, err = aws.GetHostedConfigurationVersion(ctx, awsClient, resources.ApplicationID, resources.Profile.ID, deployment.ConfigurationVersion)
 		if err != nil {
 			tr.Fail(err)
-			return nil, false, fmt.Errorf("failed to get deployed configuration: %w", err)
+			return TargetResult{}, fmt.Errorf("failed to get deployed configuration: %w", err)
 		}
 	}
 
 	diffResult, err := calculate(string(remoteData), string(localData), cfg.DataFile, resources.Profile.Type)
 	if err != nil {
 		tr.Fail(err)
-		return nil, false, fmt.Errorf("failed to calculate diff: %w", err)
+		return TargetResult{}, fmt.Errorf("failed to calculate diff: %w", err)
 	}
 
 	if deployment == nil {
 		tr.Done("no prior deployment")
-		return []byte(ensureTrailingNewline(diffResult.UnifiedDiff)), true, nil
+		return TargetResult{Payload: []byte(ensureTrailingNewline(diffResult.UnifiedDiff)), HasChanges: true}, nil
 	}
+	warning := deploymentWarning(deployment)
 	if !diffResult.HasChanges {
 		tr.Done("no changes")
-		displayDeploymentWarning(deployment)
-		return nil, false, nil
+		return TargetResult{Warning: warning}, nil
 	}
 	added, removed := countChanges(diffResult.UnifiedDiff)
 	tr.Done(formatDiffSummary(added, removed))
-	displayDeploymentWarning(deployment)
-	return []byte(ensureTrailingNewline(diffResult.UnifiedDiff)), true, nil
+	return TargetResult{
+		Payload:    []byte(ensureTrailingNewline(diffResult.UnifiedDiff)),
+		HasChanges: true,
+		Warning:    warning,
+	}, nil
 }

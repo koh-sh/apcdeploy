@@ -145,7 +145,7 @@ with a `CONTRACT EXCEPTION` comment that links back to this section.
 
 ### diff in-progress warning
 
-`internal/diff/display.go::displayDeploymentWarning` writes its notice
+`internal/diff/display.go::WriteDeploymentWarnings` writes its notice
 directly to `os.Stderr` (via a package-level writer that tests can swap)
 instead of going through `Reporter.Warn`.
 
@@ -155,6 +155,17 @@ mid-rollout, changing what the diff is taken against. Scripts in CI/automation
 need to see this risk even when they otherwise want machine-readable output.
 Routing through `Reporter.Warn` would suppress it under `--silent`, so the
 notice bypasses the Reporter for this single case.
+
+Timing: the raw write MUST NOT happen while the `Targets` block is open —
+the TTY renderer assumes the cursor sits directly below the block, so any
+interleaved line is overwritten by the next redraw, and concurrent targets
+would interleave their lines. `diff.RunOnTarget` therefore only returns the
+warning text (`TargetResult.Warning`); `cmd/diff.go` records it in
+`batch.PayloadCollector` and, after `Orchestrator.Run` returns (i.e. after
+`Targets.Close`), `renderDiffResults` calls `WriteDeploymentWarnings` once
+from a single goroutine. Each warning is prefixed with its target
+identifier and emitted in argument order, after the diff bodies on stdout
+and before the aggregate summary / `Errors:` section.
 
 ### Multi-config aggregate summary and Errors section
 
@@ -190,7 +201,9 @@ introduce more without adding a similar entry here.
   `diff`) use `batch.PayloadCollector` to translate completion order
   into argument order. The collector lives in `internal/batch` so the
   index/mutex/slot synchronisation stays out of `cmd/` — callers MUST
-  NOT reintroduce that pattern in command files.
+  NOT reintroduce that pattern in command files. It also carries a
+  per-target warning slot for notices that must wait until the
+  `Targets` block is closed (see "diff in-progress warning").
 
 **Single-target invocations flow through the same orchestrator** with a
 single goroutine — there is no separate `Execute(ctx, opts)` path. Each

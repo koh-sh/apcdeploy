@@ -42,7 +42,8 @@ func TestRunOnTarget_ClientFactoryError(t *testing.T) {
 	defer tg.Close()
 	tr := batch.NewTargetReporter(tg, target.Identifier)
 
-	payload, hasChanges, err := executor.RunOnTarget(context.Background(), target, tr)
+	res, err := executor.RunOnTarget(context.Background(), target, tr)
+	payload, hasChanges := res.Payload, res.HasChanges
 	if err == nil {
 		t.Fatal("expected error from RunOnTarget when clientFactory fails")
 	}

@@ -7,12 +7,15 @@ import (
 	"strings"
 
 	"github.com/koh-sh/apcdeploy/internal/aws"
+	"github.com/koh-sh/apcdeploy/internal/batch"
 )
 
-// inProgressWarningSink is the writer used by the "deployment in progress"
+// inProgressWarningSink returns the writer used by the "deployment in progress"
 // notice. It is a package-level variable so tests can intercept it; in
-// production it is always os.Stderr.
-var inProgressWarningSink io.Writer = os.Stderr
+// production it is always os.Stderr. It resolves os.Stderr at call time
+// (rather than capturing it at init) so cmd-level tests that swap
+// os.Stderr also capture the warning.
+var inProgressWarningSink = func() io.Writer { return os.Stderr }
 
 // formatDiffSummary renders the post-icon Targets summary for a diff with
 // changes. The wording is "diff (N lines changed)" augmented with the
@@ -27,8 +30,32 @@ func formatDiffSummary(added, removed int) string {
 	return fmt.Sprintf("diff (%d %s changed: +%d -%d)", total, noun, added, removed)
 }
 
-// displayDeploymentWarning surfaces a notice when the latest deployment is
-// still in progress, since the diff is taken against an in-flight version.
+// deploymentWarning returns the in-progress notice for the latest
+// deployment, or "" when the deployment is absent or no longer in flight.
+// RunOnTarget only computes the text; it is written later by
+// WriteDeploymentWarnings once the Targets block is closed.
+func deploymentWarning(deployment *aws.DeploymentInfo) string {
+	if deployment == nil {
+		return ""
+	}
+	state := string(deployment.State)
+	if state != "DEPLOYING" && state != "BAKING" {
+		return ""
+	}
+	return fmt.Sprintf("Deployment #%d is currently %s", deployment.DeploymentNumber, state)
+}
+
+// WriteDeploymentWarnings writes the in-progress notices collected by
+// RunOnTarget, one block per target in argument order. warnings is
+// aligned with targets (batch.PayloadCollector.Warnings); empty slots are
+// skipped. Each block is prefixed with the target identifier because it is
+// no longer printed next to its Targets row.
+//
+// It MUST be called only after batch.Orchestrator.Run has returned: the
+// TTY Targets renderer assumes the cursor sits directly below its block, so
+// any raw write while the block is open gets overwritten by the next redraw
+// (issue #151). Calling it from a single goroutine after the run also keeps
+// warnings from different targets from interleaving line by line.
 //
 // CONTRACT EXCEPTION (see .claude/rules/output-contract.md "diff in-progress
 // warning"): this writes directly to stderr instead of going through
@@ -36,17 +63,19 @@ func formatDiffSummary(added, removed int) string {
 // in-flight deployment can be rolled back mid-rollout and change what the
 // diff is taken against, so users in automated pipelines must still see this
 // risk.
-func displayDeploymentWarning(deployment *aws.DeploymentInfo) {
-	if deployment == nil {
+func WriteDeploymentWarnings(targets []*batch.Target, warnings []string) {
+	var b strings.Builder
+	for i, t := range targets {
+		if i >= len(warnings) || warnings[i] == "" {
+			continue
+		}
+		fmt.Fprintf(&b, "\n⚠ %s: %s\n", t.Identifier, warnings[i])
+		b.WriteString("The diff is calculated against the currently deploying version.\n")
+	}
+	if b.Len() == 0 {
 		return
 	}
-	state := string(deployment.State)
-	if state != "DEPLOYING" && state != "BAKING" {
-		return
-	}
-	fmt.Fprintln(inProgressWarningSink)
-	fmt.Fprintf(inProgressWarningSink, "⚠ Deployment #%d is currently %s\n", deployment.DeploymentNumber, state)
-	fmt.Fprintln(inProgressWarningSink, "The diff is calculated against the currently deploying version.")
+	_, _ = io.WriteString(inProgressWarningSink(), b.String())
 }
 
 // ensureTrailingNewline guarantees the diff payload ends with a newline so

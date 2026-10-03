@@ -17,9 +17,9 @@ func TestPayloadCollector_PreservesArgumentOrder(t *testing.T) {
 
 	// Set out of argument order to confirm the collector still places
 	// payloads in the same order as the original Targets slice.
-	pc.Set("us-east-1/app/p/prod", []byte("prod-body"), true)
-	pc.Set("us-east-1/app/p/dev", []byte("dev-body"), true)
-	pc.Set("us-east-1/app/p/stg", nil, false)
+	pc.Set("us-east-1/app/p/prod", []byte("prod-body"), true, "prod-warning")
+	pc.Set("us-east-1/app/p/dev", []byte("dev-body"), true, "")
+	pc.Set("us-east-1/app/p/stg", nil, false, "stg-warning")
 
 	payloads := pc.Payloads()
 	wantPayloads := []string{"dev-body", "", "prod-body"}
@@ -36,6 +36,14 @@ func TestPayloadCollector_PreservesArgumentOrder(t *testing.T) {
 			t.Errorf("hasChanges[%d] = %v, want %v", i, hasChanges[i], want)
 		}
 	}
+
+	warnings := pc.Warnings()
+	wantWarnings := []string{"", "stg-warning", "prod-warning"}
+	for i, want := range wantWarnings {
+		if warnings[i] != want {
+			t.Errorf("warnings[%d] = %q, want %q", i, warnings[i], want)
+		}
+	}
 }
 
 func TestPayloadCollector_IgnoresUnknownIdentifier(t *testing.T) {
@@ -46,13 +54,16 @@ func TestPayloadCollector_IgnoresUnknownIdentifier(t *testing.T) {
 	})
 	// Setting an unknown identifier must NOT panic, allocate, or mutate
 	// the slot for "known".
-	pc.Set("unknown", []byte("ignored"), true)
+	pc.Set("unknown", []byte("ignored"), true, "ignored")
 
 	if pc.Payloads()[0] != nil {
 		t.Errorf("payload for 'known' = %q, want nil (only 'unknown' was Set)", pc.Payloads()[0])
 	}
 	if pc.HasChanges()[0] != false {
 		t.Errorf("hasChanges for 'known' = true, want false")
+	}
+	if pc.Warnings()[0] != "" {
+		t.Errorf("warning for 'known' = %q, want empty", pc.Warnings()[0])
 	}
 }
 
@@ -74,7 +85,7 @@ func TestPayloadCollector_IsGoroutineSafe(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			pc.Set(itoa(i), []byte("v"+itoa(i)), i%2 == 0)
+			pc.Set(itoa(i), []byte("v"+itoa(i)), i%2 == 0, "w"+itoa(i))
 		}(i)
 	}
 	wg.Wait()
@@ -86,6 +97,9 @@ func TestPayloadCollector_IsGoroutineSafe(t *testing.T) {
 		}
 		if pc.HasChanges()[i] != (i%2 == 0) {
 			t.Errorf("hasChanges[%d] = %v, want %v", i, pc.HasChanges()[i], i%2 == 0)
+		}
+		if pc.Warnings()[i] != "w"+itoa(i) {
+			t.Errorf("warnings[%d] = %q, want %q", i, pc.Warnings()[i], "w"+itoa(i))
 		}
 	}
 }
