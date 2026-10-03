@@ -46,6 +46,20 @@ terraform apply
 terraform destroy
 ```
 
+### Local (MiniStack)
+
+The same configuration also provisions the resources on the MiniStack
+emulator for local E2E runs. Use the mise tasks from the repository root
+rather than running Terraform directly, so the endpoint, dummy credentials,
+and the separate `local` workspace are applied:
+
+```bash
+mise run e2e-local-full   # up -> setup -> run -> clean
+```
+
+The real-AWS tasks (`e2e-setup` / `e2e-clean`) pin `TF_WORKSPACE=default`,
+so the two states never mix.
+
 ## Variables
 
 | Variable | Default | Description |

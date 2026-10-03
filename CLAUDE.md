@@ -90,12 +90,18 @@ Dev tools (Go toolchain, golangci-lint, gofumpt, tparse, octocov, goreleaser, te
 
 ### E2E Testing
 
-E2E tests require AWS credentials and use Terraform to provision resources:
+Real-AWS E2E tests require AWS credentials and use Terraform to provision resources:
 
 - **Setup resources**: `mise run e2e-setup` (provisions AWS resources via Terraform)
 - **Run tests**: `mise run e2e-run` (executes e2e test script)
 - **Clean up**: `mise run e2e-clean` (destroys test resources)
 - **Full workflow**: `mise run e2e-full` (setup, test, cleanup in one command)
+
+Local E2E runs the same suite against the [MiniStack](https://github.com/ministackorg/ministack) emulator (Docker required, no AWS credentials):
+
+- **Full workflow**: `mise run e2e-local-full` (`e2e-local-up` → `e2e-local-setup` → `e2e-local-run` → `e2e-local-clean`)
+- `E2E_TARGET=local` (set by `e2e-local-run`) makes `e2e/lib/common.sh` point every AWS call at `http://localhost:4566` with dummy credentials, so a local run can never reach a real account. Terraform state lives in the `local` workspace, separate from the real-AWS `default` workspace.
+- MiniStack completes deployments instantly and lacks AWS predefined deployment strategies, so S7 (rollback), E3 (in-flight constraints), and S1's `AppConfig.AllAtOnce` step are skipped locally via `skip_section` / `skip_step`. Wait phases (`--wait-*`) pass without exercising real phase transitions — run the real-AWS suite before releases.
 
 The runner (`e2e/e2e-test.sh`) drives per-scenario case files in
 `e2e/cases/` (S1–S10 success scenarios, E1–E5 error scenarios) using shared
