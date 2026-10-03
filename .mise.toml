@@ -59,9 +59,12 @@ run = [
     { task = "cov" },
 ]
 
+# TF_WORKSPACE is pinned on every Terraform task so the real-AWS state
+# (default workspace) and the MiniStack state (local workspace) never mix.
 [tasks.e2e-setup]
 description = "Provision AWS resources for E2E tests via Terraform"
 dir = "e2e/terraform"
+env = { TF_WORKSPACE = "default" }
 run = ["terraform init", "terraform apply -auto-approve"]
 
 [tasks.e2e-run]
@@ -71,6 +74,7 @@ run = "./e2e/e2e-test.sh"
 [tasks.e2e-clean]
 description = "Destroy E2E AWS resources"
 dir = "e2e/terraform"
+env = { TF_WORKSPACE = "default" }
 run = ["./cleanup.sh", "terraform destroy -auto-approve"]
 
 [tasks.e2e-full]
@@ -79,6 +83,44 @@ run = [
     { task = "e2e-setup" },
     { task = "e2e-run" },
     { task = "e2e-clean" },
+]
+
+# Local E2E against the MiniStack emulator (requires Docker). Scenarios the
+# emulator cannot reproduce are skipped; see CLAUDE.md "E2E Testing".
+[tasks.e2e-local-up]
+description = "Start a fresh MiniStack container for local E2E tests"
+run = [
+    "docker rm -f apcdeploy-e2e-ministack >/dev/null 2>&1 || true",
+    "docker run -d --name apcdeploy-e2e-ministack -p 4566:4566 ministackorg/ministack:1.5.21",
+    "curl -sf --retry 30 --retry-all-errors --retry-delay 1 http://localhost:4566/_ministack/health >/dev/null",
+]
+
+[tasks.e2e-local-setup]
+description = "Provision E2E resources on MiniStack via Terraform"
+dir = "e2e/terraform"
+env = { TF_WORKSPACE = "local", AWS_ENDPOINT_URL = "http://localhost:4566", AWS_ACCESS_KEY_ID = "test", AWS_SECRET_ACCESS_KEY = "test", AWS_CONFIG_FILE = "/dev/null", AWS_SHARED_CREDENTIALS_FILE = "/dev/null", AWS_PROFILE = false }
+run = ["terraform init", "terraform apply -auto-approve"]
+
+[tasks.e2e-local-run]
+description = "Run E2E test script against MiniStack"
+env = { E2E_TARGET = "local" }
+run = "./e2e/e2e-test.sh"
+
+[tasks.e2e-local-clean]
+description = "Remove the MiniStack container and its Terraform state"
+dir = "e2e/terraform"
+run = [
+    "docker rm -f apcdeploy-e2e-ministack >/dev/null 2>&1 || true",
+    "if terraform workspace list | grep -qw local; then terraform workspace delete -force local; fi",
+]
+
+[tasks.e2e-local-full]
+description = "Full local E2E workflow (up -> setup -> run -> clean)"
+run = [
+    { task = "e2e-local-up" },
+    { task = "e2e-local-setup" },
+    { task = "e2e-local-run" },
+    { task = "e2e-local-clean" },
 ]
 
 [tasks.upgrade-tools]
