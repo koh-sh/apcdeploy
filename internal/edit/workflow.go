@@ -2,6 +2,7 @@ package edit
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -180,19 +181,54 @@ func (w *workflow) prepareDeployment(ctx context.Context, t *resolvedTargets, op
 	return deployed, strategyID, strategyName, nil
 }
 
-// editAndDeploy launches the editor, validates the result, creates a new
-// configuration version when content changed, and starts the deployment.
+// editAndDeploy launches the editor and deploys the edited content.
+//
+// Buffer retention (issue #150): any failure after the editor returned
+// edited content and before the deployment started keeps the buffer file
+// inside its private 0700 directory and appends its path to the returned
+// error so the user can recover the edits. The buffer is removed as soon
+// as StartDeployment succeeds (the content then exists on AWS, so later
+// --wait-* failures do not keep it), on a no-op, and on cancellation.
 func (w *workflow) editAndDeploy(ctx context.Context, t *resolvedTargets, deployed *awsInternal.DeployedConfigInfo, strategyID, strategyName string, opts *Options) error {
 	ext := config.ExtensionForContentType(deployed.ContentType)
 
 	// No "launching $EDITOR" spinner — short-lived spinners on instant
 	// operations create flicker, and the editor itself is the user-facing
 	// signal that a hand-off is happening.
-	_, edited, err := editBuffer(deployed.Content, ext)
+	_, edited, buf, err := editBuffer(deployed.Content, ext)
 	if err != nil {
 		return fmt.Errorf("failed to edit configuration: %w", err)
 	}
 
+	// Removal is best-effort, as before #150: a cleanup failure must not
+	// turn a successful edit into a reported error. Remove is idempotent.
+	deploymentStarted := false
+	onDeploymentStarted := func() {
+		deploymentStarted = true
+		_ = buf.Remove()
+	}
+	if err := w.deployEdited(ctx, t, deployed, edited, ext, strategyID, strategyName, opts, onDeploymentStarted); err != nil {
+		if deploymentStarted {
+			// The content already exists on AWS; nothing to recover locally.
+			return err
+		}
+		if errors.Is(err, context.Canceled) {
+			// Cancellation is deliberate, and cmd/root.go reports it as
+			// just "cancelled by user", so a saved path would never be
+			// shown. Leave nothing secret-bearing behind.
+			_ = buf.Remove()
+			return err
+		}
+		return fmt.Errorf("%w\nedited content saved to %s (may contain secrets; delete it when done)", err, buf.Path)
+	}
+	_ = buf.Remove()
+	return nil
+}
+
+// deployEdited validates the edited content, creates a new configuration
+// version when content changed, and starts the deployment. onDeploymentStarted
+// is called as soon as StartDeployment succeeds, before any --wait-* phase.
+func (w *workflow) deployEdited(ctx context.Context, t *resolvedTargets, deployed *awsInternal.DeployedConfigInfo, edited []byte, ext, strategyID, strategyName string, opts *Options, onDeploymentStarted func()) error {
 	if err := config.ValidateData(edited, deployed.ContentType); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
 	}
@@ -211,6 +247,21 @@ func (w *workflow) editAndDeploy(ctx context.Context, t *resolvedTargets, deploy
 		return nil
 	}
 
+	// Re-check right before creating a version: the check in
+	// prepareDeployment ran before the editor opened, and another
+	// deployment may have started during the editing session. Failing
+	// here avoids leaving an orphaned hosted configuration version.
+	ongoing, _, err := w.awsClient.CheckOngoingDeployment(ctx, t.AppID, t.EnvID)
+	if err != nil {
+		tg.Fail(id, err)
+		return fmt.Errorf("failed to check ongoing deployments: %w", err)
+	}
+	if ongoing {
+		ongoingErr := fmt.Errorf("deployment already in progress (started while editing)")
+		tg.Fail(id, ongoingErr)
+		return ongoingErr
+	}
+
 	tg.SetPhase(id, "creating-version", "")
 	versionNumber, err := w.awsClient.CreateHostedConfigurationVersion(ctx, t.AppID, t.Profile.ID, edited, deployed.ContentType, opts.Description)
 	if err != nil {
@@ -226,8 +277,9 @@ func (w *workflow) editAndDeploy(ctx context.Context, t *resolvedTargets, deploy
 	deploymentNumber, err := w.awsClient.StartDeployment(ctx, t.AppID, t.EnvID, t.Profile.ID, strategyID, versionNumber, opts.Description)
 	if err != nil {
 		tg.Fail(id, err)
-		return fmt.Errorf("failed to start deployment: %w", err)
+		return fmt.Errorf("failed to start deployment (hosted configuration version %d was created but not deployed): %w", versionNumber, err)
 	}
+	onDeploymentStarted()
 
 	return w.waitIfRequested(ctx, tg, id, t, deploymentNumber, versionNumber, strategyName, deployStart, opts)
 }
