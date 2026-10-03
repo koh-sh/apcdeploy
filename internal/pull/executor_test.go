@@ -746,3 +746,163 @@ region: us-east-1
 		t.Errorf("expected data file to contain feature1, got: %s", string(updatedData))
 	}
 }
+
+// TestExecutorNoChangesNormalizationByProfile verifies that FeatureFlags
+// change detection strips timestamps regardless of the data file extension,
+// while Freeform keeps extension-driven normalization.
+func TestExecutorNoChangesNormalizationByProfile(t *testing.T) {
+	t.Parallel()
+
+	const (
+		ffRemote = `{"flags":{"f":{"_createdAt":"2024-01-01T00:00:00Z","_updatedAt":"2024-01-02T00:00:00Z","name":"f"}},"values":{"f":{"_updatedAt":"2024-01-02T00:00:00Z","enabled":true}},"version":"1"}`
+		ffLocal  = `{"flags":{"f":{"name":"f"}},"values":{"f":{"enabled":true}},"version":"1"}`
+	)
+
+	tests := []struct {
+		name        string
+		dataFile    string
+		profileType string
+		contentType string
+		local       string
+		remote      string
+		wantSkip    bool
+	}{
+		{
+			name:        "feature flags with .yaml data file",
+			dataFile:    "flags.yaml",
+			profileType: "AWS.AppConfig.FeatureFlags",
+			contentType: "application/json",
+			local:       ffLocal,
+			remote:      ffRemote,
+			wantSkip:    true,
+		},
+		{
+			name:        "feature flags with .yml data file",
+			dataFile:    "flags.yml",
+			profileType: "AWS.AppConfig.FeatureFlags",
+			contentType: "application/json",
+			local:       ffLocal,
+			remote:      ffRemote,
+			wantSkip:    true,
+		},
+		{
+			name:        "feature flags with .txt data file",
+			dataFile:    "flags.txt",
+			profileType: "AWS.AppConfig.FeatureFlags",
+			contentType: "application/json",
+			local:       ffLocal,
+			remote:      ffRemote,
+			wantSkip:    true,
+		},
+		{
+			name:        "freeform yaml treats timestamp fields as content",
+			dataFile:    "config.yaml",
+			profileType: "AWS.Freeform",
+			contentType: "application/x-yaml",
+			local:       "data: value\n",
+			remote:      "_updatedAt: \"2024-01-02T00:00:00Z\"\ndata: value\n",
+			wantSkip:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tempDir := t.TempDir()
+			configPath := filepath.Join(tempDir, "apcdeploy.yml")
+			if err := os.WriteFile(configPath, []byte(`application: test-app
+configuration_profile: test-profile
+environment: test-env
+data_file: `+tt.dataFile+`
+region: us-east-1
+`), 0o644); err != nil {
+				t.Fatalf("Failed to write config: %v", err)
+			}
+
+			dataPath := filepath.Join(tempDir, tt.dataFile)
+			if err := os.WriteFile(dataPath, []byte(tt.local), 0o644); err != nil {
+				t.Fatalf("Failed to write data: %v", err)
+			}
+
+			mockAppConfigClient := &mock.MockAppConfigClient{
+				ListApplicationsFunc: func(ctx context.Context, params *appconfig.ListApplicationsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListApplicationsOutput, error) {
+					return &appconfig.ListApplicationsOutput{
+						Items: []types.Application{{Id: aws.String("app-123"), Name: aws.String("test-app")}},
+					}, nil
+				},
+				ListConfigurationProfilesFunc: func(ctx context.Context, params *appconfig.ListConfigurationProfilesInput, optFns ...func(*appconfig.Options)) (*appconfig.ListConfigurationProfilesOutput, error) {
+					return &appconfig.ListConfigurationProfilesOutput{
+						Items: []types.ConfigurationProfileSummary{{Id: aws.String("profile-123"), Name: aws.String("test-profile")}},
+					}, nil
+				},
+				GetConfigurationProfileFunc: func(ctx context.Context, params *appconfig.GetConfigurationProfileInput, optFns ...func(*appconfig.Options)) (*appconfig.GetConfigurationProfileOutput, error) {
+					return &appconfig.GetConfigurationProfileOutput{
+						Id:   aws.String("profile-123"),
+						Type: aws.String(tt.profileType),
+					}, nil
+				},
+				ListEnvironmentsFunc: func(ctx context.Context, params *appconfig.ListEnvironmentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListEnvironmentsOutput, error) {
+					return &appconfig.ListEnvironmentsOutput{
+						Items: []types.Environment{{Id: aws.String("env-123"), Name: aws.String("test-env")}},
+					}, nil
+				},
+				ListDeploymentsFunc: func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
+					return &appconfig.ListDeploymentsOutput{
+						Items: []types.DeploymentSummary{{DeploymentNumber: 1, State: types.DeploymentStateComplete}},
+					}, nil
+				},
+				GetDeploymentFunc: func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
+					return &appconfig.GetDeploymentOutput{
+						ApplicationId:          aws.String("app-123"),
+						EnvironmentId:          aws.String("env-123"),
+						DeploymentNumber:       1,
+						ConfigurationProfileId: aws.String("profile-123"),
+						ConfigurationVersion:   aws.String("1"),
+						State:                  types.DeploymentStateComplete,
+					}, nil
+				},
+				GetHostedConfigurationVersionFunc: func(ctx context.Context, params *appconfig.GetHostedConfigurationVersionInput, optFns ...func(*appconfig.Options)) (*appconfig.GetHostedConfigurationVersionOutput, error) {
+					return &appconfig.GetHostedConfigurationVersionOutput{
+						ApplicationId:          aws.String("app-123"),
+						ConfigurationProfileId: aws.String("profile-123"),
+						VersionNumber:          1,
+						Content:                []byte(tt.remote),
+						ContentType:            aws.String(tt.contentType),
+					}, nil
+				},
+			}
+
+			clientFactory := func(ctx context.Context, region string) (*awsInternal.Client, error) {
+				return awsInternal.NewTestClient(mockAppConfigClient), nil
+			}
+
+			reporter := &reportertest.MockReporter{}
+			executor := NewExecutorWithFactory(reporter, clientFactory)
+
+			if err := runOnTargetForTest(t, reporter, executor, configPath); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			gotSkip := false
+			for _, call := range reporter.TargetsCalls {
+				for _, tr := range call.Transitions {
+					if tr.Kind == "skip" && strings.Contains(tr.Reason, "no changes") {
+						gotSkip = true
+					}
+				}
+			}
+			if gotSkip != tt.wantSkip {
+				t.Errorf("Skip('no changes') = %v, want %v; calls: %+v", gotSkip, tt.wantSkip, reporter.TargetsCalls)
+			}
+
+			gotData, err := os.ReadFile(dataPath)
+			if err != nil {
+				t.Fatalf("Failed to read data file: %v", err)
+			}
+			if tt.wantSkip && string(gotData) != tt.local {
+				t.Errorf("expected data file to be untouched, got: %s", string(gotData))
+			}
+		})
+	}
+}

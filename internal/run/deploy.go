@@ -3,7 +3,6 @@ package run
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 
 	"github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/config"
@@ -96,5 +95,6 @@ func (d *Deployer) HasConfigurationChanges(ctx context.Context, resolved *aws.Re
 		return false, fmt.Errorf("failed to get deployed configuration: %w", err)
 	}
 
-	return config.HasContentChanged(remoteContent, localContent, filepath.Ext(fileName), resolved.Profile.Type)
+	ext := config.NormalizationExtension(resolved.Profile.Type, fileName)
+	return config.HasContentChanged(remoteContent, localContent, ext, resolved.Profile.Type)
 }

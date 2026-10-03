@@ -556,3 +556,79 @@ func TestCalculateFeatureFlags(t *testing.T) {
 		})
 	}
 }
+
+// TestCalculateNormalizationByProfile verifies that FeatureFlags content is
+// normalized as JSON (timestamps stripped) regardless of the data file
+// extension, while Freeform keeps extension-driven normalization.
+func TestCalculateNormalizationByProfile(t *testing.T) {
+	const (
+		ffRemote = `{"flags":{"f":{"_createdAt":"2024-01-01T00:00:00Z","_updatedAt":"2024-01-02T00:00:00Z","name":"f"}},"values":{"f":{"_updatedAt":"2024-01-02T00:00:00Z","enabled":true}},"version":"1"}`
+		ffLocal  = `{"flags":{"f":{"name":"f"}},"values":{"f":{"enabled":true}},"version":"1"}`
+	)
+
+	tests := []struct {
+		name          string
+		remoteContent string
+		localContent  string
+		fileName      string
+		profileType   string
+		wantChanges   bool
+	}{
+		{
+			name:          "feature flags with .yaml data file - timestamp-only differences",
+			remoteContent: ffRemote,
+			localContent:  ffLocal,
+			fileName:      "flags.yaml",
+			profileType:   config.ProfileTypeFeatureFlags,
+			wantChanges:   false,
+		},
+		{
+			name:          "feature flags with .yml data file - timestamp-only differences",
+			remoteContent: ffRemote,
+			localContent:  ffLocal,
+			fileName:      "flags.yml",
+			profileType:   config.ProfileTypeFeatureFlags,
+			wantChanges:   false,
+		},
+		{
+			name:          "feature flags with .txt data file - timestamp-only differences",
+			remoteContent: ffRemote,
+			localContent:  ffLocal,
+			fileName:      "flags.txt",
+			profileType:   config.ProfileTypeFeatureFlags,
+			wantChanges:   false,
+		},
+		{
+			name:          "freeform yaml - timestamp fields are content",
+			remoteContent: "_updatedAt: \"2024-01-02T00:00:00Z\"\ndata: value\n",
+			localContent:  "data: value\n",
+			fileName:      "config.yaml",
+			profileType:   config.ProfileTypeFreeform,
+			wantChanges:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := calculate(tt.remoteContent, tt.localContent, tt.fileName, tt.profileType)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if result.HasChanges != tt.wantChanges {
+				t.Errorf("HasChanges = %v, want %v", result.HasChanges, tt.wantChanges)
+			}
+
+			hasChangedLines := false
+			for line := range strings.SplitSeq(result.UnifiedDiff, "\n") {
+				if strings.HasPrefix(line, "+") || strings.HasPrefix(line, "-") {
+					hasChangedLines = true
+					break
+				}
+			}
+			if hasChangedLines != tt.wantChanges {
+				t.Errorf("UnifiedDiff has +/- lines = %v, want %v; diff:\n%s", hasChangedLines, tt.wantChanges, result.UnifiedDiff)
+			}
+		})
+	}
+}
