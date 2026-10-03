@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -723,6 +724,9 @@ func TestInitializer_GenerateFiles(t *testing.T) {
 		result    *Result
 		wantErr   bool
 		wantFiles []string
+		// absoluteDataFile places DataFile under a separate temp dir as an
+		// absolute path; the data file must land exactly there.
+		absoluteDataFile bool
 	}{
 		{
 			name: "generate config and data files",
@@ -760,6 +764,27 @@ func TestInitializer_GenerateFiles(t *testing.T) {
 			wantErr:   false,
 			wantFiles: []string{"apcdeploy.yml"},
 		},
+		{
+			name: "absolute data file path is written verbatim",
+			opts: &Options{
+				ConfigFile: "apcdeploy.yml",
+			},
+			result: &Result{
+				AppName:     "test-app",
+				ProfileName: "test-profile",
+				EnvName:     "test-env",
+				DataFile:    "data.json",
+				ConfigFile:  "apcdeploy.yml",
+				DeployedConfig: &awsInternal.DeployedConfigInfo{
+					VersionNumber: 1,
+					Content:       []byte(`{"key":"value"}`),
+					ContentType:   "application/json",
+				},
+			},
+			wantErr:          false,
+			wantFiles:        []string{"apcdeploy.yml"},
+			absoluteDataFile: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -768,6 +793,9 @@ func TestInitializer_GenerateFiles(t *testing.T) {
 			tempDir := t.TempDir()
 			tt.opts.ConfigFile = tempDir + "/" + tt.opts.ConfigFile
 			tt.result.ConfigFile = tt.opts.ConfigFile
+			if tt.absoluteDataFile {
+				tt.result.DataFile = filepath.Join(t.TempDir(), tt.result.DataFile)
+			}
 
 			mockClient := &mock.MockAppConfigClient{}
 			awsClient := awsInternal.NewTestClient(mockClient)
@@ -790,6 +818,18 @@ func TestInitializer_GenerateFiles(t *testing.T) {
 					fullPath := tempDir + "/" + filename
 					if _, err := os.Stat(fullPath); err != nil {
 						t.Errorf("expected file %s to exist, got error: %v", filename, err)
+					}
+				}
+
+				if tt.absoluteDataFile {
+					if _, err := os.Stat(tt.result.DataFile); err != nil {
+						t.Errorf("expected data file at absolute path %s, got error: %v", tt.result.DataFile, err)
+					}
+					// filepath.Join(configDir, absPath) would nest the absolute
+					// path under the config dir; make sure nothing landed there.
+					mangled := filepath.Join(tempDir, tt.result.DataFile)
+					if _, err := os.Stat(mangled); !os.IsNotExist(err) {
+						t.Errorf("expected no data file at mangled path %s, got error: %v", mangled, err)
 					}
 				}
 			}
