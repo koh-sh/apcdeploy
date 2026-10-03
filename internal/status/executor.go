@@ -58,6 +58,9 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 
 	id := config.Identifier(cfg)
 	tg := e.reporter.Targets([]string{id})
+	// Close is idempotent: the defer covers the error paths, while the
+	// success / no-deployment paths close explicitly before rendering more
+	// stderr output (see below).
 	defer tg.Close()
 	detail := ""
 	if opts.DeploymentID != "" {
@@ -85,6 +88,7 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 
 	if deploymentInfo == nil {
 		tg.Skip(id, "no deployment")
+		tg.Close()
 		// stdout payload is fixed at "NONE\n" so scripts can branch on it.
 		// Always emitted, even under --silent.
 		e.reporter.Data([]byte("NONE\n"))
@@ -100,9 +104,11 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	// Targets row is the at-a-glance summary ("✓ COMPLETE — v42 (2h ago)");
 	// display.DeploymentStatus follows with the structured Header + Table
 	// that surfaces the full deployment metadata (Deployment Number,
-	// strategy, started/completed timestamps). In TTY mode the Targets
-	// renderer has already finalised by the time the table prints, so the
-	// two views stack cleanly without competing for the cursor.
+	// strategy, started/completed timestamps). Done only finalises the row
+	// state: the TTY renderer keeps redrawing (animation ticks plus a final
+	// redraw on Close) relative to the cursor until Close. Close it before
+	// rendering the table so those redraws cannot overwrite the table.
+	tg.Close()
 	display.DeploymentStatus(e.reporter, deploymentInfo, cfg, resources)
 	return nil
 }

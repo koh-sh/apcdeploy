@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -172,6 +173,9 @@ region: us-east-1
 	if got := string(reporter.Stdout); got != "NONE\n" {
 		t.Errorf("expected stdout 'NONE\\n', got %q", got)
 	}
+
+	// The guidance Box must render only after the Targets block is closed.
+	assertTargetsClosedBefore(t, reporter.Messages, "box: ")
 }
 
 func TestExecutorWithDeployment(t *testing.T) {
@@ -294,6 +298,32 @@ region: us-east-1
 	err = executor.Execute(context.Background(), opts)
 	if err != nil {
 		t.Errorf("expected no error, got: %v", err)
+	}
+
+	// The status table must render only after the Targets block is closed;
+	// otherwise the TTY renderer's final redraw overwrites the table (#145).
+	assertTargetsClosedBefore(t, reporter.Messages, "header: ", "table: ")
+}
+
+// assertTargetsClosedBefore fails unless "targets-close" appears in msgs
+// before the first message carrying each of the given prefixes. The TTY
+// Targets renderer redraws relative to the cursor until Close, so any
+// Header / Table / Box emitted while it is open gets overwritten.
+func assertTargetsClosedBefore(t *testing.T, msgs []string, prefixes ...string) {
+	t.Helper()
+	closeIdx := slices.Index(msgs, "targets-close")
+	if closeIdx < 0 {
+		t.Fatalf("expected Targets to be closed; messages: %v", msgs)
+	}
+	for _, prefix := range prefixes {
+		idx := slices.IndexFunc(msgs, func(m string) bool { return strings.HasPrefix(m, prefix) })
+		if idx < 0 {
+			t.Errorf("expected a %q message; messages: %v", prefix, msgs)
+			continue
+		}
+		if idx < closeIdx {
+			t.Errorf("%q emitted before targets-close; messages: %v", prefix, msgs)
+		}
 	}
 }
 
