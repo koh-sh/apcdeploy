@@ -1,0 +1,41 @@
+name: E2E (local)
+
+# Runs the e2e suite against the MiniStack emulator (see CLAUDE.md "E2E
+# Testing"). No AWS credentials are involved, so it also runs on fork PRs.
+# No paths filter: this is meant to be a required check, and a skipped
+# required check blocks merging.
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions: {}
+
+jobs:
+  e2e-local:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      # Keep `mise run` from installing the remaining dev tools (lint,
+      # release, ...) that the e2e tasks do not need.
+      MISE_TASK_RUN_AUTO_INSTALL: "false"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up mise
+        uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+        with:
+          install_args: go terraform
+
+      - name: Run local E2E
+        run: mise run e2e-local-full
+
+      - name: Dump MiniStack logs
+        if: failure()
+        run: docker logs apcdeploy-e2e-ministack || true

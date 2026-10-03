@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # S8: $EDITOR-driven edit — happy path, no-op, invalid content rejected.
 
-section "S8" "Edit ($EDITOR workflow)"
+section "S8" "Edit (\$EDITOR workflow)"
 
 step "seed deployment with {\"e\":\"seed\"}"
 apc_init json-freeform dev
@@ -9,7 +9,7 @@ apc_use_strategy
 apc_write_json '{"e":"seed"}'
 apc_quiet run --wait-bake --silent
 
-step "edit deploys new content via $EDITOR"
+step "edit deploys new content via \$EDITOR"
 EDITOR="$FAKE_EDITOR" APCDEPLOY_EDIT_CONTENT='{"e":"new"}' \
     apc_quiet edit --region "$REGION" --app "$APP" \
     --profile json-freeform --env dev --wait-bake --silent
