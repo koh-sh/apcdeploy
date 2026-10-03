@@ -35,13 +35,15 @@ func LoadConfig(path string) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve config path: %w", err)
 	}
-	config.DataFile = resolveDataFilePath(absConfigPath, config.DataFile)
+	config.DataFile = ResolveDataFilePath(absConfigPath, config.DataFile)
 
 	return &config, nil
 }
 
-// resolveDataFilePath resolves a data file path relative to the config file
-func resolveDataFilePath(configPath, dataFile string) string {
+// ResolveDataFilePath resolves a data file path relative to the config file.
+// Absolute data file paths are returned as-is. Both the loader and init use
+// this so the path recorded in apcdeploy.yml and the path written agree.
+func ResolveDataFilePath(configPath, dataFile string) string {
 	// If data file is already absolute, return as-is
 	if filepath.IsAbs(dataFile) {
 		return dataFile

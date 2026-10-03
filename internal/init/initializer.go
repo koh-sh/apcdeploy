@@ -3,7 +3,6 @@ package init
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 
 	awsInternal "github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/config"
@@ -157,7 +156,7 @@ func (i *Initializer) generateFiles(opts *Options, result *Result) error {
 	i.reporter.Success(fmt.Sprintf("Generated %s", result.ConfigFile))
 
 	if result.DeployedConfig != nil {
-		dataFilePath := filepath.Join(filepath.Dir(result.ConfigFile), result.DataFile)
+		dataFilePath := config.ResolveDataFilePath(result.ConfigFile, result.DataFile)
 		if err := config.WriteDataFile(result.DeployedConfig.Content, result.DeployedConfig.ContentType, dataFilePath, result.ProfileType, opts.Force); err != nil {
 			return fmt.Errorf("failed to write data file: %w", err)
 		}
