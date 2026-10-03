@@ -87,31 +87,41 @@ run = [
 
 # Local E2E against the MiniStack emulator (requires Docker). Scenarios the
 # emulator cannot reproduce are skipped; see CLAUDE.md "E2E Testing".
+# e2e-local-up starts from a clean slate: a new container is empty, so any
+# leftover local Terraform state from a failed run would be stale.
 [tasks.e2e-local-up]
 description = "Start a fresh MiniStack container for local E2E tests"
 run = [
-    "docker rm -f apcdeploy-e2e-ministack >/dev/null 2>&1 || true",
-    "docker run -d --name apcdeploy-e2e-ministack -p 4566:4566 ministackorg/ministack:1.5.21",
+    { task = "e2e-local-clean" },
+    "docker run -d --name apcdeploy-e2e-ministack -p 127.0.0.1:4566:4566 ministackorg/ministack:1.5.21",
     "curl -sf --retry 30 --retry-all-errors --retry-delay 1 http://localhost:4566/_ministack/health >/dev/null",
 ]
 
 [tasks.e2e-local-setup]
 description = "Provision E2E resources on MiniStack via Terraform"
 dir = "e2e/terraform"
-env = { TF_WORKSPACE = "local", AWS_ENDPOINT_URL = "http://localhost:4566", AWS_ACCESS_KEY_ID = "test", AWS_SECRET_ACCESS_KEY = "test", AWS_CONFIG_FILE = "/dev/null", AWS_SHARED_CREDENTIALS_FILE = "/dev/null", AWS_PROFILE = false }
-run = ["terraform init", "terraform apply -auto-approve"]
+env = { TF_WORKSPACE = "local" }
+shell = "bash -c"
+run = """
+set -euo pipefail
+source ../lib/local-env.sh
+terraform init
+terraform apply -auto-approve
+"""
 
 [tasks.e2e-local-run]
 description = "Run E2E test script against MiniStack"
 env = { E2E_TARGET = "local" }
 run = "./e2e/e2e-test.sh"
 
+# Also run after a failed e2e-local-full to remove the leftover container and state.
 [tasks.e2e-local-clean]
 description = "Remove the MiniStack container and its Terraform state"
 dir = "e2e/terraform"
+env = { TF_WORKSPACE = "default" }
 run = [
     "docker rm -f apcdeploy-e2e-ministack >/dev/null 2>&1 || true",
-    "if terraform workspace list | grep -qw local; then terraform workspace delete -force local; fi",
+    "if terraform workspace list 2>/dev/null | grep -qxE '[* ] +local'; then terraform workspace delete -force local; fi",
 ]
 
 [tasks.e2e-local-full]
