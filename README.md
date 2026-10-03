@@ -394,7 +394,7 @@ Stop an ongoing deployment:
 apcdeploy rollback -c apcdeploy.yml
 ```
 
-This command stops an in-flight deployment (DEPLOYING, BAKING, VALIDATING, or ROLLING_BACK state) by calling the AWS AppConfig StopDeployment API. It automatically detects the current ongoing deployment and stops it.
+This command stops an in-flight deployment (DEPLOYING, BAKING, VALIDATING, or ROLLING_BACK state) by calling the AWS AppConfig StopDeployment API. It automatically detects the current ongoing deployment and stops it, but only if it belongs to the configuration profile in `apcdeploy.yml`; a deployment of another profile in the same environment is refused, even with `--yes`.
 
 **Note:** This only stops deployments currently in progress. It does not revert previously completed deployments. Exits with code 2 when no deployment is currently in flight.
 
