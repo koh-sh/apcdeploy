@@ -85,5 +85,6 @@ expect_fail "$APCDEPLOY_BIN" diff --silent \
     -c "$mc_dir/dev/apcdeploy.yml" -c "$mc_dir/dup/apcdeploy.yml"
 
 step "single-config commands reject multi -c"
-expect_fail "$APCDEPLOY_BIN" status --silent \
+expect_fail_with "does not support multiple -c flags" \
+    "$APCDEPLOY_BIN" status --silent \
     -c "$mc_dir/dev/apcdeploy.yml" -c "$mc_dir/stg/apcdeploy.yml"
