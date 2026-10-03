@@ -2,6 +2,7 @@ package edit
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -37,6 +38,15 @@ func fakeEditorScript(t *testing.T, newContent string) {
 		t.Fatalf("failed to write fake editor: %v", err)
 	}
 	t.Setenv("EDITOR", script)
+	isolateBufferTempDir(t)
+}
+
+// isolateBufferTempDir points the edit buffer's temp root at a per-test
+// directory so buffers kept on failure are cleaned up with the test instead
+// of accumulating in the system temp dir.
+func isolateBufferTempDir(t *testing.T) {
+	t.Helper()
+	t.Setenv("TMPDIR", t.TempDir())
 }
 
 // noChangeEditorScript configures an editor that leaves the file untouched.
@@ -616,6 +626,7 @@ func TestWorkflowInvalidSizeRejected(t *testing.T) {
 		t.Fatalf("failed to write editor: %v", err)
 	}
 	t.Setenv("EDITOR", script)
+	isolateBufferTempDir(t)
 
 	client := baseMockClient([]byte(`hello`), config.ContentTypeText)
 	awsClient := awsInternal.NewTestClient(client)
@@ -873,6 +884,194 @@ func TestWorkflowForwardsDescription(t *testing.T) {
 			}
 			checkDesc("CreateHostedConfigurationVersion", capturedVersionDesc)
 			checkDesc("StartDeployment", capturedDeploymentDesc)
+		})
+	}
+}
+
+// recordingEditorScript configures an editor that records the buffer path it
+// was invoked with to the returned record file, then replaces the buffer
+// contents with newContent. The record file doubles as an "editor has run"
+// signal for mocks that must behave differently after the editing session.
+func recordingEditorScript(t *testing.T, newContent string) string {
+	t.Helper()
+	dir := t.TempDir()
+	contentPath := filepath.Join(dir, "content")
+	if err := os.WriteFile(contentPath, []byte(newContent), 0o644); err != nil {
+		t.Fatalf("failed to write content fixture: %v", err)
+	}
+	recordPath := filepath.Join(dir, "buffer-path")
+	script := filepath.Join(dir, "recording-editor.sh")
+	body := fmt.Sprintf("#!/bin/sh\necho \"$1\" > %q\ncat %q > \"$1\"\n", recordPath, contentPath)
+	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
+		t.Fatalf("failed to write recording editor: %v", err)
+	}
+	t.Setenv("EDITOR", script)
+	isolateBufferTempDir(t)
+	return recordPath
+}
+
+// TestWorkflowBufferRetention verifies the edit buffer retention policy
+// (issue #150): once the editor has returned edited content, any failure
+// keeps the buffer file on disk and reports its path in the error, while
+// success and no-op runs remove the private buffer directory.
+func TestWorkflowBufferRetention(t *testing.T) {
+	errStart := errors.New("ConflictException: deployment in progress")
+
+	tests := []struct {
+		name         string
+		editedText   string
+		setup        func(client *mock.MockAppConfigClient, recordPath string, createCalled *bool)
+		wantErr      bool
+		wantErrParts []string
+		wantErrIs    error
+		wantKept     bool
+		wantCreate   bool
+	}{
+		{
+			name:       "success removes the buffer",
+			editedText: `{"key":"updated"}`,
+			wantCreate: true,
+		},
+		{
+			name:       "no-op removes the buffer",
+			editedText: `{"key":"value"}`,
+		},
+		{
+			name:         "local validation failure keeps the buffer",
+			editedText:   `{not valid json`,
+			wantErr:      true,
+			wantErrParts: []string{"validation failed", "invalid JSON syntax"},
+			wantKept:     true,
+		},
+		{
+			name:       "validator rejection keeps the buffer",
+			editedText: `{"key":"updated"}`,
+			setup: func(client *mock.MockAppConfigClient, _ string, createCalled *bool) {
+				msg := "JSON Schema validation failed"
+				client.CreateHostedConfigurationVersionFunc = func(ctx context.Context, params *appconfig.CreateHostedConfigurationVersionInput, optFns ...func(*appconfig.Options)) (*appconfig.CreateHostedConfigurationVersionOutput, error) {
+					*createCalled = true
+					return nil, &types.BadRequestException{Message: &msg}
+				}
+			},
+			wantErr:      true,
+			wantErrParts: []string{"Configuration validation failed", "JSON Schema validation failed"},
+			wantKept:     true,
+			wantCreate:   true,
+		},
+		{
+			name:       "start deployment failure keeps the buffer and reports the created version",
+			editedText: `{"key":"updated"}`,
+			setup: func(client *mock.MockAppConfigClient, _ string, _ *bool) {
+				client.StartDeploymentFunc = func(ctx context.Context, params *appconfig.StartDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.StartDeploymentOutput, error) {
+					return nil, errStart
+				}
+			},
+			wantErr:      true,
+			wantErrParts: []string{"failed to start deployment", "hosted configuration version 4 was created but not deployed"},
+			wantErrIs:    errStart,
+			wantKept:     true,
+			wantCreate:   true,
+		},
+		{
+			name:       "deployment started during editing keeps the buffer and skips version creation",
+			editedText: `{"key":"updated"}`,
+			setup: func(client *mock.MockAppConfigClient, recordPath string, _ *bool) {
+				client.ListDeploymentsFunc = func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
+					state := types.DeploymentStateComplete
+					if _, err := os.Stat(recordPath); err == nil {
+						// The editor has run: someone else started a deployment meanwhile.
+						state = types.DeploymentStateDeploying
+					}
+					return &appconfig.ListDeploymentsOutput{
+						Items: []types.DeploymentSummary{
+							{DeploymentNumber: 7, ConfigurationVersion: aws.String("3"), State: state},
+						},
+					}, nil
+				}
+			},
+			wantErr:      true,
+			wantErrParts: []string{"deployment already in progress"},
+			wantKept:     true,
+		},
+		{
+			name:       "ongoing re-check failure keeps the buffer",
+			editedText: `{"key":"updated"}`,
+			setup: func(client *mock.MockAppConfigClient, recordPath string, _ *bool) {
+				base := client.ListDeploymentsFunc
+				client.ListDeploymentsFunc = func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
+					if _, err := os.Stat(recordPath); err == nil {
+						return nil, errors.New("throttled")
+					}
+					return base(ctx, params, optFns...)
+				}
+			},
+			wantErr:      true,
+			wantErrParts: []string{"failed to check ongoing deployments", "throttled"},
+			wantKept:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			recordPath := recordingEditorScript(t, tt.editedText)
+
+			client := baseMockClient([]byte(`{"key":"value"}`), "application/json")
+			createCalled := false
+			client.CreateHostedConfigurationVersionFunc = func(ctx context.Context, params *appconfig.CreateHostedConfigurationVersionInput, optFns ...func(*appconfig.Options)) (*appconfig.CreateHostedConfigurationVersionOutput, error) {
+				createCalled = true
+				return &appconfig.CreateHostedConfigurationVersionOutput{VersionNumber: 4}, nil
+			}
+			if tt.setup != nil {
+				tt.setup(client, recordPath, &createCalled)
+			}
+
+			awsClient := awsInternal.NewTestClient(client)
+			wf := newWorkflowWithClient(awsClient, &promptTesting.MockPrompter{}, &reporterTesting.MockReporter{})
+
+			err := wf.Run(context.Background(), &Options{
+				Region: "us-east-1", Application: "test-app", Profile: "test-profile",
+				Environment: "test-env", Timeout: 300,
+			})
+
+			recorded, readErr := os.ReadFile(recordPath)
+			if readErr != nil {
+				t.Fatalf("editor did not record the buffer path: %v", readErr)
+			}
+			bufferPath := strings.TrimSpace(string(recorded))
+
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("Run() err = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantErr {
+				for _, part := range tt.wantErrParts {
+					if !strings.Contains(err.Error(), part) {
+						t.Errorf("expected error to contain %q, got: %v", part, err)
+					}
+				}
+				wantNote := "edited content saved to " + bufferPath + " (may contain secrets; delete it when done)"
+				if !strings.Contains(err.Error(), wantNote) {
+					t.Errorf("expected error to contain %q, got: %v", wantNote, err)
+				}
+				if tt.wantErrIs != nil && !errors.Is(err, tt.wantErrIs) {
+					t.Errorf("expected errors.Is(err, %v) to hold, got: %v", tt.wantErrIs, err)
+				}
+			}
+
+			if createCalled != tt.wantCreate {
+				t.Errorf("CreateHostedConfigurationVersion called = %v, want %v", createCalled, tt.wantCreate)
+			}
+
+			if tt.wantKept {
+				got, readErr := os.ReadFile(bufferPath)
+				if readErr != nil {
+					t.Fatalf("expected buffer file to be kept, read err = %v", readErr)
+				}
+				if string(got) != tt.editedText {
+					t.Errorf("kept buffer content = %q, want %q", got, tt.editedText)
+				}
+			} else if _, statErr := os.Stat(filepath.Dir(bufferPath)); !os.IsNotExist(statErr) {
+				t.Errorf("expected private buffer dir to be removed, stat err = %v", statErr)
+			}
 		})
 	}
 }

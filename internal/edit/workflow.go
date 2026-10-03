@@ -180,19 +180,35 @@ func (w *workflow) prepareDeployment(ctx context.Context, t *resolvedTargets, op
 	return deployed, strategyID, strategyName, nil
 }
 
-// editAndDeploy launches the editor, validates the result, creates a new
-// configuration version when content changed, and starts the deployment.
+// editAndDeploy launches the editor and deploys the edited content.
+//
+// Buffer retention (issue #150): once the editor has returned edited
+// content, any failure keeps the buffer file inside its private 0700
+// directory and appends its path to the returned error so the user can
+// recover the edits. Success (deployed or no-op) removes the buffer.
 func (w *workflow) editAndDeploy(ctx context.Context, t *resolvedTargets, deployed *awsInternal.DeployedConfigInfo, strategyID, strategyName string, opts *Options) error {
 	ext := config.ExtensionForContentType(deployed.ContentType)
 
 	// No "launching $EDITOR" spinner — short-lived spinners on instant
 	// operations create flicker, and the editor itself is the user-facing
 	// signal that a hand-off is happening.
-	_, edited, err := editBuffer(deployed.Content, ext)
+	_, edited, buf, err := editBuffer(deployed.Content, ext)
 	if err != nil {
 		return fmt.Errorf("failed to edit configuration: %w", err)
 	}
 
+	if err := w.deployEdited(ctx, t, deployed, edited, ext, strategyID, strategyName, opts); err != nil {
+		return fmt.Errorf("%w\nedited content saved to %s (may contain secrets; delete it when done)", err, buf.Path)
+	}
+	// Best-effort cleanup, as before #150: the edit already succeeded, so a
+	// removal failure must not turn it into a reported error.
+	_ = buf.Remove()
+	return nil
+}
+
+// deployEdited validates the edited content, creates a new configuration
+// version when content changed, and starts the deployment.
+func (w *workflow) deployEdited(ctx context.Context, t *resolvedTargets, deployed *awsInternal.DeployedConfigInfo, edited []byte, ext, strategyID, strategyName string, opts *Options) error {
 	if err := config.ValidateData(edited, deployed.ContentType); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
 	}
@@ -211,6 +227,21 @@ func (w *workflow) editAndDeploy(ctx context.Context, t *resolvedTargets, deploy
 		return nil
 	}
 
+	// Re-check right before creating a version: the check in
+	// prepareDeployment ran before the editor opened, and another
+	// deployment may have started during the editing session. Failing
+	// here avoids leaving an orphaned hosted configuration version.
+	ongoing, _, err := w.awsClient.CheckOngoingDeployment(ctx, t.AppID, t.EnvID)
+	if err != nil {
+		tg.Fail(id, err)
+		return fmt.Errorf("failed to check ongoing deployments: %w", err)
+	}
+	if ongoing {
+		ongoingErr := fmt.Errorf("deployment already in progress (started while editing)")
+		tg.Fail(id, ongoingErr)
+		return ongoingErr
+	}
+
 	tg.SetPhase(id, "creating-version", "")
 	versionNumber, err := w.awsClient.CreateHostedConfigurationVersion(ctx, t.AppID, t.Profile.ID, edited, deployed.ContentType, opts.Description)
 	if err != nil {
@@ -226,7 +257,7 @@ func (w *workflow) editAndDeploy(ctx context.Context, t *resolvedTargets, deploy
 	deploymentNumber, err := w.awsClient.StartDeployment(ctx, t.AppID, t.EnvID, t.Profile.ID, strategyID, versionNumber, opts.Description)
 	if err != nil {
 		tg.Fail(id, err)
-		return fmt.Errorf("failed to start deployment: %w", err)
+		return fmt.Errorf("failed to start deployment (hosted configuration version %d was created but not deployed): %w", versionNumber, err)
 	}
 
 	return w.waitIfRequested(ctx, tg, id, t, deploymentNumber, versionNumber, strategyName, deployStart, opts)
