@@ -93,7 +93,7 @@ run = [
 description = "Start a fresh MiniStack container for local E2E tests"
 run = [
     { task = "e2e-local-clean" },
-    "docker run -d --name apcdeploy-e2e-ministack -p 127.0.0.1:4566:4566 ministackorg/ministack:1.5.21",
+    "docker run -d --name apcdeploy-e2e-ministack -p 127.0.0.1:4566:4566 ministackorg/ministack:1.5.22",
     "curl -sf --retry 30 --retry-all-errors --retry-delay 1 http://localhost:4566/_ministack/health >/dev/null",
 ]
 
