@@ -12,14 +12,10 @@ assert_jq <(printf '%s' "$ls_json") \
     "[.applications[].name] | index(\"$APP\") != null"
 
 step "ls-resources --show-strategies includes AppConfig.AllAtOnce"
-if e2e_is_local; then
-    skip_step "MiniStack does not provide AWS predefined deployment strategies"
-else
-    ls_strat=$(apc_stdout ls-resources --region "$REGION" \
-        --show-strategies --json --silent)
-    assert_jq <(printf '%s' "$ls_strat") \
-        '[.deployment_strategies[].name] | index("AppConfig.AllAtOnce") != null'
-fi
+ls_strat=$(apc_stdout ls-resources --region "$REGION" \
+    --show-strategies --json --silent)
+assert_jq <(printf '%s' "$ls_strat") \
+    '[.deployment_strategies[].name] | index("AppConfig.AllAtOnce") != null'
 
 step "init creates apcdeploy.yml + data.json"
 apc_init json-freeform dev

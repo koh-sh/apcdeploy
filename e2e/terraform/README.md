@@ -25,8 +25,8 @@ This directory manages AWS AppConfig resources required for apcdeploy E2E tests.
 - **E2E-Slow-Strategy**: Custom strategy (1 min deployment; rollback and timeout tests)
 
 The tests also rely on the AWS predefined `AppConfig.AllAtOnce` strategy,
-which AWS provides in every account (not created here). MiniStack does not
-provide predefined strategies.
+which AWS provides in every account (not created here). MiniStack provides
+the same predefined strategies.
 
 ### Lambda Validator (supporting the json-lambda profile)
 - A minimal Lambda function, IAM role, and AppConfig invoke permission. The
