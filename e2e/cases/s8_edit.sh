@@ -14,7 +14,7 @@ EDITOR="$FAKE_EDITOR" APCDEPLOY_EDIT_CONTENT='{"e":"new"}' \
     apc_quiet edit --region "$REGION" --app "$APP" \
     --profile json-freeform --env dev --wait-bake --silent
 get_out=$(apc_stdout get --silent --yes)
-assert_jq <(printf '%s' "$get_out") '.e == "new"'
+assert_json "$get_out" '.e == "new"'
 
 step "edit with identical content reports no changes"
 out=$(EDITOR="$FAKE_EDITOR" APCDEPLOY_EDIT_CONTENT='{"e":"new"}' \

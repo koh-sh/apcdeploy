@@ -52,16 +52,14 @@ apc_quiet run --wait-bake --silent
 apc_write_json '{"port":2}'
 apc_quiet validate --silent
 body=$(apc_stdout get --silent --yes)
-assert_jq <(printf '%s' "$body") '.port == 1'
+assert_json "$body" '.port == 1'
 
 # --- Multi-config: one invocation validates every target ---
 step "multi-config validate checks every target"
 mc_dir=validate-mc
 mkdir -p "$mc_dir/v" "$mc_dir/ff"
-( cd "$mc_dir/v" && apc_quiet init --silent --force \
-    --app "$APP" --region "$REGION" --profile json-validated --env dev )
-( cd "$mc_dir/ff" && apc_quiet init --silent --force \
-    --app "$APP" --region "$REGION" --profile json-featureflags --env dev )
+( cd "$mc_dir/v" && apc_init json-validated dev )
+( cd "$mc_dir/ff" && apc_init json-featureflags dev )
 printf '%s' '{"port":5}' > "$mc_dir/v/data.json"
 printf '%s' '{"version":"1","flags":{"f":{"name":"f"}}}' > "$mc_dir/ff/data.json"
 apc_quiet validate --silent \

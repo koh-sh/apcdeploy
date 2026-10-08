@@ -6,15 +6,15 @@ section "S1" "Basic workflow"
 
 step "ls-resources lists the test app + region"
 ls_json=$(apc_stdout ls-resources --region "$REGION" --json --silent)
-assert_jq <(printf '%s' "$ls_json") ".region == \"$REGION\""
-assert_jq <(printf '%s' "$ls_json") '.applications | length > 0'
-assert_jq <(printf '%s' "$ls_json") \
+assert_json "$ls_json" ".region == \"$REGION\""
+assert_json "$ls_json" '.applications | length > 0'
+assert_json "$ls_json" \
     "[.applications[].name] | index(\"$APP\") != null"
 
 step "ls-resources --show-strategies includes AppConfig.AllAtOnce"
 ls_strat=$(apc_stdout ls-resources --region "$REGION" \
     --show-strategies --json --silent)
-assert_jq <(printf '%s' "$ls_strat") \
+assert_json "$ls_strat" \
     '[.deployment_strategies[].name] | index("AppConfig.AllAtOnce") != null'
 
 step "init creates apcdeploy.yml + data.json"
@@ -45,7 +45,7 @@ assert_contains "$status_out" "COMPLETE" "status"
 
 step "get returns deployed payload v=1"
 get_out=$(apc_stdout get --silent --yes)
-assert_jq <(printf '%s' "$get_out") '.v == "1"'
+assert_json "$get_out" '.v == "1"'
 
 step "pull restores deployed state after local modification"
 apc_write_json '{"v":"modified"}'
@@ -56,4 +56,4 @@ step "round-trip: deploy v=2, get returns v=2"
 apc_write_json '{"v":"2"}'
 apc_quiet run --wait-bake --silent
 get_out=$(apc_stdout get --silent --yes)
-assert_jq <(printf '%s' "$get_out") '.v == "2"'
+assert_json "$get_out" '.v == "2"'

@@ -28,20 +28,21 @@ assert_match() {
     fi
 }
 
-# assert_jq <file_or_-> <jq_expression>
-# Asserts the expression evaluates truthy. `-` reads stdin; otherwise the
-# first arg is treated as a file path (also accepts process substitution
-# like `<(printf '%s' "$out")`).
+# assert_jq <file> <jq_expression>
+# Asserts the expression evaluates truthy against the JSON file.
 assert_jq() {
-    local src="$1" expr="$2"
-    if [[ "$src" == "-" ]]; then
-        if ! jq -e "$expr" >/dev/null; then
-            fail "jq predicate failed: <$expr> (stdin)"
-        fi
-    else
-        if ! jq -e "$expr" "$src" >/dev/null; then
-            fail "jq predicate failed: <$expr> ($src)"
-        fi
+    local file="$1" expr="$2"
+    if ! jq -e "$expr" "$file" >/dev/null; then
+        fail "jq predicate failed: <$expr> ($file)"
+    fi
+}
+
+# assert_json <json_string> <jq_expression>
+# Like assert_jq, for JSON captured in a variable (e.g. `get` output).
+assert_json() {
+    local json="$1" expr="$2"
+    if ! jq -e "$expr" <<<"$json" >/dev/null; then
+        fail "jq predicate failed: <$expr>: <$json>"
     fi
 }
 

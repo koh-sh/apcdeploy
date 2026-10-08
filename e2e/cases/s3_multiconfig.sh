@@ -8,10 +8,8 @@ mc_dir=multi-config
 mkdir -p "$mc_dir/dev" "$mc_dir/stg"
 
 step "init populates per-target apcdeploy.yml under multi-config/{dev,stg}"
-( cd "$mc_dir/dev" && apc_quiet init --silent --force \
-    --app "$APP" --region "$REGION" --profile json-freeform --env dev )
-( cd "$mc_dir/stg" && apc_quiet init --silent --force \
-    --app "$APP" --region "$REGION" --profile json-freeform --env staging )
+( cd "$mc_dir/dev" && apc_init json-freeform dev )
+( cd "$mc_dir/stg" && apc_init json-freeform staging )
 
 step "tweak strategy + data per target"
 for d in "$mc_dir/dev" "$mc_dir/stg"; do
@@ -27,8 +25,8 @@ apc_quiet run --wait-bake --silent \
 step "get against each target returns its own payload"
 dev_out=$(apc_stdout get --silent --yes -c "$mc_dir/dev/apcdeploy.yml")
 stg_out=$(apc_stdout get --silent --yes -c "$mc_dir/stg/apcdeploy.yml")
-assert_jq <(printf '%s' "$dev_out") '.mc == "dev-1"'
-assert_jq <(printf '%s' "$stg_out") '.mc == "stg-1"'
+assert_json "$dev_out" '.mc == "dev-1"'
+assert_json "$stg_out" '.mc == "stg-1"'
 
 step "multi-config diff reports no changes for both targets"
 out=$(apc_combined diff \

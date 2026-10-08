@@ -37,7 +37,7 @@ __e3_bg_active=1
 # `sleep N` is fragile under CI load — the next step depends on AWS
 # actually being mid-rollout, not on wall-clock time.
 for _ in $(seq 1 30); do
-    state=$(apc_combined status --silent 2>/dev/null || true)
+    state=$(apc_stdout status --silent || true)
     [[ "$state" == *DEPLOYING* || "$state" == *BAKING* ]] && break
     sleep 1
 done
