@@ -30,7 +30,8 @@ assert_json "$stg_out" '.mc == "stg-1"'
 step "multi-config diff reports no changes for both targets"
 out=$(apc_combined diff \
     -c "$mc_dir/dev/apcdeploy.yml" -c "$mc_dir/stg/apcdeploy.yml")
-assert_match "$out" "no changes" "diff progress"
+assert_match "$out" "${REGION}/${APP}/json-freeform/dev: .*no changes" "diff progress"
+assert_match "$out" "${REGION}/${APP}/json-freeform/staging: .*no changes" "diff progress"
 
 step "diff body shows === <id> === only for the changed target"
 printf '{"mc":"dev-2"}' > "$mc_dir/dev/data.json"

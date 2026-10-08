@@ -32,9 +32,11 @@ diff_stdout=$(apc_stdout diff)
 assert_contains "$diff_stdout" '"v"' "diff body"
 
 step "diff --silent suppresses progress on stderr"
-silent_err=$(apc_combined diff --silent)
-assert_not_contains "$silent_err" "no changes" "silent stderr"
-assert_not_contains "$silent_err" "diff (" "silent stderr"
+# Check stderr as a whole: which progress line diff would print depends on
+# the deployed state (none on a fresh emulator, a previous run's on AWS).
+apc_quiet diff --silent >/dev/null
+[[ ! -s "$__STDERR_FILE" ]] \
+    || fail "diff --silent wrote to stderr: <$(cat "$__STDERR_FILE")>"
 
 step "run --wait-bake completes deployment"
 apc_quiet run --wait-bake --silent
