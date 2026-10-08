@@ -33,7 +33,7 @@ apc_quiet validate --silent
 
 step "Freeform no validator: broken JSON fails"
 apc_write_json '{bad json}'
-expect_fail_with "validation failed" "$APCDEPLOY_BIN" validate --silent
+expect_fail_with "invalid JSON syntax" "$APCDEPLOY_BIN" validate --silent
 
 # --- LAMBDA validator is skipped (never invoked), reported as syntax-only ---
 step "LAMBDA validator is skipped, not checked"
