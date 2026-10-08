@@ -28,8 +28,8 @@ case "$E2E_TARGET" in
         # ./e2e-test.sh` run is pinned to the emulator too.
         # shellcheck source=lib/local-env.sh
         source "$E2E_ROOT/lib/local-env.sh"
-        # Fail fast when the emulator is down: otherwise expect_fail-style
-        # steps would pass on connection errors.
+        # Fail fast when the emulator is down, so every step does not fail
+        # on a connection error instead of the behavior it tests.
         if ! curl -sf "$AWS_ENDPOINT_URL/_ministack/health" >/dev/null; then
             printf 'MiniStack is not reachable at %s (run: mise run e2e-local-up)\n' \
                 "$AWS_ENDPOINT_URL" >&2
@@ -136,8 +136,12 @@ fail() {
 # ERR trap: print the current step as failed with file:line context.
 # With `set -E` the trap fires in every nested shell on the way out: inside
 # `$(...)` or `( ... )`, at the case-file line that ran it, and in the
-# runner. Only the shell running the case file reports, so a failure is
-# printed once and points at the case-file line.
+# runner. Only the shell running the case file reports, so a failed command
+# is printed once. The location is the case-file line for a failure inside
+# `$(...)` or `( ... )`; for a direct helper call such as `apc_quiet run`,
+# the trap fires first inside the helper, so the location is in lib/.
+# `fail` reports by itself and does not go through this trap; called inside
+# `$(...)` or `( ... )`, its step is reported a second time from here.
 __on_err() {
     local rc=$?
     local lineno="$1"

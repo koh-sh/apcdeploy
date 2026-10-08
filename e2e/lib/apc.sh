@@ -25,9 +25,9 @@ apc_stdout() {
 # Merged stdout+stderr — used for assertions on combined output (e.g.
 # status's tab-separated rows live on stderr but we want one capture).
 # NOTE: stderr is merged into stdout, so $__STDERR_FILE is NOT updated on
-# failure here; the ERR trap's "last stderr" section will show data from
-# an earlier apc_quiet call instead. Use apc_quiet when you need both
-# stdout capture and useful failure diagnostics.
+# failure here; the ERR trap's "last stderr" section shows an earlier
+# apc_quiet call in the same step, or nothing. Use apc_quiet when you need
+# both stdout capture and useful failure diagnostics.
 apc_combined() {
     "$APCDEPLOY_BIN" "$@" 2>&1
 }
