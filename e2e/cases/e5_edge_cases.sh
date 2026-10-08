@@ -17,8 +17,10 @@ step "diff reports 'no prior deployment' on stderr"
 out=$(apc_combined diff)
 assert_contains "$out" "no prior deployment" "diff stderr"
 
-step "status reports 'no deployment' on stderr"
-out=$(apc_combined status)
+step "status reports 'no deployment' on stderr with exit code 2"
+rc=0
+out=$(apc_combined status) || rc=$?
+[[ "$rc" -eq 2 ]] || fail "expected exit 2, got $rc: <$out>"
 assert_contains "$out" "no deployment" "status stderr"
 
 step "pull exits with code 2 sentinel when no prior deployment"
