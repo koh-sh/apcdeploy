@@ -45,18 +45,25 @@ done
     || fail "background deploy never reached DEPLOYING/BAKING (state=$state)"
 
 step "second run during ongoing deploy is rejected"
-expect_fail "$APCDEPLOY_BIN" run --silent
+expect_fail_with "deployment already in progress" "$APCDEPLOY_BIN" run --silent
 
 step "edit during ongoing deploy is rejected"
-expect_fail env EDITOR="$FAKE_EDITOR" APCDEPLOY_EDIT_CONTENT='{"c":"x"}' \
+expect_fail_with "deployment already in progress" \
+    env EDITOR="$FAKE_EDITOR" APCDEPLOY_EDIT_CONTENT='{"c":"x"}' \
     "$APCDEPLOY_BIN" edit --region "$REGION" --app "$APP" \
     --profile error-test --env dev --silent
 
-# Reap the backgrounded run so its rollout doesn't leak into later sections.
+# Reap the backgrounded run and stop its rollout: the run exits as soon as
+# the deployment starts, so without the rollback the next step would fail
+# with "already in progress" instead of the timeout it is meant to test.
 wait "$__e3_bg_pid" 2>/dev/null || true
 __e3_bg_pid=""
+"$APCDEPLOY_BIN" rollback --yes --silent >/dev/null
 __e3_bg_active=0
 
 step "--wait-bake --timeout 5 fails fast on the slow strategy"
 apc_write_json '{"c":"2"}'
-expect_fail "$APCDEPLOY_BIN" run --wait-bake --timeout 5 --silent
+# The timed-out rollout keeps going; let the EXIT trap stop it.
+__e3_bg_active=1
+expect_fail_with "deployment timed out" \
+    "$APCDEPLOY_BIN" run --wait-bake --timeout 5 --silent
