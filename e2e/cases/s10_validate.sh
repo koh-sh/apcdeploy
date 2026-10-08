@@ -13,7 +13,7 @@ apc_quiet validate --silent
 
 step "FeatureFlags constraint violation fails validate"
 apc_write_json '{"version":"1","flags":{"f":{"name":"f","attributes":{"c":{"constraints":{"type":"string","enum":["a","b"]}}}}},"values":{"f":{"enabled":true,"c":"z"}}}'
-expect_fail "$APCDEPLOY_BIN" validate --silent
+expect_fail_with "validation failed" "$APCDEPLOY_BIN" validate --silent
 
 # --- Freeform JSON with a remote JSON_SCHEMA validator ---
 step "Freeform remote schema: valid data passes"
@@ -33,7 +33,7 @@ apc_quiet validate --silent
 
 step "Freeform no validator: broken JSON fails"
 apc_write_json '{bad json}'
-expect_fail "$APCDEPLOY_BIN" validate --silent
+expect_fail_with "validation failed" "$APCDEPLOY_BIN" validate --silent
 
 # --- LAMBDA validator is skipped (never invoked), reported as syntax-only ---
 step "LAMBDA validator is skipped, not checked"
@@ -69,5 +69,6 @@ apc_quiet validate --silent \
 
 step "multi-config validate fails when any target is invalid"
 printf '%s' '{"port":0}' > "$mc_dir/v/data.json"
-expect_fail "$APCDEPLOY_BIN" validate --silent \
+expect_fail_with "validation failed" \
+    "$APCDEPLOY_BIN" validate --silent \
     -c "$mc_dir/v/apcdeploy.yml" -c "$mc_dir/ff/apcdeploy.yml"

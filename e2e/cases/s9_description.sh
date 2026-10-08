@@ -25,7 +25,8 @@ refute_line_match "$out" "^Description" "status output"
 
 step "--description >1024 runes is rejected client-side"
 LONG_DESC=$(printf 'a%.0s' {1..1025})
-expect_fail "$APCDEPLOY_BIN" run --silent --description "$LONG_DESC"
+expect_fail_with "--description exceeds maximum length" \
+    "$APCDEPLOY_BIN" run --silent --description "$LONG_DESC"
 
 step "edit honors --description"
 EDITOR="$FAKE_EDITOR" APCDEPLOY_EDIT_CONTENT='{"d":"edited"}' \

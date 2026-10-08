@@ -23,16 +23,16 @@ apc_use_strategy
 apc_write_json '{"v":"1"}'
 
 step "diff (non-silent) emits a Targets transition on stderr"
-diff_out=$(apc_combined diff || true)
+diff_out=$(apc_combined diff)
 assert_match "$diff_out" \
     '(no changes|no prior deployment|diff \()' "diff progress"
 
 step "diff stdout contains the data payload"
-diff_stdout=$(apc_stdout diff || true)
-assert_contains "$diff_stdout" 'v' "diff body"
+diff_stdout=$(apc_stdout diff)
+assert_contains "$diff_stdout" '"v"' "diff body"
 
 step "diff --silent suppresses progress on stderr"
-silent_err=$(apc_combined diff --silent || true)
+silent_err=$(apc_combined diff --silent)
 assert_not_contains "$silent_err" "no changes" "silent stderr"
 assert_not_contains "$silent_err" "diff (" "silent stderr"
 

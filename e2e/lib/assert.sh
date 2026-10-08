@@ -45,19 +45,10 @@ assert_jq() {
     fi
 }
 
-# expect_fail <command...>
-# Inverts the exit code: passes only when the command fails (any non-zero).
-# Suppresses ERR trap because the failure is expected.
-expect_fail() {
-    if "$@" >/dev/null 2>&1; then
-        fail "command unexpectedly succeeded: $*"
-    fi
-}
-
 # expect_fail_with <needle> <command...>
-# Like expect_fail, but also asserts the combined stdout/stderr contains
-# <needle>, so an unrelated failure (e.g. an API the emulator lacks) cannot
-# pass the step.
+# Passes only when the command fails (any non-zero) and its combined
+# stdout/stderr contains <needle>, so an unrelated failure (e.g. an API the
+# emulator lacks) cannot pass the step.
 expect_fail_with() {
     local needle="$1"; shift
     local rc=0 out
