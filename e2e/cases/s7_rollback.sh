@@ -17,4 +17,5 @@ status_out=$(apc_stdout status --silent)
 assert_contains "$status_out" "ROLLED_BACK" "status"
 
 step "second rollback with no ongoing deployment fails"
-expect_fail "$APCDEPLOY_BIN" rollback --silent --yes
+expect_fail_with "no ongoing deployment found" \
+    "$APCDEPLOY_BIN" rollback --silent --yes

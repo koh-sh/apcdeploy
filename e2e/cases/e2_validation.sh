@@ -5,8 +5,8 @@ section "E2" "Validation"
 
 step "init json-freeform/dev"
 apc_init json-freeform dev
-# Pin the strategy so `run` resolves resources regardless of prior deployments
-# (init falls back to AppConfig.AllAtOnce, which MiniStack does not provide).
+# Pin the strategy so `run` resolves the same resources regardless of which
+# strategy init inherited from a prior deployment.
 apc_use_strategy
 
 step "run with broken JSON exits non-zero"

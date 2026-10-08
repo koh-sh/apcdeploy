@@ -28,36 +28,28 @@ assert_match() {
     fi
 }
 
-# assert_jq <file_or_-> <jq_expression>
-# Asserts the expression evaluates truthy. `-` reads stdin; otherwise the
-# first arg is treated as a file path (also accepts process substitution
-# like `<(printf '%s' "$out")`).
+# assert_jq <file> <jq_expression>
+# Asserts the expression evaluates truthy against the JSON file.
 assert_jq() {
-    local src="$1" expr="$2"
-    if [[ "$src" == "-" ]]; then
-        if ! jq -e "$expr" >/dev/null; then
-            fail "jq predicate failed: <$expr> (stdin)"
-        fi
-    else
-        if ! jq -e "$expr" "$src" >/dev/null; then
-            fail "jq predicate failed: <$expr> ($src)"
-        fi
+    local file="$1" expr="$2"
+    if ! jq -e "$expr" "$file" >/dev/null; then
+        fail "jq predicate failed: <$expr> ($file)"
     fi
 }
 
-# expect_fail <command...>
-# Inverts the exit code: passes only when the command fails (any non-zero).
-# Suppresses ERR trap because the failure is expected.
-expect_fail() {
-    if "$@" >/dev/null 2>&1; then
-        fail "command unexpectedly succeeded: $*"
+# assert_json <json_string> <jq_expression>
+# Like assert_jq, for JSON captured in a variable (e.g. `get` output).
+assert_json() {
+    local json="$1" expr="$2"
+    if ! jq -e "$expr" <<<"$json" >/dev/null; then
+        fail "jq predicate failed: <$expr>: <$json>"
     fi
 }
 
 # expect_fail_with <needle> <command...>
-# Like expect_fail, but also asserts the combined stdout/stderr contains
-# <needle>, so an unrelated failure (e.g. an API the emulator lacks) cannot
-# pass the step.
+# Passes only when the command fails (any non-zero) and its combined
+# stdout/stderr contains <needle>, so an unrelated failure (e.g. an API the
+# emulator lacks) cannot pass the step.
 expect_fail_with() {
     local needle="$1"; shift
     local rc=0 out

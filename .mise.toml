@@ -85,10 +85,10 @@ run = [
     { task = "e2e-clean" },
 ]
 
-# Local E2E against the MiniStack emulator (requires Docker). Scenarios the
-# emulator cannot reproduce can be skipped; see CLAUDE.md "E2E Testing".
-# e2e-local-up starts from a clean slate: a new container is empty, so any
-# leftover local Terraform state from a failed run would be stale.
+# Local E2E against the MiniStack emulator (requires Docker); see CLAUDE.md
+# "E2E Testing". e2e-local-up starts from a clean slate: a new container is
+# empty, so any leftover local Terraform state from a failed run would be
+# stale.
 [tasks.e2e-local-up]
 description = "Start a fresh MiniStack container for local E2E tests"
 run = [

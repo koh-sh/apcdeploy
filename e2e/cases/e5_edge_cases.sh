@@ -14,11 +14,13 @@ apc_use_strategy
 apc_write_json '{"e":"1"}'
 
 step "diff reports 'no prior deployment' on stderr"
-out=$(apc_combined diff || true)
+out=$(apc_combined diff)
 assert_contains "$out" "no prior deployment" "diff stderr"
 
-step "status reports 'no deployment' on stderr"
-out=$(apc_combined status || true)
+step "status reports 'no deployment' on stderr with exit code 2"
+rc=0
+out=$(apc_combined status) || rc=$?
+[[ "$rc" -eq 2 ]] || fail "expected exit 2, got $rc: <$out>"
 assert_contains "$out" "no deployment" "status stderr"
 
 step "pull exits with code 2 sentinel when no prior deployment"
@@ -30,4 +32,5 @@ expect_exit 2 env EDITOR="$FAKE_EDITOR" APCDEPLOY_EDIT_CONTENT='{"e":"x"}' \
     --profile error-test --env staging --silent
 
 step "run with negative --timeout fails"
-expect_fail "$APCDEPLOY_BIN" run --wait-bake --timeout -1 --silent
+expect_fail_with "timeout must be greater than 0" \
+    "$APCDEPLOY_BIN" run --wait-bake --timeout -1 --silent

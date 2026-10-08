@@ -19,7 +19,7 @@ export E2E_ROOT APCDEPLOY_BIN FAKE_EDITOR APP REGION STRATEGY SLOW_STRATEGY
 
 # `aws` (default) runs against real AWS resources provisioned by Terraform.
 # `local` runs against the MiniStack emulator started by `mise run
-# e2e-local-up`; scenarios the emulator cannot reproduce are skipped.
+# e2e-local-up`.
 E2E_TARGET="${E2E_TARGET:-aws}"
 case "$E2E_TARGET" in
     aws) ;;
@@ -28,8 +28,8 @@ case "$E2E_TARGET" in
         # ./e2e-test.sh` run is pinned to the emulator too.
         # shellcheck source=lib/local-env.sh
         source "$E2E_ROOT/lib/local-env.sh"
-        # Fail fast when the emulator is down: otherwise expect_fail-style
-        # steps would pass on connection errors.
+        # Fail fast when the emulator is down, so every step does not fail
+        # on a connection error instead of the behavior it tests.
         if ! curl -sf "$AWS_ENDPOINT_URL/_ministack/health" >/dev/null; then
             printf 'MiniStack is not reachable at %s (run: mise run e2e-local-up)\n' \
                 "$AWS_ENDPOINT_URL" >&2
@@ -43,28 +43,23 @@ case "$E2E_TARGET" in
 esac
 export E2E_TARGET
 
-e2e_is_local() {
-    [[ "$E2E_TARGET" == "local" ]]
-}
-
 # ---- Color (NO_COLOR + TTY aware) ----------------------------------------
 
-# shellcheck disable=SC2034  # palette intentionally complete; C_YELLOW reserved for future Warn-equivalent output
 if [[ -t 2 ]] && [[ -z "${NO_COLOR:-}" ]]; then
     C_RESET=$'\033[0m'
     C_RED=$'\033[31m'
     C_GREEN=$'\033[32m'
-    C_YELLOW=$'\033[33m'
     C_BLUE=$'\033[34m'
     C_DIM=$'\033[2m'
     C_BOLD=$'\033[1m'
 else
-    C_RESET="" C_RED="" C_GREEN="" C_YELLOW="" C_BLUE="" C_DIM="" C_BOLD=""
+    C_RESET="" C_RED="" C_GREEN="" C_BLUE="" C_DIM="" C_BOLD=""
 fi
 
 # ---- Section / step state ------------------------------------------------
 
 __SECTION_ID=""
+__SECTION_PID=""
 __STEP=""
 __START_TIME=$(date +%s)
 
@@ -87,15 +82,14 @@ __STEPS_FILE="${TMPDIR:-/tmp}/apcdeploy-e2e-steps.$$"
 : > "$__STEPS_FILE"
 __SECTIONS_FILE="${TMPDIR:-/tmp}/apcdeploy-e2e-sections.$$"
 : > "$__SECTIONS_FILE"
-# One line per skip: `step` or `section` (see skip_step / skip_section).
-__SKIPS_FILE="${TMPDIR:-/tmp}/apcdeploy-e2e-skips.$$"
-: > "$__SKIPS_FILE"
-export __STEPS_FILE __SECTIONS_FILE __SKIPS_FILE
+export __STEPS_FILE __SECTIONS_FILE
 
 # Print the canonical section header. Closes the previous step (if any).
 section() {
     __finalize_step ok
     __SECTION_ID="$1"
+    # The shell running the case file; see __on_err.
+    __SECTION_PID=$BASHPID
     local title="$2"
     echo 1 >> "$__SECTIONS_FILE"
     local rule="══════════════════════════════════════════════════════════════"
@@ -111,25 +105,9 @@ section() {
 step() {
     __finalize_step ok
     __STEP="$1"
-}
-
-# Close the current step as skipped instead of ✓.
-skip_step() {
-    local reason="$1"
-    [[ -z "$__STEP" ]] && return 0
-    printf '  %s→ %s (skipped: %s)%s\n' "$C_DIM" "$__STEP" "$reason" "$C_RESET" >&2
-    echo step >> "$__SKIPS_FILE"
-    __STEP=""
-}
-
-# Mark the whole current section as skipped. The case file must `return`
-# right after calling this, e.g.:
-#   if e2e_is_local; then skip_section "reason"; return 0; fi
-skip_section() {
-    local reason="$1"
-    __finalize_step ok
-    printf '  %s→ section skipped: %s%s\n' "$C_DIM" "$reason" "$C_RESET" >&2
-    echo section >> "$__SKIPS_FILE"
+    # Start each step with an empty capture so a failure never shows
+    # stderr left over from an earlier step.
+    : > "$__STDERR_FILE"
 }
 
 __finalize_step() {
@@ -156,19 +134,26 @@ fail() {
 }
 
 # ERR trap: print the current step as failed with file:line context.
+# With `set -E` the trap fires in every nested shell on the way out: inside
+# `$(...)` or `( ... )`, at the case-file line that ran it, and in the
+# runner. Only the shell running the case file reports, so a failed command
+# is printed once. The location is the case-file line for a failure inside
+# `$(...)` or `( ... )`; for a direct helper call such as `apc_quiet run`,
+# the trap fires first inside the helper, so the location is in lib/.
+# `fail` reports by itself and does not go through this trap; called inside
+# `$(...)` or `( ... )`, its step is reported a second time from here.
 __on_err() {
     local rc=$?
     local lineno="$1"
     local source="$2"
-    if [[ -n "$__STEP" ]]; then
-        printf '  %s✗%s %s\n' "$C_RED" "$C_RESET" "$__STEP" >&2
-        printf '    %sat %s:%s (exit %d)%s\n' \
-            "$C_DIM" "${source#"$E2E_ROOT/"}" "$lineno" "$rc" "$C_RESET" >&2
-        # Mark already-reported so the subshell's EXIT trap doesn't
-        # re-finalize this step as ✓ (and double-count it in __STEPS_FILE).
-        __STEP=""
-    fi
-    if [[ -n "${__STDERR_FILE:-}" && -s "$__STDERR_FILE" ]]; then
+    [[ "$BASHPID" == "${__SECTION_PID:-}" && -n "$__STEP" ]] || return 0
+    printf '  %s✗%s %s\n' "$C_RED" "$C_RESET" "$__STEP" >&2
+    printf '    %sat %s:%s (exit %d)%s\n' \
+        "$C_DIM" "${source#"$E2E_ROOT/"}" "$lineno" "$rc" "$C_RESET" >&2
+    # Mark already-reported so the subshell's EXIT trap doesn't
+    # re-finalize this step as ✓ (and double-count it in __STEPS_FILE).
+    __STEP=""
+    if [[ -s "$__STDERR_FILE" ]]; then
         printf '    %s---- last stderr ----%s\n' "$C_DIM" "$C_RESET" >&2
         tail -n 10 "$__STDERR_FILE" | sed 's/^/    /' >&2
     fi
@@ -187,37 +172,21 @@ __on_exit() {
         if [[ -f "$__SECTIONS_FILE" ]]; then
             total_sections=$(wc -l < "$__SECTIONS_FILE" | tr -d ' ')
         fi
-        # grep -c exits 1 on zero matches; the count is still printed.
-        local skipped_steps=0 skipped_sections=0
-        if [[ -s "$__SKIPS_FILE" ]]; then
-            skipped_steps=$(grep -cx step "$__SKIPS_FILE" || true)
-            skipped_sections=$(grep -cx section "$__SKIPS_FILE" || true)
-        fi
-        # Skipped sections still call section(), so they are part of
-        # total_sections; skipped steps never reach __STEPS_FILE.
-        local sections_note="" steps_note=""
-        if (( skipped_sections > 0 )); then
-            sections_note=" (${skipped_sections} skipped)"
-        fi
-        if (( skipped_steps > 0 )); then
-            steps_note=" (${skipped_steps} skipped)"
-        fi
         local elapsed=$(( $(date +%s) - __START_TIME ))
         local mins=$((elapsed / 60))
         local secs=$((elapsed % 60))
         local rule="──────────────────────────────────────────────────────────────"
         {
             printf '\n%s%s%s\n' "$C_DIM" "$rule" "$C_RESET"
-            printf ' %s✓%s %d sections%s, %d steps passed%s (%dm %ds)\n' \
-                "$C_GREEN" "$C_RESET" "$total_sections" "$sections_note" \
-                "$total_steps" "$steps_note" "$mins" "$secs"
+            printf ' %s✓%s %d sections, %d steps passed (%dm %ds)\n' \
+                "$C_GREEN" "$C_RESET" "$total_sections" \
+                "$total_steps" "$mins" "$secs"
             printf '%s%s%s\n' "$C_DIM" "$rule" "$C_RESET"
         } >&2
     fi
     [[ -n "${__STDERR_FILE:-}" ]] && rm -f "$__STDERR_FILE"
     [[ -n "${__STEPS_FILE:-}" ]] && rm -f "$__STEPS_FILE"
     [[ -n "${__SECTIONS_FILE:-}" ]] && rm -f "$__SECTIONS_FILE"
-    [[ -n "${__SKIPS_FILE:-}" ]] && rm -f "$__SKIPS_FILE"
     # Clean up per-section tempdirs registered by e2e-test.sh.
     # `${arr[@]:-default}` is not valid for arrays in bash; gate on
     # existence (`${TMPDIRS+x}`) before reading the length.
