@@ -4,11 +4,6 @@
 
 section "E3" "Constraints"
 
-if e2e_is_local; then
-    skip_section "MiniStack completes deployments instantly, so no deployment is ever in flight"
-    return 0
-fi
-
 # Track the slow background deploy so we can stop both the local process
 # and the AWS-side rollout if a later step short-circuits via set -e.
 __e3_bg_pid=""
