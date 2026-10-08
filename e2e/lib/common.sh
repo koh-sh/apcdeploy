@@ -19,7 +19,7 @@ export E2E_ROOT APCDEPLOY_BIN FAKE_EDITOR APP REGION STRATEGY SLOW_STRATEGY
 
 # `aws` (default) runs against real AWS resources provisioned by Terraform.
 # `local` runs against the MiniStack emulator started by `mise run
-# e2e-local-up`; scenarios the emulator cannot reproduce are skipped.
+# e2e-local-up`.
 E2E_TARGET="${E2E_TARGET:-aws}"
 case "$E2E_TARGET" in
     aws) ;;
@@ -43,23 +43,17 @@ case "$E2E_TARGET" in
 esac
 export E2E_TARGET
 
-e2e_is_local() {
-    [[ "$E2E_TARGET" == "local" ]]
-}
-
 # ---- Color (NO_COLOR + TTY aware) ----------------------------------------
 
-# shellcheck disable=SC2034  # palette intentionally complete; C_YELLOW reserved for future Warn-equivalent output
 if [[ -t 2 ]] && [[ -z "${NO_COLOR:-}" ]]; then
     C_RESET=$'\033[0m'
     C_RED=$'\033[31m'
     C_GREEN=$'\033[32m'
-    C_YELLOW=$'\033[33m'
     C_BLUE=$'\033[34m'
     C_DIM=$'\033[2m'
     C_BOLD=$'\033[1m'
 else
-    C_RESET="" C_RED="" C_GREEN="" C_YELLOW="" C_BLUE="" C_DIM="" C_BOLD=""
+    C_RESET="" C_RED="" C_GREEN="" C_BLUE="" C_DIM="" C_BOLD=""
 fi
 
 # ---- Section / step state ------------------------------------------------
@@ -87,10 +81,7 @@ __STEPS_FILE="${TMPDIR:-/tmp}/apcdeploy-e2e-steps.$$"
 : > "$__STEPS_FILE"
 __SECTIONS_FILE="${TMPDIR:-/tmp}/apcdeploy-e2e-sections.$$"
 : > "$__SECTIONS_FILE"
-# One line per skip: `step` or `section` (see skip_step / skip_section).
-__SKIPS_FILE="${TMPDIR:-/tmp}/apcdeploy-e2e-skips.$$"
-: > "$__SKIPS_FILE"
-export __STEPS_FILE __SECTIONS_FILE __SKIPS_FILE
+export __STEPS_FILE __SECTIONS_FILE
 
 # Print the canonical section header. Closes the previous step (if any).
 section() {
@@ -114,25 +105,6 @@ step() {
     # Start each step with an empty capture so a failure never shows
     # stderr left over from an earlier step.
     : > "$__STDERR_FILE"
-}
-
-# Close the current step as skipped instead of ✓.
-skip_step() {
-    local reason="$1"
-    [[ -z "$__STEP" ]] && return 0
-    printf '  %s→ %s (skipped: %s)%s\n' "$C_DIM" "$__STEP" "$reason" "$C_RESET" >&2
-    echo step >> "$__SKIPS_FILE"
-    __STEP=""
-}
-
-# Mark the whole current section as skipped. The case file must `return`
-# right after calling this, e.g.:
-#   if e2e_is_local; then skip_section "reason"; return 0; fi
-skip_section() {
-    local reason="$1"
-    __finalize_step ok
-    printf '  %s→ section skipped: %s%s\n' "$C_DIM" "$reason" "$C_RESET" >&2
-    echo section >> "$__SKIPS_FILE"
 }
 
 __finalize_step() {
@@ -192,37 +164,21 @@ __on_exit() {
         if [[ -f "$__SECTIONS_FILE" ]]; then
             total_sections=$(wc -l < "$__SECTIONS_FILE" | tr -d ' ')
         fi
-        # grep -c exits 1 on zero matches; the count is still printed.
-        local skipped_steps=0 skipped_sections=0
-        if [[ -s "$__SKIPS_FILE" ]]; then
-            skipped_steps=$(grep -cx step "$__SKIPS_FILE" || true)
-            skipped_sections=$(grep -cx section "$__SKIPS_FILE" || true)
-        fi
-        # Skipped sections still call section(), so they are part of
-        # total_sections; skipped steps never reach __STEPS_FILE.
-        local sections_note="" steps_note=""
-        if (( skipped_sections > 0 )); then
-            sections_note=" (${skipped_sections} skipped)"
-        fi
-        if (( skipped_steps > 0 )); then
-            steps_note=" (${skipped_steps} skipped)"
-        fi
         local elapsed=$(( $(date +%s) - __START_TIME ))
         local mins=$((elapsed / 60))
         local secs=$((elapsed % 60))
         local rule="──────────────────────────────────────────────────────────────"
         {
             printf '\n%s%s%s\n' "$C_DIM" "$rule" "$C_RESET"
-            printf ' %s✓%s %d sections%s, %d steps passed%s (%dm %ds)\n' \
-                "$C_GREEN" "$C_RESET" "$total_sections" "$sections_note" \
-                "$total_steps" "$steps_note" "$mins" "$secs"
+            printf ' %s✓%s %d sections, %d steps passed (%dm %ds)\n' \
+                "$C_GREEN" "$C_RESET" "$total_sections" \
+                "$total_steps" "$mins" "$secs"
             printf '%s%s%s\n' "$C_DIM" "$rule" "$C_RESET"
         } >&2
     fi
     [[ -n "${__STDERR_FILE:-}" ]] && rm -f "$__STDERR_FILE"
     [[ -n "${__STEPS_FILE:-}" ]] && rm -f "$__STEPS_FILE"
     [[ -n "${__SECTIONS_FILE:-}" ]] && rm -f "$__SECTIONS_FILE"
-    [[ -n "${__SKIPS_FILE:-}" ]] && rm -f "$__SKIPS_FILE"
     # Clean up per-section tempdirs registered by e2e-test.sh.
     # `${arr[@]:-default}` is not valid for arrays in bash; gate on
     # existence (`${TMPDIRS+x}`) before reading the length.
