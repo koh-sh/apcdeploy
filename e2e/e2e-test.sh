@@ -28,8 +28,9 @@ source "$E2E_DIR/lib/assert.sh"
 # shellcheck source=lib/apc.sh
 source "$E2E_DIR/lib/apc.sh"
 
-# Section registry — order is significant (AWS state coupling).
-# S3 must run before S7 / E3 perturb json-freeform/{dev,staging}.
+# Section registry, run in this order. Sections share AWS profiles and
+# environments, so reordering changes the state each one starts from
+# (e.g. E5 relies on error-test/staging never having been deployed).
 # Format: <ID>:<case-file-relative-to-cases/>
 SECTIONS=(
     "S1:s1_workflow.sh"

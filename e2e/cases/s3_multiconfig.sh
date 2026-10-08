@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # S3: Multi-config orchestration — `-c` repeated (and quoted globs) for run/diff/pull.
-# Must run before any later section perturbs json-freeform/{dev,staging}.
 
 section "S3" "Multi-config"
 

@@ -1,11 +1,2 @@
-# Ignore apcdeploy binary
+# Binary built by e2e-test.sh (sections run in their own tempdirs)
 apcdeploy
-
-# Ignore test configuration and data files
-apcdeploy.yml
-*.json
-*.yaml
-*.txt
-
-# Keep .gitignore itself
-!.gitignore
