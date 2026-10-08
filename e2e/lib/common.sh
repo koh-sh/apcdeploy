@@ -59,6 +59,7 @@ fi
 # ---- Section / step state ------------------------------------------------
 
 __SECTION_ID=""
+__SECTION_PID=""
 __STEP=""
 __START_TIME=$(date +%s)
 
@@ -87,6 +88,8 @@ export __STEPS_FILE __SECTIONS_FILE
 section() {
     __finalize_step ok
     __SECTION_ID="$1"
+    # The shell running the case file; see __on_err.
+    __SECTION_PID=$BASHPID
     local title="$2"
     echo 1 >> "$__SECTIONS_FILE"
     local rule="══════════════════════════════════════════════════════════════"
@@ -131,14 +134,15 @@ fail() {
 }
 
 # ERR trap: print the current step as failed with file:line context.
-# With `set -E` the trap also fires in the runner when a section subshell
-# exits non-zero; __STEP is empty there (the subshell already reported, or
-# `fail` did), so nothing is printed twice.
+# With `set -E` the trap fires in every nested shell on the way out: inside
+# `$(...)` or `( ... )`, at the case-file line that ran it, and in the
+# runner. Only the shell running the case file reports, so a failure is
+# printed once and points at the case-file line.
 __on_err() {
     local rc=$?
     local lineno="$1"
     local source="$2"
-    [[ -z "$__STEP" ]] && return 0
+    [[ "$BASHPID" == "${__SECTION_PID:-}" && -n "$__STEP" ]] || return 0
     printf '  %s✗%s %s\n' "$C_RED" "$C_RESET" "$__STEP" >&2
     printf '    %sat %s:%s (exit %d)%s\n' \
         "$C_DIM" "${source#"$E2E_ROOT/"}" "$lineno" "$rc" "$C_RESET" >&2
