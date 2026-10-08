@@ -111,6 +111,9 @@ section() {
 step() {
     __finalize_step ok
     __STEP="$1"
+    # Start each step with an empty capture so a failure never shows
+    # stderr left over from an earlier step.
+    : > "$__STDERR_FILE"
 }
 
 # Close the current step as skipped instead of ✓.
@@ -156,19 +159,21 @@ fail() {
 }
 
 # ERR trap: print the current step as failed with file:line context.
+# With `set -E` the trap also fires in the runner when a section subshell
+# exits non-zero; __STEP is empty there (the subshell already reported, or
+# `fail` did), so nothing is printed twice.
 __on_err() {
     local rc=$?
     local lineno="$1"
     local source="$2"
-    if [[ -n "$__STEP" ]]; then
-        printf '  %s✗%s %s\n' "$C_RED" "$C_RESET" "$__STEP" >&2
-        printf '    %sat %s:%s (exit %d)%s\n' \
-            "$C_DIM" "${source#"$E2E_ROOT/"}" "$lineno" "$rc" "$C_RESET" >&2
-        # Mark already-reported so the subshell's EXIT trap doesn't
-        # re-finalize this step as ✓ (and double-count it in __STEPS_FILE).
-        __STEP=""
-    fi
-    if [[ -n "${__STDERR_FILE:-}" && -s "$__STDERR_FILE" ]]; then
+    [[ -z "$__STEP" ]] && return 0
+    printf '  %s✗%s %s\n' "$C_RED" "$C_RESET" "$__STEP" >&2
+    printf '    %sat %s:%s (exit %d)%s\n' \
+        "$C_DIM" "${source#"$E2E_ROOT/"}" "$lineno" "$rc" "$C_RESET" >&2
+    # Mark already-reported so the subshell's EXIT trap doesn't
+    # re-finalize this step as ✓ (and double-count it in __STEPS_FILE).
+    __STEP=""
+    if [[ -s "$__STDERR_FILE" ]]; then
         printf '    %s---- last stderr ----%s\n' "$C_DIM" "$C_RESET" >&2
         tail -n 10 "$__STDERR_FILE" | sed 's/^/    /' >&2
     fi
