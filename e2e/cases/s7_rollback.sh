@@ -3,11 +3,6 @@
 
 section "S7" "Rollback"
 
-if e2e_is_local; then
-    skip_section "MiniStack completes deployments instantly, so there is no ongoing deployment to roll back"
-    return 0
-fi
-
 step "start slow deploy on json-freeform/dev"
 apc_init json-freeform dev
 apc_use_strategy "$SLOW_STRATEGY"
