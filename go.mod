@@ -8,7 +8,7 @@ require (
 	charm.land/lipgloss/v2 v2.0.5
 	github.com/aws/aws-sdk-go-v2 v1.47.1
 	github.com/aws/aws-sdk-go-v2/config v1.33.6
-	github.com/aws/aws-sdk-go-v2/service/account v1.41.1
+	github.com/aws/aws-sdk-go-v2/service/account v1.42.0
 	github.com/aws/aws-sdk-go-v2/service/appconfig v1.54.1
 	github.com/aws/aws-sdk-go-v2/service/appconfigdata v1.32.1
 	github.com/aws/smithy-go v1.28.1
