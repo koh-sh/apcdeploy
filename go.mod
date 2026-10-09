@@ -11,7 +11,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/account v1.41.1
 	github.com/aws/aws-sdk-go-v2/service/appconfig v1.54.1
 	github.com/aws/aws-sdk-go-v2/service/appconfigdata v1.32.1
-	github.com/aws/smithy-go v1.28.1
+	github.com/aws/smithy-go v1.28.2
 	github.com/goccy/go-yaml v1.19.2
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
 	github.com/sergi/go-diff v1.4.0
