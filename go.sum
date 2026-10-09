@@ -24,8 +24,8 @@ github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.4 h1:dD4MR81I7YkpEBRk6UP
 github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.4/go.mod h1:EcXV1kAFd5XwSkDHlj94gnF3q5CkJyYiIJfH8N0VmrE=
 github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.4 h1:7Wo47d/xn/7KttCSBd8EGYeZ7ULRFRkUHr6vkZPBzVQ=
 github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.4/go.mod h1:tDB2IVC1xC3vX8o+6uRlzhTxP3g1b77CZXFX/oD2FnQ=
-github.com/aws/aws-sdk-go-v2/service/account v1.41.1 h1:kYC4XckVQVmDhUDcVnyumk3joHXmBXrqGMN4H6Qd+A0=
-github.com/aws/aws-sdk-go-v2/service/account v1.41.1/go.mod h1:y74jb4fF60jYHm8TA/r118NGbLD3pZczQTadwbSzCn4=
+github.com/aws/aws-sdk-go-v2/service/account v1.42.0 h1:DZe8KnIcZYckBvBH1BIO3zs3/h2kkZLJxEqhAMSvAQk=
+github.com/aws/aws-sdk-go-v2/service/account v1.42.0/go.mod h1:y74jb4fF60jYHm8TA/r118NGbLD3pZczQTadwbSzCn4=
 github.com/aws/aws-sdk-go-v2/service/appconfig v1.54.1 h1:Lu3Do7CMA1GfLlYoZ0EOSX0fPHKlG2qkxHUfqp0moWA=
 github.com/aws/aws-sdk-go-v2/service/appconfig v1.54.1/go.mod h1:EqKxrEOF2RNY3WR11bXFlF6yJqDsW9eboz7A840tC5E=
 github.com/aws/aws-sdk-go-v2/service/appconfigdata v1.32.1 h1:bMcD9wlFVGZaFjVwNccFx5drf+pKYX4VoBdotoB812M=
