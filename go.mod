@@ -1,6 +1,6 @@
 module github.com/koh-sh/apcdeploy
 
-go 1.26.2
+go 1.27.3
 
 require (
 	charm.land/bubbles/v2 v2.1.1
