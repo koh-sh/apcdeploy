@@ -124,8 +124,7 @@ func TestValidateConfigData(t *testing.T) {
 	t.Run("schema violation is SchemaValidationError", func(t *testing.T) {
 		t.Parallel()
 		err := ValidateConfigData([]byte(`{"port": 0}`), ProfileTypeFreeform, ContentTypeJSON, []byte(freeformSchema))
-		var sve *SchemaValidationError
-		if !errors.As(err, &sve) {
+		if _, ok := errors.AsType[*SchemaValidationError](err); !ok {
 			t.Fatalf("expected *SchemaValidationError, got %T: %v", err, err)
 		}
 	})

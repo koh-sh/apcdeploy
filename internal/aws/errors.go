@@ -24,14 +24,12 @@ func IsValidationError(err error) bool {
 	}
 
 	// Check for typed error
-	var badRequestErr *types.BadRequestException
-	if errors.As(err, &badRequestErr) {
+	if _, ok := errors.AsType[*types.BadRequestException](err); ok {
 		return true
 	}
 
 	// Check for generic API error
-	var apiErr smithy.APIError
-	if errors.As(err, &apiErr) {
+	if apiErr, ok := errors.AsType[smithy.APIError](err); ok {
 		return apiErr.ErrorCode() == "BadRequestException"
 	}
 
@@ -45,8 +43,7 @@ func FormatValidationError(err error) string {
 	sb.WriteString("Configuration validation failed:\n\n")
 
 	// Extract detailed error message
-	var badRequestErr *types.BadRequestException
-	if errors.As(err, &badRequestErr) {
+	if badRequestErr, ok := errors.AsType[*types.BadRequestException](err); ok {
 		if badRequestErr.Message != nil {
 			fmt.Fprintf(&sb, "  %s\n", *badRequestErr.Message)
 		}

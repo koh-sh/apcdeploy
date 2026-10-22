@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"time"
@@ -129,8 +130,7 @@ func rolledBackError(eventLog []types.DeploymentEvent) error {
 // from a deployment event log, or "" if none is present.
 func ExtractRollbackReason(eventLog []types.DeploymentEvent) string {
 	// Look for rollback events in reverse order (most recent first)
-	for i := len(eventLog) - 1; i >= 0; i-- {
-		event := eventLog[i]
+	for _, event := range slices.Backward(eventLog) {
 		// Check for rollback-related events
 		if event.EventType == types.DeploymentEventTypeRollbackStarted ||
 			event.EventType == types.DeploymentEventTypeRollbackCompleted {
