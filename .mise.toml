@@ -3,13 +3,13 @@ minimum_release_age = "3d"
 
 [tools]
 go = "1.27.3"
-terraform = "1.14.8"
+terraform = "1.16.6"
 "github:golangci/golangci-lint" = "2.15.0"
 "github:mfridman/tparse" = "0.18.0"
-"github:mvdan/gofumpt" = "0.9.2"
-"github:k1LoW/octocov" = "0.75.4"
-"github:goreleaser/goreleaser" = "2.14.3"
-"github:charmbracelet/vhs" = "0.11.0"
+"github:mvdan/gofumpt" = "0.12.0"
+"github:k1LoW/octocov" = "0.83.3"
+"github:goreleaser/goreleaser" = "2.18.3"
+"github:charmbracelet/vhs" = "0.12.1"
 
 [tasks.test]
 description = "Run all tests with tparse"
