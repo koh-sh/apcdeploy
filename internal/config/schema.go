@@ -78,8 +78,7 @@ func validateAgainstJSONSchema(data, schemaJSON []byte, forceDraft *jsonschema.D
 	}
 
 	if err := sch.Validate(instanceDoc); err != nil {
-		var ve *jsonschema.ValidationError
-		if errors.As(err, &ve) {
+		if ve, ok := errors.AsType[*jsonschema.ValidationError](err); ok {
 			return &SchemaValidationError{Issues: collectSchemaIssues(ve, locationPrefix)}
 		}
 		return err
