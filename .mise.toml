@@ -8,7 +8,7 @@ terraform = "1.16.6"
 "github:mfridman/tparse" = "0.18.0"
 "github:mvdan/gofumpt" = "0.12.0"
 "github:k1LoW/octocov" = "0.83.3"
-"github:goreleaser/goreleaser" = "2.18.3"
+"github:goreleaser/goreleaser" = "2.20.2"
 "github:charmbracelet/vhs" = "0.12.1"
 
 [tasks.test]
