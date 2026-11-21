@@ -262,6 +262,21 @@ func (w *workflow) deployEdited(ctx context.Context, t *resolvedTargets, deploye
 		return ongoingErr
 	}
 
+	// A deployment that started and finished (or was reverted) during the
+	// editing session is not caught above. Deploying the edit would then
+	// silently replace the configuration in effect with one based on older
+	// content (lost update).
+	latest, err := awsInternal.GetLatestDeployment(ctx, w.awsClient, t.AppID, t.EnvID, t.Profile.ID)
+	if err != nil {
+		tg.Fail(id, err)
+		return fmt.Errorf("failed to re-check the latest deployment: %w", err)
+	}
+	if latest == nil || latest.DeploymentNumber != deployed.DeploymentNumber {
+		staleErr := fmt.Errorf("deployed configuration changed while editing (edit started from deployment #%d); run 'apcdeploy edit' again to start from the current one", deployed.DeploymentNumber)
+		tg.Fail(id, staleErr)
+		return staleErr
+	}
+
 	tg.SetPhase(id, "creating-version", "")
 	versionNumber, err := w.awsClient.CreateHostedConfigurationVersion(ctx, t.AppID, t.Profile.ID, edited, deployed.ContentType, opts.Description)
 	if err != nil {

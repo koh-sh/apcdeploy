@@ -39,12 +39,41 @@ func GenerateConfigFile(app, profile, env, dataFile, region, deploymentStrategy,
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
+	// The names come from AWS and may contain characters (e.g. a lone CR)
+	// that the encoder writes in a form the decoder reads differently, which
+	// would let a remote name inject keys such as data_file. Refuse to write
+	// anything that does not read back exactly as given.
+	if decoded, err := decodeConfig(data); err != nil || decoded != cfg {
+		return fmt.Errorf("%s contains characters that cannot be written to apcdeploy.yml safely", unsafeConfigField(cfg))
+	}
+
 	// Write to file
 	if err := os.WriteFile(outputPath, data, 0o644); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
 	return nil
+}
+
+// unsafeConfigField returns the YAML key of the first field whose value does
+// not survive a YAML round trip on its own, so the GenerateConfigFile error
+// can name it.
+func unsafeConfigField(cfg Config) string {
+	for _, f := range []struct{ key, value string }{
+		{"application", cfg.Application},
+		{"configuration_profile", cfg.ConfigurationProfile},
+		{"environment", cfg.Environment},
+		{"deployment_strategy", cfg.DeploymentStrategy},
+		{"data_file", cfg.DataFile},
+		{"region", cfg.Region},
+	} {
+		data, err := yaml.Marshal(map[string]string{f.key: f.value})
+		var back map[string]string
+		if err != nil || yaml.Unmarshal(data, &back) != nil || back[f.key] != f.value {
+			return f.key
+		}
+	}
+	return "a resource name"
 }
 
 // DetermineDataFileName determines the appropriate data file name based on content type
@@ -102,8 +131,10 @@ func WriteDataFile(content []byte, contentType, outputPath, profileType string, 
 		dataToWrite = content
 	}
 
-	// Write to file
-	if err := os.WriteFile(outputPath, dataToWrite, 0o644); err != nil {
+	// A new file is created 0600 because the content comes from AWS and may
+	// hold secrets; an existing file (or a symlink's target) keeps its mode,
+	// and a read-only one is not overwritten.
+	if err := os.WriteFile(outputPath, dataToWrite, 0o600); err != nil {
 		return fmt.Errorf("failed to write data file: %w", err)
 	}
 

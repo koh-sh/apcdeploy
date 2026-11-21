@@ -41,6 +41,21 @@ func TestNewClient(t *testing.T) {
 			region:  "",
 			wantErr: false,
 		},
+		{
+			name:        "region that is not a single host label is rejected",
+			region:      "s3.amazonaws.com",
+			wantErr:     true,
+			errContains: "invalid region",
+		},
+		{
+			name:   "invalid region from the environment is rejected",
+			region: "",
+			setupEnv: map[string]string{
+				"AWS_REGION": "evil.example.com",
+			},
+			wantErr:     true,
+			errContains: "invalid region",
+		},
 	}
 
 	for _, tt := range tests {

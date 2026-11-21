@@ -80,3 +80,17 @@ func TestRunRollback_RejectsMultipleConfigs(t *testing.T) {
 		t.Errorf("err = %q, want substring 'rollback does not support multiple -c flags'", err.Error())
 	}
 }
+
+func TestRunRollback_RejectsNonPositiveDeployment(t *testing.T) {
+	for _, value := range []string{"0", "-3"} {
+		t.Run(value, func(t *testing.T) {
+			cmd := newRollbackCmd()
+			require.NoError(t, cmd.ParseFlags([]string{"--deployment", value}))
+			t.Cleanup(func() { rollbackDeployment = 0 })
+
+			err := runRollback(cmd, nil)
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "--deployment must be a positive deployment number")
+		})
+	}
+}

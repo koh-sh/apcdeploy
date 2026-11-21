@@ -6,6 +6,12 @@ const (
 	// MaxConfigSize is the maximum size for configuration data (2MB)
 	MaxConfigSize = 2 * 1024 * 1024
 
+	// MaxNormalizedYAMLSize caps the approximate size of a YAML document once
+	// its aliases are expanded. Normalization re-marshals the decoded value,
+	// so a few hundred bytes of nested aliases would otherwise expand to
+	// gigabytes. Legitimate anchors stay far below this.
+	MaxNormalizedYAMLSize = 4 * MaxConfigSize
+
 	// Profile types
 	// ProfileTypeFeatureFlags represents AWS AppConfig FeatureFlags profile type
 	ProfileTypeFeatureFlags = "AWS.AppConfig.FeatureFlags"

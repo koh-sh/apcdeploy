@@ -1,13 +1,18 @@
 package cmd
 
 import (
+	"errors"
+
 	"github.com/koh-sh/apcdeploy/internal/cli"
 	"github.com/koh-sh/apcdeploy/internal/prompt"
 	"github.com/koh-sh/apcdeploy/internal/rollback"
 	"github.com/spf13/cobra"
 )
 
-var rollbackSkipConfirmation bool
+var (
+	rollbackSkipConfirmation bool
+	rollbackDeployment       int32
+)
 
 // RollbackCommand returns the rollback command
 func RollbackCommand() *cobra.Command {
@@ -24,12 +29,17 @@ This command stops an in-progress deployment by calling the AWS AppConfig StopDe
 It automatically finds the current ongoing deployment in the environment and stops it,
 but only if that deployment belongs to the configuration profile in the config file.
 A deployment of another profile is refused (even with --yes); re-run with a config
-targeting that profile instead.`,
+targeting that profile instead.
+
+Pass --deployment N to stop only deployment #N: if a different deployment is in
+flight, nothing is stopped. Use it with --yes so the deployment checked with
+'apcdeploy status' is the one stopped.`,
 		RunE:         runRollback,
 		SilenceUsage: true, // Don't show usage on runtime errors
 	}
 
 	cmd.Flags().BoolVarP(&rollbackSkipConfirmation, "yes", "y", false, "Skip confirmation prompt")
+	cmd.Flags().Int32Var(&rollbackDeployment, "deployment", 0, "Only stop this deployment number; refuse if another deployment is in flight")
 
 	return cmd
 }
@@ -41,11 +51,15 @@ func runRollback(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	if cmd.Flags().Changed("deployment") && rollbackDeployment <= 0 {
+		return errors.New("--deployment must be a positive deployment number")
+	}
 
 	// Create options
 	opts := &rollback.Options{
-		ConfigFile:       cfgFile,
-		SkipConfirmation: rollbackSkipConfirmation,
+		ConfigFile:         cfgFile,
+		SkipConfirmation:   rollbackSkipConfirmation,
+		ExpectedDeployment: rollbackDeployment,
 	}
 
 	// Create reporter and prompter

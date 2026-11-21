@@ -3,6 +3,7 @@ package batch
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/koh-sh/apcdeploy/internal/config"
@@ -12,6 +13,10 @@ import (
 // the same `region/app/profile/env` 4-tuple. It is exposed as a sentinel so
 // command-layer code can react with a tailored exit message.
 var ErrDuplicateTarget = errors.New("duplicate target")
+
+// ErrSharedDataFile is returned by RequireDistinctDataFiles when two targets
+// resolve to the same data_file.
+var ErrSharedDataFile = errors.New("shared data_file")
 
 // LoadAll reads, parses, and validates every config path supplied on the
 // command line, returning one Target per *unique* path in argument order.
@@ -68,4 +73,32 @@ func LoadAll(paths []string) ([]*Target, error) {
 	}
 
 	return targets, nil
+}
+
+// RequireDistinctDataFiles rejects targets whose data_file resolves to the
+// same file. Sharing a data file is fine for commands that only read it, but
+// a command that writes it (pull) would run the writes concurrently and keep
+// whichever target finished last. Paths are compared after cleaning and, for
+// files that already exist, with os.SameFile, which also catches symlinked
+// directories and case-only differences on case-insensitive filesystems.
+func RequireDistinctDataFiles(targets []*Target) error {
+	type seen struct {
+		target *Target
+		path   string
+		info   os.FileInfo // nil when the file does not exist yet
+	}
+	var files []seen
+	for _, t := range targets {
+		cur := seen{target: t, path: filepath.Clean(t.Config.DataFile)}
+		if info, err := os.Stat(cur.path); err == nil {
+			cur.info = info
+		}
+		for _, prev := range files {
+			if prev.path == cur.path || (prev.info != nil && cur.info != nil && os.SameFile(prev.info, cur.info)) {
+				return fmt.Errorf("%w: %q and %q both write %s", ErrSharedDataFile, prev.target.Path, t.Path, cur.path)
+			}
+		}
+		files = append(files, cur)
+	}
+	return nil
 }

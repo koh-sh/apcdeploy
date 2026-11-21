@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"time"
+
+	"github.com/koh-sh/apcdeploy/internal/sanitize"
 )
 
 // plainTargets is the non-TTY Targets implementation. Without in-place
@@ -35,7 +37,8 @@ func newPlainTargets(r *Reporter, ids []string) *plainTargets {
 // SetPhase emits one `<id>: <phase> [<detail>]` line per genuine phase
 // transition. Repeating the same phase is silent.
 func (t *plainTargets) SetPhase(id, phase, detail string) {
-	clean := sanitizeIdentifier(id)
+	clean := sanitize.Line(id)
+	phase, detail = sanitize.Line(phase), sanitize.Line(detail)
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	row, ok := t.rows[clean]
@@ -60,7 +63,7 @@ func (t *plainTargets) SetPhase(id, phase, detail string) {
 // 25-step threshold. Calling SetProgress also pins the row's phase to
 // "deploying" (the only sub-phase that reports a real percent).
 func (t *plainTargets) SetProgress(id string, percent float64, _ time.Duration) {
-	clean := sanitizeIdentifier(id)
+	clean := sanitize.Line(id)
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	row, ok := t.rows[clean]
@@ -83,19 +86,20 @@ func (t *plainTargets) SetProgress(id string, percent float64, _ time.Duration) 
 
 // Done emits a single success line.
 func (t *plainTargets) Done(id, summary string) {
-	clean := sanitizeIdentifier(id)
+	clean := sanitize.Line(id)
+	summary = sanitize.Line(summary)
 	t.terminal(clean, rowDone, func() {
 		fmt.Fprintf(t.w, "%s: %s %s\n", clean, symSuccess, summary)
 	})
 }
 
-// Fail emits a single failure line. The error message is rendered raw; the
-// surrounding command is responsible for any Errors: section.
+// Fail emits a single failure line. The error message keeps its line breaks;
+// the surrounding command is responsible for any Errors: section.
 func (t *plainTargets) Fail(id string, err error) {
-	clean := sanitizeIdentifier(id)
+	clean := sanitize.Line(id)
 	msg := ""
 	if err != nil {
-		msg = err.Error()
+		msg = sanitize.Text(err.Error())
 	}
 	t.terminal(clean, rowFail, func() {
 		fmt.Fprintf(t.w, "%s: %s failed: %s\n", clean, symError, msg)
@@ -104,7 +108,8 @@ func (t *plainTargets) Fail(id string, err error) {
 
 // Skip emits a single skip line.
 func (t *plainTargets) Skip(id, reason string) {
-	clean := sanitizeIdentifier(id)
+	clean := sanitize.Line(id)
+	reason = sanitize.Line(reason)
 	t.terminal(clean, rowSkip, func() {
 		fmt.Fprintf(t.w, "%s: %s %s\n", clean, symSkip, reason)
 	})

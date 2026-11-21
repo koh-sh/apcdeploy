@@ -7,6 +7,7 @@ import (
 	"github.com/koh-sh/apcdeploy/internal/apcerrors"
 	"github.com/koh-sh/apcdeploy/internal/batch"
 	"github.com/koh-sh/apcdeploy/internal/cli"
+	"github.com/koh-sh/apcdeploy/internal/sanitize"
 )
 
 // summaryConfig describes how to render a batch.Summary line for one
@@ -60,8 +61,8 @@ func renderErrorsSection(summary batch.Summary, silent bool) {
 	_, _ = fmt.Fprintln(os.Stderr)
 	_, _ = fmt.Fprintln(os.Stderr, "Errors:")
 	for _, e := range summary.Errors {
-		_, _ = fmt.Fprintln(os.Stderr, "  "+e.Identifier)
-		_, _ = fmt.Fprintln(os.Stderr, "    "+e.Err.Error())
+		_, _ = fmt.Fprintln(os.Stderr, "  "+sanitize.Line(e.Identifier))
+		_, _ = fmt.Fprintln(os.Stderr, "    "+sanitize.Text(e.Err.Error()))
 		if hint := apcerrors.Resolution(e.Err); hint != "" {
 			_, _ = fmt.Fprintln(os.Stderr, "    Resolution: "+hint)
 		}

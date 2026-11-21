@@ -1,7 +1,9 @@
 package config
 
 import (
+	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -103,6 +105,9 @@ func TestNormalizeYAML(t *testing.T) {
 		content string
 		want    string
 		wantErr bool
+		// errOmits must not appear in the error: the content may be the
+		// remote deployed version, so parse errors carry no source excerpt.
+		errOmits string
 	}{
 		{
 			name:    "simple YAML normalization",
@@ -122,6 +127,41 @@ func TestNormalizeYAML(t *testing.T) {
 			want:    "",
 			wantErr: true,
 		},
+		{
+			name:    "empty document",
+			content: "",
+			want:    "null\n",
+			wantErr: false,
+		},
+		{
+			// Every document is kept: a second document used to be dropped,
+			// so differences in it were reported as "no changes".
+			name:    "multiple documents are all normalized",
+			content: "b: 2\na: 1\n---\nd: 4\nc: 3\n",
+			want:    "a: 1\nb: 2\n---\nc: 3\nd: 4\n",
+			wantErr: false,
+		},
+		{
+			// goccy/go-yaml decodes every mapping into map[string]any, so
+			// non-string keys come back as quoted strings.
+			name:    "non-string keys are stringified",
+			content: "2: b\n1: a\n",
+			want:    "\"1\": a\n\"2\": b\n",
+			wantErr: false,
+		},
+		{
+			name:    "alias expansion beyond the size limit is rejected",
+			content: yamlAliasBomb(9),
+			want:    "",
+			wantErr: true,
+		},
+		{
+			name:     "parse error omits the source",
+			content:  "a: 1\nb: [1, 2\nsecret: hunter2\n",
+			want:     "",
+			wantErr:  true,
+			errOmits: "hunter2",
+		},
 	}
 
 	for _, tt := range tests {
@@ -131,8 +171,66 @@ func TestNormalizeYAML(t *testing.T) {
 				t.Errorf("NormalizeYAML() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
+			if err != nil && tt.errOmits != "" && strings.Contains(err.Error(), tt.errOmits) {
+				t.Errorf("NormalizeYAML() error includes source content: %q", err.Error())
+			}
 			if got != tt.want {
 				t.Errorf("NormalizeYAML() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// yamlAliasBomb builds a "billion laughs" document: each level is a list of
+// nine aliases to the previous level, so a few hundred bytes expand to 9^levels
+// scalars once the aliases are resolved.
+func yamlAliasBomb(levels int) string {
+	var b strings.Builder
+	b.WriteString("a0: &a0 [x, x, x, x, x, x, x, x, x]\n")
+	for i := 1; i <= levels; i++ {
+		fmt.Fprintf(&b, "a%d: &a%d [", i, i)
+		for j := range 9 {
+			if j > 0 {
+				b.WriteString(", ")
+			}
+			fmt.Fprintf(&b, "*a%d", i-1)
+		}
+		b.WriteString("]\n")
+	}
+	return b.String()
+}
+
+func TestExpandedYAMLSizeExceeds(t *testing.T) {
+	t.Parallel()
+
+	ones := make([]any, 100)
+	for i := range ones {
+		ones[i] = uint64(1)
+	}
+	shared := []any{"xxxxxxxxxx"}
+	aliased := make([]any, 100)
+	for i := range aliased {
+		aliased[i] = shared // what an alias decodes to: the same value again
+	}
+
+	tests := []struct {
+		name  string
+		value any
+		limit int
+		want  bool
+	}{
+		// 100 one-digit items marshal to about 300 bytes; a flat per-scalar
+		// estimate used to reject large alias-free documents.
+		{name: "short scalars are estimated by their encoded length", value: ones, limit: 500, want: false},
+		{name: "booleans and nulls", value: []any{true, false, nil}, limit: 30, want: false},
+		{name: "aliases are counted once per reference", value: aliased, limit: 500, want: true},
+		{name: "map keys and values", value: map[string]any{"key": "value"}, limit: 5, want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := expandedYAMLSizeExceeds(tt.value, tt.limit); got != tt.want {
+				t.Errorf("expandedYAMLSizeExceeds() = %v, want %v", got, tt.want)
 			}
 		})
 	}

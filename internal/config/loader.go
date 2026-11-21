@@ -1,7 +1,10 @@
 package config
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -17,8 +20,8 @@ func LoadConfig(path string) (*Config, error) {
 	}
 
 	// Parse YAML
-	var config Config
-	if err := yaml.Unmarshal(data, &config); err != nil {
+	config, err := decodeConfig(data)
+	if err != nil {
 		return nil, fmt.Errorf("failed to parse YAML: %w", err)
 	}
 
@@ -38,6 +41,28 @@ func LoadConfig(path string) (*Config, error) {
 	config.DataFile = ResolveDataFilePath(absConfigPath, config.DataFile)
 
 	return &config, nil
+}
+
+// decodeConfig decodes an apcdeploy.yml body. Unknown keys and additional YAML
+// documents are rejected: yaml.Unmarshal silently decodes only the first
+// document and ignores unknown keys, so a typo (or keys smuggled into a later
+// document) would otherwise fall back to defaults without any notice.
+// GenerateConfigFile reuses it to verify that what it writes reads back
+// unchanged.
+func decodeConfig(data []byte) (Config, error) {
+	var config Config
+	dec := yaml.NewDecoder(bytes.NewReader(data), yaml.DisallowUnknownField())
+	if err := dec.Decode(&config); err != nil && !errors.Is(err, io.EOF) {
+		return Config{}, err
+	}
+	var extra any
+	if err := dec.Decode(&extra); !errors.Is(err, io.EOF) {
+		if err != nil {
+			return Config{}, err
+		}
+		return Config{}, errors.New("multiple YAML documents are not supported")
+	}
+	return config, nil
 }
 
 // ResolveDataFilePath resolves a data file path relative to the config file.

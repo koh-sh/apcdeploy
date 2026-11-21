@@ -18,6 +18,7 @@ func TestValidateData(t *testing.T) {
 		{name: "invalid json", data: []byte(`{`), contentType: ContentTypeJSON, wantErr: "invalid JSON syntax"},
 		{name: "valid yaml", data: []byte("a: 1"), contentType: ContentTypeYAML},
 		{name: "invalid yaml", data: []byte("a: :\n  b"), contentType: ContentTypeYAML, wantErr: "invalid YAML syntax"},
+		{name: "invalid second yaml document", data: []byte("a: 1\n---\nb: [1, 2\n"), contentType: ContentTypeYAML, wantErr: "invalid YAML syntax"},
 		{name: "text ok", data: []byte("hello"), contentType: ContentTypeText},
 		{name: "unsupported type", data: []byte("x"), contentType: "application/xml", wantErr: "unsupported content type"},
 		{

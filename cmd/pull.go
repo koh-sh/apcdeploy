@@ -54,6 +54,9 @@ func runPull(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to load configurations: %w", err)
 	}
+	if err := batch.RequireDistinctDataFiles(targets); err != nil {
+		return err
+	}
 
 	executor := pull.NewExecutor(rep)
 	o := &batch.Orchestrator{

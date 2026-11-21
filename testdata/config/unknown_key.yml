@@ -1,0 +1,6 @@
+application: TestApp
+configuration_profile: TestProfile
+environment: Production
+deployment_stratgy: AppConfig.Linear50PercentEvery30Seconds
+data_file: data.json
+region: us-east-1

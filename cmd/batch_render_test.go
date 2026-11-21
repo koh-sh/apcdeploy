@@ -118,6 +118,47 @@ func TestRenderBatchSummary_ErrorsSection(t *testing.T) {
 	}
 }
 
+func TestRenderErrorsSection_NeutralisesControlSequences(t *testing.T) {
+	tests := []struct {
+		name    string
+		failure batch.TargetError
+		raw     string // must not appear
+		escaped string // must appear instead
+	}{
+		{
+			name:    "identifier",
+			failure: batch.TargetError{Identifier: "us-east-1/\x1b[2Ja/b/c", Err: errors.New("boom")},
+			raw:     "\x1b[2J",
+			escaped: `us-east-1/\x1b[2Ja/b/c`,
+		},
+		{
+			name:    "error control sequence",
+			failure: batch.TargetError{Identifier: "us-east-1/a/b/c", Err: errors.New("boom\x1b[2K")},
+			raw:     "\x1b[2K",
+			escaped: `boom\x1b[2K`,
+		},
+		{
+			name:    "workflow command on an error line",
+			failure: batch.TargetError{Identifier: "us-east-1/a/b/c", Err: errors.New("boom\n::warning::injected")},
+			raw:     "\n::warning",
+			escaped: "\n\\x3a:warning::injected",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out := captureStderr(t, func() {
+				renderErrorsSection(batch.Summary{Failed: 1, Errors: []batch.TargetError{tt.failure}}, false)
+			})
+			if strings.Contains(out, tt.raw) {
+				t.Errorf("Errors: section contains raw %q; got %q", tt.raw, out)
+			}
+			if !strings.Contains(out, tt.escaped) {
+				t.Errorf("Errors: section missing escaped %q; got %q", tt.escaped, out)
+			}
+		})
+	}
+}
+
 func TestRenderErrorsSection_NoOpWhenEmpty(t *testing.T) {
 	out := captureStderr(t, func() {
 		renderErrorsSection(batch.Summary{OK: 3}, false)

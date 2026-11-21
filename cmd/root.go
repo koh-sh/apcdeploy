@@ -17,6 +17,7 @@ import (
 	"github.com/koh-sh/apcdeploy/internal/cli"
 	"github.com/koh-sh/apcdeploy/internal/reporter"
 	"github.com/koh-sh/apcdeploy/internal/rollback"
+	"github.com/koh-sh/apcdeploy/internal/sanitize"
 	"github.com/spf13/cobra"
 )
 
@@ -321,7 +322,8 @@ const defaultDescription = "Deployed by apcdeploy"
 // Empty values are allowed — the AWS wrappers omit the field entirely when
 // description is "".
 //
-// Control characters (other than tab/newline/carriage return) are rejected
+// Control characters (C0 other than tab/newline/carriage return, DEL and C1),
+// bidirectional formatting characters and invalid UTF-8 are rejected
 // up-front: the value flows into the AppConfig Description field, the
 // AppConfig console UI, and any downstream log scraper, where embedded
 // ANSI/control sequences would either corrupt the display or open a log
@@ -331,11 +333,14 @@ func validateDescription(s string) error {
 	if n > maxDescriptionLength {
 		return fmt.Errorf("--description exceeds maximum length of %d characters (got %d)", maxDescriptionLength, n)
 	}
+	if !utf8.ValidString(s) {
+		return errors.New("--description is not valid UTF-8")
+	}
 	for _, r := range s {
-		if r < 0x20 && r != '\t' && r != '\n' && r != '\r' {
-			return fmt.Errorf("--description contains invalid control character U+%04X", r)
+		if r == '\t' || r == '\n' || r == '\r' {
+			continue
 		}
-		if r == 0x7f {
+		if sanitize.IsUnsafeRune(r) {
 			return fmt.Errorf("--description contains invalid control character U+%04X", r)
 		}
 	}

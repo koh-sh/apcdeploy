@@ -69,6 +69,7 @@ func TestWriteDeploymentWarnings(t *testing.T) {
 
 	tests := []struct {
 		name     string
+		targets  []*batch.Target // defaults to the three targets above
 		warnings []string
 		want     string
 	}{
@@ -98,6 +99,16 @@ func TestWriteDeploymentWarnings(t *testing.T) {
 				"⚠ us-east-1/app/p/prod: Deployment #9 is currently BAKING\n" +
 				"The diff is calculated against the currently deploying version.\n",
 		},
+		{
+			// The notice bypasses the Reporter, so it neutralises control
+			// sequences itself.
+			name:     "control sequences are neutralised",
+			targets:  []*batch.Target{{Identifier: "us-east-1/\x1b[2Japp/p/dev"}},
+			warnings: []string{"Deployment #3 is currently BAKING\x1b[2K"},
+			want: "\n" +
+				"⚠ us-east-1/\\x1b[2Japp/p/dev: Deployment #3 is currently BAKING\\x1b[2K\n" +
+				"The diff is calculated against the currently deploying version.\n",
+		},
 	}
 
 	for _, tt := range tests {
@@ -107,7 +118,11 @@ func TestWriteDeploymentWarnings(t *testing.T) {
 			var sink bytes.Buffer
 			withWarningSink(t, &sink)
 
-			WriteDeploymentWarnings(targets, tt.warnings)
+			ts := targets
+			if tt.targets != nil {
+				ts = tt.targets
+			}
+			WriteDeploymentWarnings(ts, tt.warnings)
 
 			if got := sink.String(); got != tt.want {
 				t.Errorf("sink = %q, want %q", got, tt.want)

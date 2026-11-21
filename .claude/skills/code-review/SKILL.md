@@ -11,6 +11,8 @@ You are a Go language professional. Conduct a thorough code review of this proje
 
 CLAUDE.md in the repository root holds the authoritative architecture and project conventions; consult it for rules referenced below (Development Rules, AWS List API Usage, Testing Patterns, etc.).
 
+Use this skill only on code you trust. `allowed-tools` pre-approves `mise run test`, `mise run lint` and `go vet`, which run the checked-out code (tests, `TestMain`, package `init` functions) without a permission prompt, so do not invoke it on a checkout of an untrusted contributor's pull request; review such changes with read-only commands instead.
+
 ## Focus areas
 
 ### Code

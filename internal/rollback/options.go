@@ -4,4 +4,7 @@ package rollback
 type Options struct {
 	ConfigFile       string
 	SkipConfirmation bool
+	// ExpectedDeployment, when non-zero, is the only deployment number
+	// rollback may stop (--deployment). Zero stops whatever is in flight.
+	ExpectedDeployment int32
 }

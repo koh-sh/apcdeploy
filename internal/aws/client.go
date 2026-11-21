@@ -46,6 +46,13 @@ func NewClient(ctx context.Context, region string) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to load AWS config: %w", err)
 	}
+	// Covers --region flags and the SDK's own resolution (AWS_REGION, shared
+	// config); a yml region was already checked when it was loaded.
+	if cfg.Region != "" {
+		if err := config.ValidateRegion(cfg.Region); err != nil {
+			return nil, err
+		}
+	}
 
 	// Create AppConfig client
 	appconfigClient := appconfig.NewFromConfig(cfg)

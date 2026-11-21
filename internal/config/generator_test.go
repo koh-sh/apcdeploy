@@ -22,6 +22,7 @@ func TestGenerateConfigFile(t *testing.T) {
 		deploymentStrategy string
 		outputPath         string
 		wantErr            bool
+		wantErrContains    string
 		validateConfig     func(*testing.T, *Config)
 	}{
 		{
@@ -87,6 +88,33 @@ func TestGenerateConfigFile(t *testing.T) {
 				}
 			},
 		},
+		{
+			// A remote deployment strategy name with lone CRs is emitted by the
+			// YAML encoder in a form the decoder reads back as extra top-level
+			// keys and a second document, redirecting data_file.
+			name:               "reject strategy name that does not round-trip",
+			app:                "test-app",
+			profile:            "test-profile",
+			env:                "test-env",
+			dataFile:           "data.json",
+			region:             "us-east-1",
+			deploymentStrategy: "a\rdata_file:\n.git/config\rregion:\nus-east-1\n\r---",
+			outputPath:         filepath.Join(tempDir, "injected-strategy.yml"),
+			wantErr:            true,
+			wantErrContains:    "deployment_strategy",
+		},
+		{
+			name:               "reject environment name that does not round-trip",
+			app:                "test-app",
+			profile:            "test-profile",
+			env:                "e\rdata_file:\n.git/config\n\r---",
+			dataFile:           "data.json",
+			region:             "us-east-1",
+			deploymentStrategy: "",
+			outputPath:         filepath.Join(tempDir, "injected-env.yml"),
+			wantErr:            true,
+			wantErrContains:    "environment",
+		},
 	}
 
 	for _, tt := range tests {
@@ -97,6 +125,15 @@ func TestGenerateConfigFile(t *testing.T) {
 				t.Error("expected error but got none")
 			} else if !tt.wantErr && err != nil {
 				t.Errorf("unexpected error: %v", err)
+			}
+			if tt.wantErrContains != "" && (err == nil || !strings.Contains(err.Error(), tt.wantErrContains)) {
+				t.Errorf("error = %v, want it to name %q", err, tt.wantErrContains)
+			}
+
+			if tt.wantErr {
+				if _, err := os.Stat(tt.outputPath); !os.IsNotExist(err) {
+					t.Errorf("config file must not be written on error, stat err = %v", err)
+				}
 			}
 
 			if !tt.wantErr {
@@ -419,6 +456,125 @@ func TestWriteDataFileFeatureFlags(t *testing.T) {
 				tt.validate(t, tt.outputPath)
 			}
 		})
+	}
+}
+
+func TestWriteDataFilePermissionsAndTargets(t *testing.T) {
+	t.Parallel()
+
+	content := []byte("remote content\n")
+
+	tests := []struct {
+		name string
+		// setup prepares dir and returns the path to write to and the file
+		// whose content and mode are checked afterwards.
+		setup    func(t *testing.T, dir string) (writePath, checkPath string)
+		wantErr  bool
+		wantMode os.FileMode
+	}{
+		{
+			// The content comes from AWS and may hold secrets.
+			name: "new file is created private",
+			setup: func(t *testing.T, dir string) (string, string) {
+				p := filepath.Join(dir, "data.txt")
+				return p, p
+			},
+			wantMode: 0o600,
+		},
+		{
+			name: "existing file keeps its mode",
+			setup: func(t *testing.T, dir string) (string, string) {
+				p := filepath.Join(dir, "data.txt")
+				writeFixture(t, p, 0o640)
+				return p, p
+			},
+			wantMode: 0o640,
+		},
+		{
+			// A read-only data file protects it from being overwritten.
+			name: "read-only file is not overwritten",
+			setup: func(t *testing.T, dir string) (string, string) {
+				p := filepath.Join(dir, "data.txt")
+				writeFixture(t, p, 0o444)
+				return p, ""
+			},
+			wantErr: true,
+		},
+		{
+			name: "symlink is followed and kept",
+			setup: func(t *testing.T, dir string) (string, string) {
+				target := filepath.Join(dir, "real.txt")
+				writeFixture(t, target, 0o644)
+				return symlinkTo(t, dir, target), target
+			},
+			wantMode: 0o644,
+		},
+		{
+			name: "dangling symlink creates its target",
+			setup: func(t *testing.T, dir string) (string, string) {
+				target := filepath.Join(dir, "real.txt")
+				return symlinkTo(t, dir, target), target
+			},
+			wantMode: 0o600,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			writePath, checkPath := tt.setup(t, dir)
+			err := WriteDataFile(content, ContentTypeText, writePath, "", true)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected an error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("WriteDataFile() error = %v", err)
+			}
+			if info, err := os.Lstat(writePath); err != nil || (writePath != checkPath && info.Mode()&os.ModeSymlink == 0) {
+				t.Errorf("symlink was replaced: info=%v err=%v", info, err)
+			}
+			assertFile(t, checkPath, content, tt.wantMode)
+		})
+	}
+}
+
+func writeFixture(t *testing.T, path string, mode os.FileMode) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte("old\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(path, mode); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func symlinkTo(t *testing.T, dir, target string) string {
+	t.Helper()
+	link := filepath.Join(dir, "data.txt")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	return link
+}
+
+func assertFile(t *testing.T, path string, want []byte, wantMode os.FileMode) {
+	t.Helper()
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	if string(got) != string(want) {
+		t.Errorf("content = %q, want %q", got, want)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat %s: %v", path, err)
+	}
+	if info.Mode().Perm() != wantMode {
+		t.Errorf("mode = %o, want %o", info.Mode().Perm(), wantMode)
 	}
 }
 

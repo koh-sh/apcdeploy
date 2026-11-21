@@ -82,7 +82,7 @@ apcdeploy run -c apcdeploy.yml
 apcdeploy status -c apcdeploy.yml   # optional, to inspect rollout
 ```
 
-For CI/CD, gate the deploy step on `apcdeploy diff -c apcdeploy.yml --exit-nonzero --silent`.
+For CI/CD, gate the deploy step on `apcdeploy diff -c apcdeploy.yml --exit-nonzero --silent >/dev/null` (see "CI/CD Pattern" for why stdout is discarded).
 
 ### Sync Flow (Changes Made in the AWS Console)
 
@@ -116,10 +116,13 @@ data_file: data.json
 region: us-west-2
 ```
 
+Unknown keys (including typos such as `deployment_stratgy`) and files with more than one YAML document are rejected at load time, so a mistyped optional key never silently falls back to its default. `region` must be a region name such as `us-east-1` (lowercase letters, digits and hyphens); the same check applies to `--region` and to a region taken from the AWS environment.
+
 ### data_file Path Resolution
 
 - **Relative path** (e.g. `data.json`, `config/data.json`): resolved against the directory containing `apcdeploy.yml`.
 - **Absolute path** (e.g. `/home/user/configs/data.json`): used as-is.
+- The file must be a regular file (or a symlink to one) of at most 2 MB; named pipes and devices are rejected.
 
 ### Deployment Strategies
 
@@ -274,13 +277,14 @@ Partial flag specification is supported: any omitted flag triggers an interactiv
 #### Behavior
 
 - **Overwrite protection**: existing `apcdeploy.yml` or data file is preserved unless `-f` is supplied.
+- **Name safety**: the generated `apcdeploy.yml` is read back before it is written; if a resource or deployment strategy name contains characters that would not survive the round-trip (e.g. a lone carriage return), `init` fails without writing any file, and the error names the field (e.g. `deployment_strategy contains characters that cannot be written to apcdeploy.yml safely`).
 - **IAM**: when `--region` is supplied, `account:ListRegions` is **not** required. The permission is only needed for the interactive region picker.
 - **AI workflow**: use `apcdeploy ls-resources --region <r> --json` to discover names, then call `init` with all four flags. Fallback if `ls-resources` is unavailable: ask the user to provide application / profile / environment names.
 
 #### Exit Codes
 
 - `0`: success
-- `1`: AWS error, file-overwrite refusal, or TTY error when prompts are needed without a TTY
+- `1`: AWS error, file-overwrite refusal, a resource name that cannot be written to `apcdeploy.yml` safely, or TTY error when prompts are needed without a TTY
 
 #### Examples
 
@@ -317,7 +321,7 @@ apcdeploy run -c apcdeploy.yml
 | `--wait-bake` | Wait until the full deployment completes (DEPLOYING → BAKING → COMPLETE). Mutually exclusive with `--wait-deploy`. |
 | `--force` | Deploy even when content is unchanged (bypasses auto-skip). |
 | `--timeout <seconds>` | Timeout for deployment wait (default: 1800). Must be greater than 0. Shared across both phases when `--wait-bake` is used. |
-| `--description <text>` | Description attached to the configuration version and deployment. Visible in the AppConfig console and in `apcdeploy status` output. Defaults to `"Deployed by apcdeploy"`. Pass `--description ""` to clear. Maximum 1024 Unicode characters (counted by rune); rejected client-side when exceeded. |
+| `--description <text>` | Description attached to the configuration version and deployment. Visible in the AppConfig console and in `apcdeploy status` output. Defaults to `"Deployed by apcdeploy"`. Pass `--description ""` to clear. Maximum 1024 Unicode characters (counted by rune); rejected client-side when exceeded. Control characters other than tab / newline / carriage return, bidirectional formatting characters and invalid UTF-8 are also rejected client-side. |
 
 #### Operation Details
 
@@ -390,7 +394,7 @@ apcdeploy diff -c apcdeploy.yml
 
 #### Behavior
 
-- **Normalization**: JSON and YAML are normalized (indentation and line-break differences are absorbed); plain text is compared byte-for-byte. For FeatureFlags profiles, `_createdAt` and `_updatedAt` are stripped before comparison.
+- **Normalization**: the comparison mode is chosen by the data file extension. JSON (`.json`) and YAML (`.yaml` / `.yml`) are parsed and re-serialized, so formatting, indentation, key order and (YAML) comments, quoting style and anchors are not differences; YAML values are compared after decoding, so scalars that decode to the same value (e.g. `0x10` and `16`) also compare equal. Every YAML document in a multi-document file is compared, and a YAML document whose aliases expand beyond 8 MB is rejected. Plain text (any other extension) is compared after converting CRLF to LF and collapsing trailing newlines to one. For FeatureFlags profiles, `_createdAt` and `_updatedAt` are stripped before comparison.
 - **In-progress deployments**: when a deployment is `DEPLOYING` or `BAKING`, the diff is taken against that in-flight configuration. If that deployment is later rolled back (`ROLLED_BACK`), the diff output may not match the configuration that ends up deployed.
 - **Output**: lines prefixed `-` are present in the deployed version, `+` lines are present locally. When the two match, the command prints `No differences found` and exits 0.
 - **No prior deployment**: when the configuration profile + environment has never been deployed, the local data is emitted as an "all-added" unified diff (every line `+` prefixed) — semantically the would-be initial deployment payload. The command exits `0` (unlike `pull` / `edit`, which exit `2` in this state).
@@ -407,7 +411,7 @@ apcdeploy diff -c apcdeploy.yml
 apcdeploy diff -c apcdeploy.yml
 
 # CI guard: deploy only when changes are present
-if apcdeploy diff -c apcdeploy.yml --exit-nonzero --silent; then
+if apcdeploy diff -c apcdeploy.yml --exit-nonzero --silent >/dev/null; then
   echo "No changes to deploy"
 else
   apcdeploy run -c apcdeploy.yml
@@ -432,7 +436,7 @@ apcdeploy status -c apcdeploy.yml
 
 #### Behavior
 
-Displayed fields: deployment number, state, percentage complete, configuration version, start time.
+Displayed fields: application, profile, environment, deployment number, state, hosted configuration version, description (omitted for `ROLLED_BACK`), deployment strategy, start time, and — once finished — completion time and duration. While `DEPLOYING` / `BAKING`, a progress table adds percentage complete, elapsed and estimated remaining time, growth factor, bake time and the current phase. For `ROLLED_BACK`, a warning and the rollback reason from the event log follow. Description, strategy and other names are written by whoever started the deployment; control characters in them are shown as visible escapes (e.g. `\x1b`).
 
 State values:
 
@@ -444,7 +448,9 @@ State values:
 | `COMPLETE` | Deployment finished successfully. |
 | `ROLLING_BACK` | Deployment is being rolled back, automatically (e.g. a CloudWatch alarm) or via `apcdeploy rollback` (in-flight). |
 | `ROLLED_BACK` | Deployment was stopped (or rolled back by AppConfig); previous version is in effect. |
-| `REVERTED` | Deployment was reverted to the previous configuration version (terminal). |
+| `REVERTED` | Deployment was reverted to the previous configuration version (terminal); previous version is in effect. |
+
+`status` reports `ROLLED_BACK` / `REVERTED` deployments as the latest, but `run` / `diff` / `pull` / `edit` / `init` skip them when picking the deployed baseline and use the newest deployment whose version is still in effect.
 
 #### Errors
 
@@ -537,6 +543,7 @@ Compare-before-write means the local file's mtime is unchanged when content alre
 - **Idempotent**: safe to run repeatedly; subsequent runs are no-ops if nothing changed.
 - **Content-Type aware**: respects the content type recorded on the hosted configuration version (JSON / YAML / plain text).
 - **No Data API charges**: uses control-plane APIs only (`ListDeployments` + `GetHostedConfigurationVersion`).
+- **File permissions**: a newly created data file is `0600` (the content may hold secrets); an existing file keeps its permissions, a read-only one is not overwritten (the pull fails), and a symlinked `data_file` writes through to its target. `init` writes its data file the same way.
 
 #### Errors
 
@@ -621,11 +628,12 @@ apcdeploy rollback -c apcdeploy.yml --yes
 | Flag | Description |
 |---|---|
 | `-y, --yes` | Skip the confirmation prompt. Required in non-interactive environments. |
+| `--deployment <number>` | Only stop this deployment number. If a different deployment is in flight, nothing is stopped and the command fails (exit code `1`) with `deployment number mismatch: ongoing deployment is #N, not #M; nothing was stopped`. |
 
 #### Operation Details
 
 1. Find the current ongoing deployment for the environment (errors if none is in-flight: `DEPLOYING` / `BAKING` / `VALIDATING` / `ROLLING_BACK`)
-2. If that deployment belongs to a different configuration profile than `configuration_profile`, refuse: nothing is stopped and no prompt is shown, even with `--yes`
+2. If that deployment belongs to a different configuration profile than `configuration_profile`, or `--deployment` names another number, refuse: nothing is stopped and no prompt is shown, even with `--yes`
 3. If `--yes` is not set, check TTY and prompt for confirmation (errors before any AWS write if no TTY)
 4. Call `StopDeployment`; AppConfig transitions the deployment to `ROLLED_BACK` and reverts to the previous version
 
@@ -633,6 +641,7 @@ apcdeploy rollback -c apcdeploy.yml --yes
 
 - **Scope**: stops in-flight deployments only. Does **not** use AppConfig's `AllowRevert` feature; does **not** touch completed deployments.
 - **Profile check**: AppConfig allows one in-flight deployment per environment, shared by all profiles in it. `rollback` stops it only when it belongs to the profile in `apcdeploy.yml`; otherwise it fails (exit code `1`) with `configuration profile mismatch: ongoing deployment #N belongs to configuration profile "<actual>", not "<configured>"; re-run with a config targeting "<actual>"`. To stop another profile's deployment, run `rollback` with a config targeting that profile (or use the AWS console/CLI).
+- **For AI assistants**: `--yes` skips the screen that shows which deployment will be stopped. Run `apcdeploy status -c apcdeploy.yml` first, confirm the deployment number (and with the user, when the stop was not explicitly requested), then pass it with `--deployment <number> --yes` so a deployment started in the meantime is never the one stopped.
 - **Local files unchanged**: `rollback` makes no changes to local files. After it succeeds, local files no longer match the deployed (reverted) configuration.
 - **Post-rollback sync**: choose one before continuing:
   - **Accept the reverted state**: `apcdeploy pull -c apcdeploy.yml` to bring local files in line with the previous version.
@@ -654,7 +663,7 @@ apcdeploy run -c apcdeploy.yml
 #### Exit Codes
 
 - `0`: success
-- `1`: AWS error, the ongoing deployment belongs to another configuration profile, user declined the prompt, or TTY error when `--yes` is missing in a non-interactive environment
+- `1`: AWS error, the ongoing deployment belongs to another configuration profile or is not the `--deployment` number, user declined the prompt, or TTY error when `--yes` is missing in a non-interactive environment
 - `2`: no ongoing deployment to stop
 
 #### Examples
@@ -662,6 +671,9 @@ apcdeploy run -c apcdeploy.yml
 ```bash
 # Stop the current rollout (non-interactive)
 apcdeploy rollback -c apcdeploy.yml --yes
+
+# Stop only deployment #12 (checked with `apcdeploy status` first)
+apcdeploy rollback -c apcdeploy.yml --deployment 12 --yes
 
 # Rollback then sync local files to the reverted state
 apcdeploy rollback -c apcdeploy.yml --yes
@@ -682,7 +694,7 @@ Fetches the deployed configuration, opens it in `$EDITOR`, and deploys the resul
 
 For human users, `edit` is a quick-fix workflow when there is already a prior deployment for the target profile + environment. Target resolution accepts the same flags as `init` (`--region` / `--app` / `--profile` / `--env`); omitted flags fall through to interactive prompts. The deployment strategy of the latest deployment is reused unless overridden with `--deployment-strategy`. `--wait-deploy` / `--wait-bake` / `--timeout` / `--description` behave as in `run` (and `--wait-deploy` / `--wait-bake` are mutually exclusive).
 
-Validation (2 MB size limit, JSON/YAML syntax check), idempotency (skip when normalized content is unchanged), and the in-progress-deployment guard all match `run`. The in-progress guard runs twice: before the editor opens and again right before the new configuration version is created, so a deployment started by someone else during the editing session is caught without creating a version. If anything fails after the editor closes but before the deployment starts (local validation, AWS validator rejection, ongoing deployment, `StartDeployment` error), the edited buffer is kept in a private (0700) temp directory and the error ends with `edited content saved to <path> (may contain secrets; delete it when done)`; recover the edits from that file and delete it afterwards. When `StartDeployment` fails, the error also names the hosted configuration version that was created but not deployed. The buffer is removed as soon as `StartDeployment` succeeds (the content then exists on AWS, so `--wait-deploy` / `--wait-bake` failures, timeouts, or cancellation do not keep it), on a no-op, and when the run is cancelled (Ctrl+C) before the deployment starts. `$EDITOR` defaults to `vi` and is invoked through `sh -c` like `git`'s `GIT_EDITOR`, so avoid shell metacharacters in CI.
+Validation (2 MB size limit, JSON/YAML syntax check), idempotency (skip when normalized content is unchanged), and the in-progress-deployment guard all match `run`. The in-progress guard runs twice: before the editor opens and again right before the new configuration version is created, so a deployment started by someone else during the editing session is caught without creating a version. Right before creating the version, `edit` also checks that the latest deployment is still the one it started from; if another deployment completed (or the base deployment was reverted) while editing, it aborts instead of overwriting that configuration with one based on older content. If anything fails after the editor closes but before the deployment starts (local validation, AWS validator rejection, ongoing deployment, `StartDeployment` error), the edited buffer is kept in a private (0700) temp directory and the error ends with `edited content saved to <path> (may contain secrets; delete it when done)`; recover the edits from that file and delete it afterwards. When `StartDeployment` fails, the error also names the hosted configuration version that was created but not deployed. The buffer is removed as soon as `StartDeployment` succeeds (the content then exists on AWS, so `--wait-deploy` / `--wait-bake` failures, timeouts, or cancellation do not keep it), on a no-op, and when the run is cancelled (Ctrl+C) before the deployment starts. `$EDITOR` defaults to `vi` and is invoked through `sh -c` like `git`'s `GIT_EDITOR`, so avoid shell metacharacters in CI.
 
 ```bash
 apcdeploy edit --region us-west-2 --app my-app --profile my-profile --env production
@@ -732,6 +744,7 @@ Behavior:
 - Comma-separated values (`-c a.yml,b.yml`) are split by the CLI framework (Cobra), not by apcdeploy. Because of this, a path that itself contains a comma will be split incorrectly — repeat `-c` for such paths.
 - Each `-c` is loaded and validated up-front; any single load failure aborts the batch before any AWS call.
 - Targets are identified by the 4-tuple `region/app/profile/env`. Two configs that resolve to the same identifier produce `ErrDuplicateTarget`.
+- `pull` additionally rejects configs whose `data_file` resolves to the same path (it would write that file concurrently from several environments). `run` / `diff` / `validate` only read the data file, so sharing one across environments is fine there.
 - Default execution is fully parallel (equivalent to `--parallel 0`). Use `--parallel N` to cap concurrency or `--parallel 1` for strict serial order.
 - Default failure mode is fail-fast: queued targets that haven't started yet are reported as `⊘ skipped (fail-fast)`. Use `--continue-on-error` to run every target regardless of failures.
 - Each target's `--timeout` is independent (it is per-target, not a global wall-clock cap).
@@ -819,7 +832,7 @@ Gate deployment on `diff --exit-nonzero` so the pipeline is a no-op when nothing
 ```yaml
 - name: Deploy to AppConfig
   run: |
-    if apcdeploy diff -c apcdeploy.yml --exit-nonzero --silent; then
+    if apcdeploy diff -c apcdeploy.yml --exit-nonzero --silent >/dev/null; then
       echo "No changes to deploy"
     else
       apcdeploy run -c apcdeploy.yml --silent
@@ -827,6 +840,8 @@ Gate deployment on `diff --exit-nonzero` so the pipeline is a no-op when nothing
 ```
 
 `--wait-*` is intentionally omitted here; check rollout progress with a follow-up `status` step if needed.
+
+The gate only needs the exit code, so stdout is discarded. The diff body is a byte-for-byte payload that includes the deployed configuration, which anyone with AppConfig deploy rights can write; in GitHub Actions the runner parses workflow commands (`::add-mask::`, `::warning::`, `##[...]`) out of a step's output, so printing it lets that content hide or forge log lines and annotations. If the diff must appear in the log, wrap it in `::stop-commands::<random token>` / `::<random token>::`. Human-facing stderr output (progress, errors, warnings, tables) is already neutralised: control characters and workflow-command markers in remote strings are rendered as visible escapes such as `\x1b`. `Data` payloads (`get`, `diff` stdout when piped, `ls-resources --json`, `context`) are never altered.
 
 ## Security and Access Control
 

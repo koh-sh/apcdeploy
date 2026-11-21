@@ -910,14 +910,17 @@ func recordingEditorScript(t *testing.T, newContent string) string {
 	return recordPath
 }
 
-// failWaitAfterEdit makes GetDeployment fail once the editor has run, so the
-// --wait-* phase fails after StartDeployment succeeded. The error text
+// failWaitAfterEdit makes GetDeployment for the started deployment fail once
+// the editor has run, so the --wait-* phase fails after StartDeployment
+// succeeded. The error text
 // reports whether the buffer still existed when the wait began.
 func failWaitAfterEdit(client *mock.MockAppConfigClient, recordPath string, _ *bool) {
 	base := client.GetDeploymentFunc
 	client.GetDeploymentFunc = func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
 		recorded, err := os.ReadFile(recordPath)
-		if err != nil {
+		// Only the wait on the started deployment (#8) fails; lookups of the
+		// deployed baseline (#7) before it still succeed.
+		if err != nil || *params.DeploymentNumber != 8 {
 			return base(ctx, params, optFns...)
 		}
 		if _, err := os.Stat(strings.TrimSpace(string(recorded))); err == nil {
@@ -1010,6 +1013,40 @@ func TestWorkflowBufferRetention(t *testing.T) {
 			},
 			wantErr:      true,
 			wantErrParts: []string{"deployment already in progress"},
+			wantKept:     true,
+		},
+		{
+			// Deploying the edit would silently overwrite the configuration
+			// deployed meanwhile (lost update), so the edit is refused.
+			name:       "deployment completed during editing keeps the buffer and skips version creation",
+			editedText: `{"key":"updated"}`,
+			setup: func(client *mock.MockAppConfigClient, recordPath string, _ *bool) {
+				client.ListDeploymentsFunc = func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
+					items := []types.DeploymentSummary{
+						{DeploymentNumber: 7, ConfigurationVersion: aws.String("3"), State: types.DeploymentStateComplete},
+					}
+					if _, err := os.Stat(recordPath); err == nil {
+						// The editor has run: someone else deployed meanwhile.
+						items = append(items, types.DeploymentSummary{DeploymentNumber: 9, ConfigurationVersion: aws.String("5"), State: types.DeploymentStateComplete})
+					}
+					return &appconfig.ListDeploymentsOutput{Items: items}, nil
+				}
+				client.GetDeploymentFunc = func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
+					version := "3"
+					if *params.DeploymentNumber == 9 {
+						version = "5"
+					}
+					return &appconfig.GetDeploymentOutput{
+						DeploymentNumber:       *params.DeploymentNumber,
+						ConfigurationProfileId: aws.String("prof-1"),
+						ConfigurationVersion:   aws.String(version),
+						DeploymentStrategyId:   aws.String("strategy-inherited"),
+						State:                  types.DeploymentStateComplete,
+					}, nil
+				}
+			},
+			wantErr:      true,
+			wantErrParts: []string{"changed while editing", "deployment #7"},
 			wantKept:     true,
 		},
 		{

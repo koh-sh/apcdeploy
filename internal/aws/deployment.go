@@ -431,13 +431,15 @@ type DeploymentInfo struct {
 }
 
 // GetLatestDeployment retrieves the latest deployment for the specified configuration profile
-// This function skips ROLLED_BACK deployments and returns the last successful or in-progress deployment
+// whose version is (or is becoming) the one in effect. ROLLED_BACK and REVERTED deployments
+// are skipped: after either, AppConfig serves the previous version again, so treating them
+// as the baseline would make run / diff / pull / edit / init compare against withdrawn content.
 func GetLatestDeployment(ctx context.Context, client *Client, applicationID, environmentID, profileID string) (*DeploymentInfo, error) {
 	return getLatestDeploymentInternal(ctx, client, applicationID, environmentID, profileID, true)
 }
 
 // GetLatestDeploymentIncludingRollback retrieves the latest deployment for the specified configuration profile
-// This function includes ROLLED_BACK deployments and returns the absolute latest deployment
+// This function includes ROLLED_BACK and REVERTED deployments and returns the absolute latest deployment
 func GetLatestDeploymentIncludingRollback(ctx context.Context, client *Client, applicationID, environmentID, profileID string) (*DeploymentInfo, error) {
 	return getLatestDeploymentInternal(ctx, client, applicationID, environmentID, profileID, false)
 }
@@ -449,7 +451,7 @@ func GetLatestDeploymentIncludingRollback(ctx context.Context, client *Client, a
 // return — if we cannot fetch details for a deployment we have no way to determine
 // whether it is the true latest for the requested profile, so silently skipping it
 // could cause callers (run / diff / pull) to compare against an older version.
-func getLatestDeploymentInternal(ctx context.Context, client *Client, applicationID, environmentID, profileID string, skipRolledBack bool) (*DeploymentInfo, error) {
+func getLatestDeploymentInternal(ctx context.Context, client *Client, applicationID, environmentID, profileID string, skipWithdrawn bool) (*DeploymentInfo, error) {
 	deployments, err := client.ListAllDeployments(ctx, applicationID, environmentID)
 	if err != nil {
 		return nil, wrapAWSError(err, "failed to list deployments")
@@ -484,8 +486,8 @@ func getLatestDeploymentInternal(ctx context.Context, client *Client, applicatio
 			continue
 		}
 
-		// Skip ROLLED_BACK deployments if requested.
-		if skipRolledBack && deployment.State == types.DeploymentStateRolledBack {
+		// Skip withdrawn deployments (ROLLED_BACK / REVERTED) if requested.
+		if skipWithdrawn && (deployment.State == types.DeploymentStateRolledBack || deployment.State == types.DeploymentStateReverted) {
 			continue
 		}
 

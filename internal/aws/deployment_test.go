@@ -570,6 +570,42 @@ func TestGetLatestDeployment(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			// StopDeployment with AllowRevert moves a COMPLETE deployment to
+			// REVERTED and AppConfig serves the previous version again, so the
+			// reverted deployment must not be used as the baseline.
+			name: "ignores REVERTED deployment and returns the version in effect",
+			deployments: []types.DeploymentSummary{
+				{DeploymentNumber: 1},
+				{DeploymentNumber: 2},
+			},
+			getDeploymentFunc: func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
+				if *params.DeploymentNumber == 2 {
+					return &appconfig.GetDeploymentOutput{
+						DeploymentNumber:       2,
+						ConfigurationProfileId: new("profile-123"),
+						ConfigurationVersion:   new("2"),
+						DeploymentStrategyId:   new("strategy-2"),
+						State:                  types.DeploymentStateReverted,
+					}, nil
+				}
+				return &appconfig.GetDeploymentOutput{
+					DeploymentNumber:       1,
+					ConfigurationProfileId: new("profile-123"),
+					ConfigurationVersion:   new("1"),
+					DeploymentStrategyId:   new("strategy-1"),
+					State:                  types.DeploymentStateComplete,
+				}, nil
+			},
+			profileID: "profile-123",
+			wantDeployment: &DeploymentInfo{
+				DeploymentNumber:     1,
+				ConfigurationVersion: "1",
+				DeploymentStrategyID: "strategy-1",
+				State:                types.DeploymentStateComplete,
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -611,6 +647,9 @@ func TestGetLatestDeployment(t *testing.T) {
 			}
 			if deployment.State != tt.wantDeployment.State {
 				t.Errorf("State = %v, want %v", deployment.State, tt.wantDeployment.State)
+			}
+			if deployment.DeploymentStrategyID != tt.wantDeployment.DeploymentStrategyID {
+				t.Errorf("DeploymentStrategyID = %v, want %v", deployment.DeploymentStrategyID, tt.wantDeployment.DeploymentStrategyID)
 			}
 		})
 	}

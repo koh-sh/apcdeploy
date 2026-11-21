@@ -31,6 +31,25 @@ func TestLoadConfig(t *testing.T) {
 			path:    "../../testdata/config/invalid.yml",
 			wantErr: true,
 		},
+		{
+			name:    "explicit document start marker",
+			path:    "../../testdata/config/document_start.yml",
+			wantErr: false,
+		},
+		{
+			// Only the first document used to be decoded, so a second one
+			// could carry the keys that the first document overrode.
+			name:    "multiple YAML documents",
+			path:    "../../testdata/config/multi_document.yml",
+			wantErr: true,
+		},
+		{
+			// A typo used to be ignored silently, falling back to defaults
+			// (e.g. AppConfig.AllAtOnce for deployment_strategy).
+			name:    "unknown key",
+			path:    "../../testdata/config/unknown_key.yml",
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {

@@ -2,12 +2,14 @@
 minimum_release_age = "3d"
 
 [tools]
-go = "1.27.3"
+go = "1.27.4"
 terraform = "1.16.6"
 "github:golangci/golangci-lint" = "2.15.0"
 "github:mfridman/tparse" = "0.18.0"
 "github:mvdan/gofumpt" = "0.12.0"
 "github:k1LoW/octocov" = "0.83.3"
+# Keep in sync with `version:` in .github/workflows/go-releaser.yml and
+# go-releaser-check.yml (pinned there so releases never run "latest").
 "github:goreleaser/goreleaser" = "2.20.2"
 "github:charmbracelet/vhs" = "0.12.1"
 
@@ -93,7 +95,8 @@ run = [
 description = "Start a fresh MiniStack container for local E2E tests"
 run = [
     { task = "e2e-local-clean" },
-    "docker run -d --name apcdeploy-e2e-ministack -p 127.0.0.1:4566:4566 ministackorg/ministack:1.5.23",
+    # Pinned by digest so a re-pushed tag cannot change what CI runs.
+    "docker run -d --name apcdeploy-e2e-ministack -p 127.0.0.1:4566:4566 ministackorg/ministack:1.5.23@sha256:82bb153a64625fdd32be6b384c0a906750ab42bb4adce748bae2286ce155301c",
     "curl -sf --retry 30 --retry-all-errors --retry-delay 1 http://localhost:4566/_ministack/health >/dev/null",
 ]
 

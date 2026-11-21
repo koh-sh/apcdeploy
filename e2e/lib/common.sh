@@ -63,14 +63,15 @@ __SECTION_PID=""
 __STEP=""
 __START_TIME=$(date +%s)
 
-# Single shared file every apc_* wrapper redirects stderr into. Using a
-# fixed path (vs per-call mktemp) is required because wrappers may run in
-# $(...) subshells, where any locally-assigned variable is lost when the
-# subshell exits — leaving the parent's ERR trap with no way to find the
-# capture file. The file is reused across calls; each wrapper truncates it
-# on entry so only the most recent command's stderr is shown on failure.
-__STDERR_FILE="${TMPDIR:-/tmp}/apcdeploy-e2e-stderr.$$"
-: > "$__STDERR_FILE"
+# Single shared file every apc_* wrapper redirects stderr into. Using one
+# file created up front (vs per-call mktemp) is required because wrappers
+# may run in $(...) subshells, where any locally-assigned variable is lost
+# when the subshell exits — leaving the parent's ERR trap with no way to
+# find the capture file. The file is reused across calls; each wrapper
+# truncates it on entry so only the most recent command's stderr is shown
+# on failure. mktemp (not a PID-based name) keeps another user from
+# pre-creating or symlinking the path in a shared /tmp.
+__STDERR_FILE=$(mktemp "${TMPDIR:-/tmp}/apcdeploy-e2e-stderr.XXXXXX")
 export __STDERR_FILE
 
 # Shared step / section counters. Each subshell-per-section finalizes a
@@ -78,10 +79,8 @@ export __STDERR_FILE
 # __SECTIONS_FILE; the parent shell's EXIT trap reads the line counts for
 # the final summary. Files are needed because per-section subshells can't
 # write back into the parent's variables.
-__STEPS_FILE="${TMPDIR:-/tmp}/apcdeploy-e2e-steps.$$"
-: > "$__STEPS_FILE"
-__SECTIONS_FILE="${TMPDIR:-/tmp}/apcdeploy-e2e-sections.$$"
-: > "$__SECTIONS_FILE"
+__STEPS_FILE=$(mktemp "${TMPDIR:-/tmp}/apcdeploy-e2e-steps.XXXXXX")
+__SECTIONS_FILE=$(mktemp "${TMPDIR:-/tmp}/apcdeploy-e2e-sections.XXXXXX")
 export __STEPS_FILE __SECTIONS_FILE
 
 # Print the canonical section header. Closes the previous step (if any).
