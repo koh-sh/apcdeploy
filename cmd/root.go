@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
-	"unicode"
 	"unicode/utf8"
 
 	"github.com/koh-sh/apcdeploy/internal/apcerrors"
@@ -18,6 +17,7 @@ import (
 	"github.com/koh-sh/apcdeploy/internal/cli"
 	"github.com/koh-sh/apcdeploy/internal/reporter"
 	"github.com/koh-sh/apcdeploy/internal/rollback"
+	"github.com/koh-sh/apcdeploy/internal/sanitize"
 	"github.com/spf13/cobra"
 )
 
@@ -340,7 +340,7 @@ func validateDescription(s string) error {
 		if r == '\t' || r == '\n' || r == '\r' {
 			continue
 		}
-		if unicode.IsControl(r) || unicode.Is(unicode.Bidi_Control, r) {
+		if sanitize.IsUnsafeRune(r) {
 			return fmt.Errorf("--description contains invalid control character U+%04X", r)
 		}
 	}

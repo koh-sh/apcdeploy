@@ -34,11 +34,8 @@ func Text(s string) string {
 }
 
 func escape(s string, keepLayout bool) string {
-	if !needsEscape(s, keepLayout) {
-		return s
-	}
 	var b strings.Builder
-	b.Grow(len(s) + 8)
+	b.Grow(len(s))
 	lineStart := true
 	for i := 0; i < len(s); {
 		r, size := utf8.DecodeRuneInString(s[i:])
@@ -55,7 +52,7 @@ func escape(s string, keepLayout bool) string {
 			b.WriteRune(r)
 			i += size
 			continue
-		case lineStart && unicode.IsSpace(r) && !isEscaped(r):
+		case lineStart && unicode.IsSpace(r) && !IsUnsafeRune(r):
 			// The runner trims leading whitespace before matching "::".
 			b.WriteRune(r)
 			i += size
@@ -65,7 +62,7 @@ func escape(s string, keepLayout bool) string {
 		case strings.HasPrefix(s[i:], "##["):
 			b.WriteString(`#\x23`)
 			size = 2
-		case isEscaped(r):
+		case IsUnsafeRune(r):
 			q := strconv.QuoteRune(r)
 			b.WriteString(q[1 : len(q)-1])
 		default:
@@ -77,39 +74,10 @@ func escape(s string, keepLayout bool) string {
 	return b.String()
 }
 
-// needsEscape is the fast path: most strings contain nothing to escape and are
-// returned unchanged without allocating.
-func needsEscape(s string, keepLayout bool) bool {
-	if strings.Contains(s, "##[") || startsWithCommand(s) {
-		return true
-	}
-	for i, r := range s {
-		switch {
-		case r == utf8.RuneError:
-			if _, size := utf8.DecodeRuneInString(s[i:]); size == 1 {
-				return true
-			}
-		case keepLayout && r == '\n':
-			if startsWithCommand(s[i+1:]) {
-				return true
-			}
-		case keepLayout && r == '\t':
-		case isEscaped(r):
-			return true
-		}
-	}
-	return false
-}
-
-// startsWithCommand reports whether s, after leading whitespace, starts with
-// the "::" prefix of a GitHub Actions workflow command.
-func startsWithCommand(s string) bool {
-	return strings.HasPrefix(strings.TrimLeftFunc(s, unicode.IsSpace), "::")
-}
-
-// isEscaped reports whether r is rendered as an escape: C0 / DEL / C1 control
-// characters and the bidirectional formatting characters that can reorder
-// what is displayed.
-func isEscaped(r rune) bool {
+// IsUnsafeRune reports whether r is rendered as an escape: C0 / DEL / C1
+// control characters and the bidirectional formatting characters that can
+// reorder what is displayed. Input validation that rejects such characters
+// (e.g. --description) uses it so both sides agree on the set.
+func IsUnsafeRune(r rune) bool {
 	return unicode.IsControl(r) || unicode.Is(unicode.Bidi_Control, r)
 }
