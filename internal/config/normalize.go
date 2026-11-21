@@ -150,7 +150,10 @@ func expandedYAMLSizeExceeds(v any, limit int) bool {
 		case string:
 			size += len(x)
 		default:
-			size += 8
+			// Numbers, booleans and nulls: their printed length is close
+			// enough to the encoded one. A flat estimate overshot compact
+			// documents (e.g. a long [1,1,...] list) past the limit.
+			size += len(fmt.Sprint(x))
 		}
 		return size > limit
 	}

@@ -187,6 +187,42 @@ func yamlAliasBomb(levels int) string {
 	return b.String()
 }
 
+func TestExpandedYAMLSizeExceeds(t *testing.T) {
+	t.Parallel()
+
+	ones := make([]any, 100)
+	for i := range ones {
+		ones[i] = uint64(1)
+	}
+	shared := []any{"xxxxxxxxxx"}
+	aliased := make([]any, 100)
+	for i := range aliased {
+		aliased[i] = shared // what an alias decodes to: the same value again
+	}
+
+	tests := []struct {
+		name  string
+		value any
+		limit int
+		want  bool
+	}{
+		// 100 one-digit items marshal to about 300 bytes; a flat per-scalar
+		// estimate used to reject large alias-free documents.
+		{name: "short scalars are estimated by their encoded length", value: ones, limit: 500, want: false},
+		{name: "booleans and nulls", value: []any{true, false, nil}, limit: 30, want: false},
+		{name: "aliases are counted once per reference", value: aliased, limit: 500, want: true},
+		{name: "map keys and values", value: map[string]any{"key": "value"}, limit: 5, want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := expandedYAMLSizeExceeds(tt.value, tt.limit); got != tt.want {
+				t.Errorf("expandedYAMLSizeExceeds() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestNormalizeYAML_ErrorOmitsSource(t *testing.T) {
 	t.Parallel()
 
