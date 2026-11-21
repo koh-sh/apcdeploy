@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/goccy/go-yaml"
@@ -112,46 +111,14 @@ func WriteDataFile(content []byte, contentType, outputPath, profileType string, 
 		dataToWrite = content
 	}
 
-	if err := writeFileAtomic(outputPath, dataToWrite); err != nil {
+	// A new file is created 0600 because the content comes from AWS and may
+	// hold secrets; an existing file (or a symlink's target) keeps its mode,
+	// and a read-only one is not overwritten.
+	if err := os.WriteFile(outputPath, dataToWrite, 0o600); err != nil {
 		return fmt.Errorf("failed to write data file: %w", err)
 	}
 
 	return nil
-}
-
-// writeFileAtomic replaces path with data via a temporary file in the same
-// directory and a rename, so an interrupted write never leaves a truncated
-// data file. A symlink is followed (the link itself is kept), an existing
-// file keeps its permissions, and a new file is created 0600 because the
-// content comes from AWS and may hold secrets.
-func writeFileAtomic(path string, data []byte) error {
-	perm := os.FileMode(0o600)
-	if resolved, err := filepath.EvalSymlinks(path); err == nil {
-		path = resolved
-		if info, err := os.Stat(path); err == nil {
-			perm = info.Mode().Perm()
-		}
-	}
-
-	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".tmp-*")
-	if err != nil {
-		return err
-	}
-	tmpPath := tmp.Name()
-	defer func() { _ = os.Remove(tmpPath) }() // no-op once renamed
-
-	if _, err := tmp.Write(data); err != nil {
-		_ = tmp.Close()
-		return err
-	}
-	if err := tmp.Chmod(perm); err != nil {
-		_ = tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	return os.Rename(tmpPath, path)
 }
 
 // formatJSON formats JSON data with proper indentation.

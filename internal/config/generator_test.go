@@ -458,64 +458,100 @@ func TestWriteDataFilePermissionsAndTargets(t *testing.T) {
 
 	content := []byte("remote content\n")
 
-	t.Run("new file is created private", func(t *testing.T) {
-		t.Parallel()
-		path := filepath.Join(t.TempDir(), "data.txt")
-		if err := WriteDataFile(content, ContentTypeText, path, "", false); err != nil {
-			t.Fatalf("WriteDataFile() error = %v", err)
-		}
-		assertFile(t, path, content, 0o600)
-	})
+	tests := []struct {
+		name string
+		// setup prepares dir and returns the path to write to and the file
+		// whose content and mode are checked afterwards.
+		setup    func(t *testing.T, dir string) (writePath, checkPath string)
+		wantErr  bool
+		wantMode os.FileMode
+	}{
+		{
+			// The content comes from AWS and may hold secrets.
+			name: "new file is created private",
+			setup: func(t *testing.T, dir string) (string, string) {
+				p := filepath.Join(dir, "data.txt")
+				return p, p
+			},
+			wantMode: 0o600,
+		},
+		{
+			name: "existing file keeps its mode",
+			setup: func(t *testing.T, dir string) (string, string) {
+				p := filepath.Join(dir, "data.txt")
+				writeFixture(t, p, 0o640)
+				return p, p
+			},
+			wantMode: 0o640,
+		},
+		{
+			// A read-only data file protects it from being overwritten.
+			name: "read-only file is not overwritten",
+			setup: func(t *testing.T, dir string) (string, string) {
+				p := filepath.Join(dir, "data.txt")
+				writeFixture(t, p, 0o444)
+				return p, ""
+			},
+			wantErr: true,
+		},
+		{
+			name: "symlink is followed and kept",
+			setup: func(t *testing.T, dir string) (string, string) {
+				target := filepath.Join(dir, "real.txt")
+				writeFixture(t, target, 0o644)
+				return symlinkTo(t, dir, target), target
+			},
+			wantMode: 0o644,
+		},
+		{
+			name: "dangling symlink creates its target",
+			setup: func(t *testing.T, dir string) (string, string) {
+				target := filepath.Join(dir, "real.txt")
+				return symlinkTo(t, dir, target), target
+			},
+			wantMode: 0o600,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			writePath, checkPath := tt.setup(t, dir)
+			err := WriteDataFile(content, ContentTypeText, writePath, "", true)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected an error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("WriteDataFile() error = %v", err)
+			}
+			if info, err := os.Lstat(writePath); err != nil || (writePath != checkPath && info.Mode()&os.ModeSymlink == 0) {
+				t.Errorf("symlink was replaced: info=%v err=%v", info, err)
+			}
+			assertFile(t, checkPath, content, tt.wantMode)
+		})
+	}
+}
 
-	t.Run("existing file keeps its mode", func(t *testing.T) {
-		t.Parallel()
-		path := filepath.Join(t.TempDir(), "data.txt")
-		if err := os.WriteFile(path, []byte("old\n"), 0o644); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.Chmod(path, 0o640); err != nil {
-			t.Fatal(err)
-		}
-		if err := WriteDataFile(content, ContentTypeText, path, "", true); err != nil {
-			t.Fatalf("WriteDataFile() error = %v", err)
-		}
-		assertFile(t, path, content, 0o640)
-	})
+func writeFixture(t *testing.T, path string, mode os.FileMode) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte("old\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(path, mode); err != nil {
+		t.Fatal(err)
+	}
+}
 
-	t.Run("symlink is followed and kept", func(t *testing.T) {
-		t.Parallel()
-		dir := t.TempDir()
-		target := filepath.Join(dir, "real.txt")
-		if err := os.WriteFile(target, []byte("old\n"), 0o644); err != nil {
-			t.Fatal(err)
-		}
-		link := filepath.Join(dir, "data.txt")
-		if err := os.Symlink(target, link); err != nil {
-			t.Fatal(err)
-		}
-		if err := WriteDataFile(content, ContentTypeText, link, "", true); err != nil {
-			t.Fatalf("WriteDataFile() error = %v", err)
-		}
-		if info, err := os.Lstat(link); err != nil || info.Mode()&os.ModeSymlink == 0 {
-			t.Errorf("symlink was replaced: info=%v err=%v", info, err)
-		}
-		assertFile(t, target, content, 0o644)
-	})
-
-	t.Run("no temporary file is left behind", func(t *testing.T) {
-		t.Parallel()
-		dir := t.TempDir()
-		if err := WriteDataFile(content, ContentTypeText, filepath.Join(dir, "data.txt"), "", false); err != nil {
-			t.Fatalf("WriteDataFile() error = %v", err)
-		}
-		entries, err := os.ReadDir(dir)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(entries) != 1 {
-			t.Errorf("expected only data.txt in %s, got %v", dir, entries)
-		}
-	})
+func symlinkTo(t *testing.T, dir, target string) string {
+	t.Helper()
+	link := filepath.Join(dir, "data.txt")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	return link
 }
 
 func assertFile(t *testing.T, path string, want []byte, wantMode os.FileMode) {

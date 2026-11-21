@@ -543,7 +543,7 @@ Compare-before-write means the local file's mtime is unchanged when content alre
 - **Idempotent**: safe to run repeatedly; subsequent runs are no-ops if nothing changed.
 - **Content-Type aware**: respects the content type recorded on the hosted configuration version (JSON / YAML / plain text).
 - **No Data API charges**: uses control-plane APIs only (`ListDeployments` + `GetHostedConfigurationVersion`).
-- **Atomic write**: the data file is replaced via a temporary file and a rename, so an interrupted pull never leaves a truncated file. A symlinked `data_file` is followed (the link is kept), an existing file keeps its permissions, and a newly created file is `0600` (the content may hold secrets). `init` writes its data file the same way.
+- **File permissions**: a newly created data file is `0600` (the content may hold secrets); an existing file keeps its permissions, a read-only one is not overwritten (the pull fails), and a symlinked `data_file` writes through to its target. `init` writes its data file the same way.
 
 #### Errors
 
