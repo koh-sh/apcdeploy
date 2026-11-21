@@ -207,6 +207,7 @@ func TestRequireDistinctDataFiles(t *testing.T) {
 	tests := []struct {
 		name    string
 		files   map[string]string // yml path -> body
+		setup   func(t *testing.T, dir string)
 		wantErr bool
 	}{
 		{
@@ -226,11 +227,30 @@ func TestRequireDistinctDataFiles(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			// Differently spelled paths to one existing file (here through a
+			// symlinked directory) still race.
+			name: "same existing file through a symlinked directory",
+			files: map[string]string{
+				"dev.yml":  goodYML("us-east-1", "app", "profile", "dev", "real/data.json"),
+				"prod.yml": goodYML("us-east-1", "app", "profile", "prod", "link/data.json"),
+			},
+			setup: func(t *testing.T, dir string) {
+				writeYML(t, dir, "real/data.json", "{}")
+				if err := os.Symlink(filepath.Join(dir, "real"), filepath.Join(dir, "link")); err != nil {
+					t.Fatal(err)
+				}
+			},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			dir := t.TempDir()
+			if tt.setup != nil {
+				tt.setup(t, dir)
+			}
 			var paths []string
 			for name, body := range tt.files {
 				paths = append(paths, writeYML(t, dir, name, body))

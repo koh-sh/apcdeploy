@@ -3,6 +3,7 @@ package batch
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/koh-sh/apcdeploy/internal/config"
@@ -75,17 +76,29 @@ func LoadAll(paths []string) ([]*Target, error) {
 }
 
 // RequireDistinctDataFiles rejects targets whose data_file resolves to the
-// same path. Sharing a data file is fine for commands that only read it, but
+// same file. Sharing a data file is fine for commands that only read it, but
 // a command that writes it (pull) would run the writes concurrently and keep
-// whichever target finished last.
+// whichever target finished last. Paths are compared after cleaning and, for
+// files that already exist, with os.SameFile, which also catches symlinked
+// directories and case-only differences on case-insensitive filesystems.
 func RequireDistinctDataFiles(targets []*Target) error {
-	byDataFile := make(map[string]*Target, len(targets))
+	type seen struct {
+		target *Target
+		path   string
+		info   os.FileInfo // nil when the file does not exist yet
+	}
+	var files []seen
 	for _, t := range targets {
-		key := filepath.Clean(t.Config.DataFile)
-		if prev, dup := byDataFile[key]; dup {
-			return fmt.Errorf("%w: %q and %q both write %s", ErrSharedDataFile, prev.Path, t.Path, key)
+		cur := seen{target: t, path: filepath.Clean(t.Config.DataFile)}
+		if info, err := os.Stat(cur.path); err == nil {
+			cur.info = info
 		}
-		byDataFile[key] = t
+		for _, prev := range files {
+			if prev.path == cur.path || (prev.info != nil && cur.info != nil && os.SameFile(prev.info, cur.info)) {
+				return fmt.Errorf("%w: %q and %q both write %s", ErrSharedDataFile, prev.target.Path, t.Path, cur.path)
+			}
+		}
+		files = append(files, cur)
 	}
 	return nil
 }
