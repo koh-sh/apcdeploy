@@ -21,6 +21,11 @@ var ErrNoOngoingDeployment = errors.New("no ongoing deployment found")
 // rollback refuses to stop it, regardless of --yes.
 var ErrProfileMismatch = errors.New("configuration profile mismatch")
 
+// ErrDeploymentMismatch is returned when --deployment names a deployment
+// other than the one in flight. rollback refuses to stop it, regardless of
+// --yes.
+var ErrDeploymentMismatch = errors.New("deployment number mismatch")
+
 // Executor handles the rollback operation orchestration
 type Executor struct {
 	reporter      reporter.Reporter
@@ -56,6 +61,9 @@ func NewExecutorWithFactory(rep reporter.Reporter, prom prompt.Prompter, factory
 //   - profile-mismatch path: the ongoing deployment belongs to another
 //     configuration profile; a single Targets row finalized as ✗ failed with
 //     ErrProfileMismatch, before any prompt and regardless of --yes.
+//   - deployment-mismatch path: --deployment names another deployment than
+//     the one in flight; same shape as profile-mismatch with
+//     ErrDeploymentMismatch.
 //   - error path: Targets row finalized as ✗ failed: <message>; the error is
 //     also returned so cmd/root.go sets a non-zero exit code.
 func (e *Executor) Execute(ctx context.Context, opts *Options) error {
@@ -105,6 +113,17 @@ func (e *Executor) Execute(ctx context.Context, opts *Options) error {
 	// stops a deployment the config file does not target.
 	if details.ConfigurationProfileID != resources.Profile.ID {
 		err := profileMismatchError(ctx, resolver, resources, details)
+		tg := e.reporter.Targets([]string{id})
+		defer tg.Close()
+		tg.Fail(id, err)
+		return err
+	}
+
+	// With --deployment the stop is bound to the number the operator checked
+	// (e.g. via status), so a deployment started in the meantime is never
+	// the one stopped — the only safeguard when --yes skips the prompt.
+	if opts.ExpectedDeployment != 0 && opts.ExpectedDeployment != deploymentNumber {
+		err := fmt.Errorf("%w: ongoing deployment is #%d, not #%d; nothing was stopped", ErrDeploymentMismatch, deploymentNumber, opts.ExpectedDeployment)
 		tg := e.reporter.Targets([]string{id})
 		defer tg.Close()
 		tg.Fail(id, err)

@@ -71,6 +71,7 @@ Dev tools (Go toolchain, golangci-lint, gofumpt, tparse, octocov, goreleaser, te
 ./apcdeploy validate -c apcdeploy.yml  # Validate local data against its schema (read-only, no deploy)
 ./apcdeploy rollback -c apcdeploy.yml  # Stop ongoing deployment (rollback)
 ./apcdeploy rollback -c apcdeploy.yml --yes  # Skip confirmation
+./apcdeploy rollback -c apcdeploy.yml --deployment 12 --yes  # Stop only deployment #12
 ./apcdeploy edit  # Edit deployed configuration directly in $EDITOR (no apcdeploy.yml)
 ./apcdeploy edit --region us-east-1 --app my-app --profile my-profile --env prod
 ./apcdeploy context  # Output llms.md for AI assistants
@@ -149,7 +150,7 @@ A few rules don't live cleanly in any one package's source. Spelled out so they 
 - **`edit` strategy inheritance**: omit `--deployment-strategy` to reuse the previous deployment's strategy via `DeployedConfigInfo.DeploymentStrategyID`. Do not introduce a hard-coded fallback.
 - **Validation layering**: `internal/config/validate.go` exposes two levels. `ValidateData` (size + JSON/YAML syntax) is the shared pre-deploy check — `run` / `edit` call it and new deploy-shape commands MUST reuse it rather than re-implementing. `ValidateConfigData` adds JSON-Schema / FeatureFlags-constraint checks on top and is **`validate`-only on purpose**: `run` / `edit` rely on AWS's server-side validator (run at `CreateHostedConfigurationVersion`) as the authority, while `validate` answers "will AWS accept this?" read-only, without creating a version. The schema fed to `ValidateConfigData` is the profile's JSON_SCHEMA validator fetched during resolution — apcdeploy never stores or syncs a local schema copy (no `schema_file`), so there is no local/remote drift to reconcile.
 - **`run` / `pull` no-op detection**: content comparison is normalized via `internal/config/normalize.go` (FeatureFlags `_updatedAt` / `_createdAt` stripped) and gated on `HasContentChanged`. Both commands skip the AWS write when unchanged.
-- **`rollback` semantics**: stops the *current* ongoing deployment only (no `AllowRevert`). Returns `ErrNoOngoingDeployment` when nothing is in flight. The ongoing deployment is found env-scoped, so it is refused with `ErrProfileMismatch` (before any prompt, regardless of `--yes`) when it belongs to a profile other than the yml's.
+- **`rollback` semantics**: stops the *current* ongoing deployment only (no `AllowRevert`). Returns `ErrNoOngoingDeployment` when nothing is in flight. The ongoing deployment is found env-scoped, so it is refused with `ErrProfileMismatch` (before any prompt, regardless of `--yes`) when it belongs to a profile other than the yml's, and with `ErrDeploymentMismatch` when `--deployment` names a different number.
 - **Wait flags**: `--wait-deploy` and `--wait-bake` are mutually exclusive on `run` and `edit`. Both honor `--timeout` (default 1800s, applied across phases).
 
 ### Testing Patterns

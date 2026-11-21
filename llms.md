@@ -628,11 +628,12 @@ apcdeploy rollback -c apcdeploy.yml --yes
 | Flag | Description |
 |---|---|
 | `-y, --yes` | Skip the confirmation prompt. Required in non-interactive environments. |
+| `--deployment <number>` | Only stop this deployment number. If a different deployment is in flight, nothing is stopped and the command fails (exit code `1`) with `deployment number mismatch: ongoing deployment is #N, not #M; nothing was stopped`. |
 
 #### Operation Details
 
 1. Find the current ongoing deployment for the environment (errors if none is in-flight: `DEPLOYING` / `BAKING` / `VALIDATING` / `ROLLING_BACK`)
-2. If that deployment belongs to a different configuration profile than `configuration_profile`, refuse: nothing is stopped and no prompt is shown, even with `--yes`
+2. If that deployment belongs to a different configuration profile than `configuration_profile`, or `--deployment` names another number, refuse: nothing is stopped and no prompt is shown, even with `--yes`
 3. If `--yes` is not set, check TTY and prompt for confirmation (errors before any AWS write if no TTY)
 4. Call `StopDeployment`; AppConfig transitions the deployment to `ROLLED_BACK` and reverts to the previous version
 
@@ -640,6 +641,7 @@ apcdeploy rollback -c apcdeploy.yml --yes
 
 - **Scope**: stops in-flight deployments only. Does **not** use AppConfig's `AllowRevert` feature; does **not** touch completed deployments.
 - **Profile check**: AppConfig allows one in-flight deployment per environment, shared by all profiles in it. `rollback` stops it only when it belongs to the profile in `apcdeploy.yml`; otherwise it fails (exit code `1`) with `configuration profile mismatch: ongoing deployment #N belongs to configuration profile "<actual>", not "<configured>"; re-run with a config targeting "<actual>"`. To stop another profile's deployment, run `rollback` with a config targeting that profile (or use the AWS console/CLI).
+- **For AI assistants**: `--yes` skips the screen that shows which deployment will be stopped. Run `apcdeploy status -c apcdeploy.yml` first, confirm the deployment number (and with the user, when the stop was not explicitly requested), then pass it with `--deployment <number> --yes` so a deployment started in the meantime is never the one stopped.
 - **Local files unchanged**: `rollback` makes no changes to local files. After it succeeds, local files no longer match the deployed (reverted) configuration.
 - **Post-rollback sync**: choose one before continuing:
   - **Accept the reverted state**: `apcdeploy pull -c apcdeploy.yml` to bring local files in line with the previous version.
@@ -661,7 +663,7 @@ apcdeploy run -c apcdeploy.yml
 #### Exit Codes
 
 - `0`: success
-- `1`: AWS error, the ongoing deployment belongs to another configuration profile, user declined the prompt, or TTY error when `--yes` is missing in a non-interactive environment
+- `1`: AWS error, the ongoing deployment belongs to another configuration profile or is not the `--deployment` number, user declined the prompt, or TTY error when `--yes` is missing in a non-interactive environment
 - `2`: no ongoing deployment to stop
 
 #### Examples
@@ -669,6 +671,9 @@ apcdeploy run -c apcdeploy.yml
 ```bash
 # Stop the current rollout (non-interactive)
 apcdeploy rollback -c apcdeploy.yml --yes
+
+# Stop only deployment #12 (checked with `apcdeploy status` first)
+apcdeploy rollback -c apcdeploy.yml --deployment 12 --yes
 
 # Rollback then sync local files to the reverted state
 apcdeploy rollback -c apcdeploy.yml --yes

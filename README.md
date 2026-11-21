@@ -403,6 +403,7 @@ This command stops an in-flight deployment (DEPLOYING, BAKING, VALIDATING, or RO
 Options:
 
 - `-y, --yes`: Skip confirmation prompt (for scripts and automation)
+- `--deployment`: Only stop this deployment number; nothing is stopped if a different deployment is in flight
 
 ### context
 

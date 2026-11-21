@@ -929,3 +929,89 @@ func hasTableRow(tables []reportertest.TableCall, key, value string) bool {
 	}
 	return false
 }
+
+// TestExecutorExpectedDeployment covers --deployment: with --yes the
+// operator cannot see which deployment is in flight, so pinning the number
+// guarantees a deployment started meanwhile is never the one stopped.
+func TestExecutorExpectedDeployment(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		expected         int32
+		skipConfirmation bool
+		wantErrIs        error
+		wantStop         bool
+		wantPrompt       bool
+	}{
+		{name: "matching number with --yes stops", expected: 12, skipConfirmation: true, wantStop: true},
+		{name: "matching number interactive prompts then stops", expected: 12, wantStop: true, wantPrompt: true},
+		{name: "different number with --yes refuses", expected: 11, skipConfirmation: true, wantErrIs: ErrDeploymentMismatch},
+		{name: "different number interactive refuses before prompting", expected: 11, wantErrIs: ErrDeploymentMismatch},
+		{name: "unset stops whatever is in flight", skipConfirmation: true, wantStop: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			configPath := createTestConfig(t)
+			stopCalled := false
+			mockClient := createStandardMockClient(
+				func(ctx context.Context, params *appconfig.ListDeploymentsInput, optFns ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error) {
+					return &appconfig.ListDeploymentsOutput{
+						Items: []types.DeploymentSummary{{DeploymentNumber: 12, State: types.DeploymentStateDeploying}},
+					}, nil
+				},
+				func(ctx context.Context, params *appconfig.GetDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.GetDeploymentOutput, error) {
+					return &appconfig.GetDeploymentOutput{
+						DeploymentNumber:       12,
+						ConfigurationProfileId: aws.String("profile-123"),
+						ConfigurationVersion:   aws.String("1"),
+						DeploymentStrategyId:   aws.String("strategy-123"),
+						State:                  types.DeploymentStateDeploying,
+						StartedAt:              aws.Time(time.Now()),
+					}, nil
+				},
+				func(ctx context.Context, params *appconfig.StopDeploymentInput, optFns ...func(*appconfig.Options)) (*appconfig.StopDeploymentOutput, error) {
+					stopCalled = true
+					return &appconfig.StopDeploymentOutput{}, nil
+				},
+			)
+
+			promptCalled := false
+			rep := &reportertest.MockReporter{}
+			prompter := &prompttest.MockPrompter{
+				InputFunc: func(message string, placeholder string) (string, error) {
+					promptCalled = true
+					return "y", nil
+				},
+			}
+			executor := NewExecutorWithFactory(rep, prompter, func(ctx context.Context, region string) (*awsInternal.Client, error) {
+				return awsInternal.NewTestClient(mockClient), nil
+			})
+
+			err := executor.Execute(context.Background(), &Options{
+				ConfigFile:         configPath,
+				SkipConfirmation:   tt.skipConfirmation,
+				ExpectedDeployment: tt.expected,
+			})
+			if tt.wantErrIs != nil {
+				if !errors.Is(err, tt.wantErrIs) {
+					t.Fatalf("err = %v, want errors.Is(%v)", err, tt.wantErrIs)
+				}
+				if !strings.Contains(err.Error(), "#12") || !strings.Contains(err.Error(), "#11") {
+					t.Errorf("error should name both deployment numbers: %q", err.Error())
+				}
+			} else if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if stopCalled != tt.wantStop {
+				t.Errorf("StopDeployment called = %v, want %v", stopCalled, tt.wantStop)
+			}
+			if promptCalled != tt.wantPrompt {
+				t.Errorf("prompt called = %v, want %v", promptCalled, tt.wantPrompt)
+			}
+		})
+	}
+}
