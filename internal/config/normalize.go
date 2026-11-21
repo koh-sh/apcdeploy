@@ -62,7 +62,13 @@ func decodeJSONUseNumber(r io.Reader) (any, error) {
 	return data, nil
 }
 
-// NormalizeYAML normalizes YAML content by parsing and re-formatting.
+// NormalizeYAML normalizes YAML content by parsing and re-formatting every
+// document in it (joined with "---").
+//
+// The content may be the remote deployed version, so parse errors are
+// reported without the source excerpt goccy/go-yaml adds by default, and a
+// document whose aliases expand beyond MaxNormalizedYAMLSize is rejected
+// before it is re-marshalled.
 //
 // Parameters:
 //   - content: YAML string to normalize
@@ -71,18 +77,72 @@ func decodeJSONUseNumber(r io.Reader) (any, error) {
 //   - string: Normalized YAML with consistent formatting
 //   - error: Any error during parsing or formatting
 func NormalizeYAML(content string) (string, error) {
-	var data any
-	if err := yaml.Unmarshal([]byte(content), &data); err != nil {
-		return "", fmt.Errorf("invalid YAML: %w", err)
+	dec := yaml.NewDecoder(strings.NewReader(content))
+	var docs []string
+	for {
+		var data any
+		err := dec.Decode(&data)
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return "", fmt.Errorf("invalid YAML: %s", yaml.FormatError(err, false, false))
+		}
+		normalized, err := marshalNormalizedYAML(data)
+		if err != nil {
+			return "", err
+		}
+		docs = append(docs, normalized)
 	}
+	if len(docs) == 0 {
+		// An empty input normalizes like a single null document.
+		return marshalNormalizedYAML(nil)
+	}
+	return strings.Join(docs, "---\n"), nil
+}
 
-	// Re-marshal with consistent formatting
+func marshalNormalizedYAML(data any) (string, error) {
+	if expandedYAMLSizeExceeds(data, MaxNormalizedYAMLSize) {
+		return "", fmt.Errorf("invalid YAML: document exceeds %d bytes once aliases are expanded", MaxNormalizedYAMLSize)
+	}
 	normalized, err := yaml.Marshal(data)
 	if err != nil {
 		return "", fmt.Errorf("failed to format YAML: %w", err)
 	}
-
 	return string(normalized), nil
+}
+
+// expandedYAMLSizeExceeds approximates the marshalled size of a decoded YAML
+// value and reports whether it exceeds limit. Aliases decode to shared
+// values, so the walk visits each alias target once per reference, as
+// Marshal would, and stops as soon as the limit is crossed.
+func expandedYAMLSizeExceeds(v any, limit int) bool {
+	size := 0
+	var walk func(v any) bool
+	walk = func(v any) bool {
+		switch x := v.(type) {
+		case map[string]any:
+			for k, val := range x {
+				size += len(k) + 2
+				if size > limit || walk(val) {
+					return true
+				}
+			}
+		case []any:
+			for _, val := range x {
+				size += 2
+				if size > limit || walk(val) {
+					return true
+				}
+			}
+		case string:
+			size += len(x)
+		default:
+			size += 8
+		}
+		return size > limit
+	}
+	return walk(v)
 }
 
 // NormalizeText normalizes text content by ensuring consistent line endings.

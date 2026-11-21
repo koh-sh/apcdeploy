@@ -393,7 +393,7 @@ apcdeploy diff -c apcdeploy.yml
 
 #### Behavior
 
-- **Normalization**: JSON and YAML are normalized (indentation and line-break differences are absorbed); plain text is compared byte-for-byte. For FeatureFlags profiles, `_createdAt` and `_updatedAt` are stripped before comparison.
+- **Normalization**: the comparison mode is chosen by the data file extension. JSON (`.json`) and YAML (`.yaml` / `.yml`) are parsed and re-serialized, so formatting, indentation, key order and (YAML) comments, quoting style and anchors are not differences; YAML values are compared after decoding, so scalars that decode to the same value (e.g. `0x10` and `16`) also compare equal. Every YAML document in a multi-document file is compared, and a YAML document whose aliases expand beyond 8 MB is rejected. Plain text (any other extension) is compared after converting CRLF to LF and collapsing trailing newlines to one. For FeatureFlags profiles, `_createdAt` and `_updatedAt` are stripped before comparison.
 - **In-progress deployments**: when a deployment is `DEPLOYING` or `BAKING`, the diff is taken against that in-flight configuration. If that deployment is later rolled back (`ROLLED_BACK`), the diff output may not match the configuration that ends up deployed.
 - **Output**: lines prefixed `-` are present in the deployed version, `+` lines are present locally. When the two match, the command prints `No differences found` and exits 0.
 - **No prior deployment**: when the configuration profile + environment has never been deployed, the local data is emitted as an "all-added" unified diff (every line `+` prefixed) — semantically the would-be initial deployment payload. The command exits `0` (unlike `pull` / `edit`, which exit `2` in this state).
