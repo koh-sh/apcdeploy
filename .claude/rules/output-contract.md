@@ -160,10 +160,9 @@ command markers (`::` at the start of a line, `##[` anywhere) are broken.
   `internal/sanitize` itself.
 - `Data` and piped `Diff` are payloads and are NEVER sanitized: they must stay
   byte-for-byte.
-- When an error embeds remote text verbatim (e.g. the JSON Schema compiler
-  message, AWS validator output), neutralise that part with `sanitize.Text`
-  where the error is built, so it also stays safe on paths that bypass the
-  Reporter.
+- Errors are neutralised where they are written, not where they are built:
+  every path an error takes to stderr (`Error`, `Targets.Fail`, the Errors:
+  section) already applies `sanitize`, so error construction stays plain.
 
 ## Documented exceptions
 

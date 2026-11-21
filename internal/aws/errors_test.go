@@ -161,19 +161,3 @@ func TestFormatValidationError(t *testing.T) {
 		})
 	}
 }
-
-// TestFormatValidationError_NeutralisesValidatorMessage covers validator
-// output (e.g. a Lambda validator's error text) carried in
-// BadRequestException.Message: it is untrusted and must not start a line
-// with a workflow command or carry control sequences.
-func TestFormatValidationError_NeutralisesValidatorMessage(t *testing.T) {
-	t.Parallel()
-
-	result := FormatValidationError(&types.BadRequestException{Message: new("bad\n::warning::injected\x1b[2J")})
-	if strings.Contains(result, "\n::warning") || strings.Contains(result, "\x1b") {
-		t.Errorf("validator message was not neutralised: %q", result)
-	}
-	if !strings.Contains(result, "bad\n\\x3a:warning::injected\\x1b[2J") {
-		t.Errorf("validator message missing: %q", result)
-	}
-}
