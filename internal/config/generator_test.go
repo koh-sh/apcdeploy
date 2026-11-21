@@ -22,6 +22,7 @@ func TestGenerateConfigFile(t *testing.T) {
 		deploymentStrategy string
 		outputPath         string
 		wantErr            bool
+		wantErrContains    string
 		validateConfig     func(*testing.T, *Config)
 	}{
 		{
@@ -100,6 +101,7 @@ func TestGenerateConfigFile(t *testing.T) {
 			deploymentStrategy: "a\rdata_file:\n.git/config\rregion:\nus-east-1\n\r---",
 			outputPath:         filepath.Join(tempDir, "injected-strategy.yml"),
 			wantErr:            true,
+			wantErrContains:    "deployment_strategy",
 		},
 		{
 			name:               "reject environment name that does not round-trip",
@@ -111,6 +113,7 @@ func TestGenerateConfigFile(t *testing.T) {
 			deploymentStrategy: "",
 			outputPath:         filepath.Join(tempDir, "injected-env.yml"),
 			wantErr:            true,
+			wantErrContains:    "environment",
 		},
 	}
 
@@ -122,6 +125,9 @@ func TestGenerateConfigFile(t *testing.T) {
 				t.Error("expected error but got none")
 			} else if !tt.wantErr && err != nil {
 				t.Errorf("unexpected error: %v", err)
+			}
+			if tt.wantErrContains != "" && (err == nil || !strings.Contains(err.Error(), tt.wantErrContains)) {
+				t.Errorf("error = %v, want it to name %q", err, tt.wantErrContains)
 			}
 
 			if tt.wantErr {

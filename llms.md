@@ -277,7 +277,7 @@ Partial flag specification is supported: any omitted flag triggers an interactiv
 #### Behavior
 
 - **Overwrite protection**: existing `apcdeploy.yml` or data file is preserved unless `-f` is supplied.
-- **Name safety**: the generated `apcdeploy.yml` is read back before it is written; if a resource or deployment strategy name contains characters that would not survive the round-trip (e.g. a lone carriage return), `init` fails without writing any file.
+- **Name safety**: the generated `apcdeploy.yml` is read back before it is written; if a resource or deployment strategy name contains characters that would not survive the round-trip (e.g. a lone carriage return), `init` fails without writing any file, and the error names the field (e.g. `deployment_strategy contains characters that cannot be written to apcdeploy.yml safely`).
 - **IAM**: when `--region` is supplied, `account:ListRegions` is **not** required. The permission is only needed for the interactive region picker.
 - **AI workflow**: use `apcdeploy ls-resources --region <r> --json` to discover names, then call `init` with all four flags. Fallback if `ls-resources` is unavailable: ask the user to provide application / profile / environment names.
 

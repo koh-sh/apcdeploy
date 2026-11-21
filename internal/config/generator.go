@@ -3,7 +3,6 @@ package config
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -45,7 +44,7 @@ func GenerateConfigFile(app, profile, env, dataFile, region, deploymentStrategy,
 	// would let a remote name inject keys such as data_file. Refuse to write
 	// anything that does not read back exactly as given.
 	if decoded, err := decodeConfig(data); err != nil || decoded != cfg {
-		return errors.New("resource names contain characters that cannot be written to apcdeploy.yml safely")
+		return fmt.Errorf("%s contains characters that cannot be written to apcdeploy.yml safely", unsafeConfigField(cfg))
 	}
 
 	// Write to file
@@ -54,6 +53,27 @@ func GenerateConfigFile(app, profile, env, dataFile, region, deploymentStrategy,
 	}
 
 	return nil
+}
+
+// unsafeConfigField returns the YAML key of the first field whose value does
+// not survive a YAML round trip on its own, so the GenerateConfigFile error
+// can name it.
+func unsafeConfigField(cfg Config) string {
+	for _, f := range []struct{ key, value string }{
+		{"application", cfg.Application},
+		{"configuration_profile", cfg.ConfigurationProfile},
+		{"environment", cfg.Environment},
+		{"deployment_strategy", cfg.DeploymentStrategy},
+		{"data_file", cfg.DataFile},
+		{"region", cfg.Region},
+	} {
+		data, err := yaml.Marshal(map[string]string{f.key: f.value})
+		var back map[string]string
+		if err != nil || yaml.Unmarshal(data, &back) != nil || back[f.key] != f.value {
+			return f.key
+		}
+	}
+	return "a resource name"
 }
 
 // DetermineDataFileName determines the appropriate data file name based on content type
