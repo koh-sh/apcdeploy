@@ -128,3 +128,24 @@ func TestValidateAgainstJSONSchema(t *testing.T) {
 		})
 	}
 }
+
+// TestValidateAgainstJSONSchema_NeutralisesSchemaError covers a remote
+// JSON_SCHEMA validator whose pattern RE2 rejects: the compile error embeds
+// the rest of the pattern unquoted, so a newline in it must not start an
+// output line with "::" (which a CI runner parses as a workflow command) and
+// control characters must not reach the terminal.
+func TestValidateAgainstJSONSchema_NeutralisesSchemaError(t *testing.T) {
+	t.Parallel()
+
+	schema := `{"type":"object","properties":{"a":{"type":"string","pattern":"(?<=a)\n::warning::injected\u001b[2J"}}}`
+	err := validateAgainstJSONSchema([]byte(`{"a":"x"}`), []byte(schema), nil, "")
+	if err == nil {
+		t.Fatal("expected a schema compile error, got nil")
+	}
+	if strings.Contains(err.Error(), "\n::") || strings.Contains(err.Error(), "\x1b") {
+		t.Errorf("schema error was not neutralised: %q", err.Error())
+	}
+	if !strings.Contains(err.Error(), "invalid JSON schema") {
+		t.Errorf("schema error lost its context: %q", err.Error())
+	}
+}

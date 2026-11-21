@@ -7,6 +7,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/appconfig/types"
 	"github.com/aws/smithy-go"
+	"github.com/koh-sh/apcdeploy/internal/sanitize"
 )
 
 // wrapAWSError wraps an AWS API error with additional context
@@ -45,10 +46,12 @@ func FormatValidationError(err error) string {
 	// Extract detailed error message
 	if badRequestErr, ok := errors.AsType[*types.BadRequestException](err); ok {
 		if badRequestErr.Message != nil {
-			fmt.Fprintf(&sb, "  %s\n", *badRequestErr.Message)
+			// The message carries validator output (a Lambda validator's
+			// error text is chosen by whoever owns that function).
+			fmt.Fprintf(&sb, "  %s\n", sanitize.Text(*badRequestErr.Message))
 		}
 	} else {
-		fmt.Fprintf(&sb, "  %s\n", err.Error())
+		fmt.Fprintf(&sb, "  %s\n", sanitize.Text(err.Error()))
 	}
 
 	sb.WriteString("\nPossible causes:\n")

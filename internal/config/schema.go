@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/koh-sh/apcdeploy/internal/sanitize"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
@@ -52,7 +53,7 @@ func (blockedURLLoader) Load(url string) (any, error) {
 func validateAgainstJSONSchema(data, schemaJSON []byte, forceDraft *jsonschema.Draft, locationPrefix string) error {
 	schemaDoc, err := jsonschema.UnmarshalJSON(bytes.NewReader(schemaJSON))
 	if err != nil {
-		return fmt.Errorf("invalid JSON schema: %w", err)
+		return invalidSchemaError(err)
 	}
 	instanceDoc, err := jsonschema.UnmarshalJSON(bytes.NewReader(data))
 	if err != nil {
@@ -70,11 +71,11 @@ func validateAgainstJSONSchema(data, schemaJSON []byte, forceDraft *jsonschema.D
 		compiler.DefaultDraft(forceDraft)
 	}
 	if err := compiler.AddResource(schemaResourceURL, schemaDoc); err != nil {
-		return fmt.Errorf("invalid JSON schema: %w", err)
+		return invalidSchemaError(err)
 	}
 	sch, err := compiler.Compile(schemaResourceURL)
 	if err != nil {
-		return fmt.Errorf("invalid JSON schema: %w", err)
+		return invalidSchemaError(err)
 	}
 
 	if err := sch.Validate(instanceDoc); err != nil {
@@ -84,6 +85,16 @@ func validateAgainstJSONSchema(data, schemaJSON []byte, forceDraft *jsonschema.D
 		return err
 	}
 	return nil
+}
+
+// invalidSchemaError reports a schema that cannot be loaded or compiled. The
+// schema is usually the profile's remote JSON_SCHEMA validator, and the
+// compiler's message embeds parts of it unquoted (e.g. the rest of a regex
+// pattern RE2 rejects), so the message is neutralised before it reaches the
+// terminal or a CI log. Nothing unwraps these errors, so the cause is not
+// kept as a wrapped error.
+func invalidSchemaError(err error) error {
+	return errors.New("invalid JSON schema: " + sanitize.Text(err.Error()))
 }
 
 // collectSchemaIssues flattens a jsonschema validation error tree into a list of

@@ -82,7 +82,7 @@ apcdeploy run -c apcdeploy.yml
 apcdeploy status -c apcdeploy.yml   # optional, to inspect rollout
 ```
 
-For CI/CD, gate the deploy step on `apcdeploy diff -c apcdeploy.yml --exit-nonzero --silent`.
+For CI/CD, gate the deploy step on `apcdeploy diff -c apcdeploy.yml --exit-nonzero --silent >/dev/null` (see "CI/CD Pattern" for why stdout is discarded).
 
 ### Sync Flow (Changes Made in the AWS Console)
 
@@ -410,7 +410,7 @@ apcdeploy diff -c apcdeploy.yml
 apcdeploy diff -c apcdeploy.yml
 
 # CI guard: deploy only when changes are present
-if apcdeploy diff -c apcdeploy.yml --exit-nonzero --silent; then
+if apcdeploy diff -c apcdeploy.yml --exit-nonzero --silent >/dev/null; then
   echo "No changes to deploy"
 else
   apcdeploy run -c apcdeploy.yml
@@ -824,7 +824,7 @@ Gate deployment on `diff --exit-nonzero` so the pipeline is a no-op when nothing
 ```yaml
 - name: Deploy to AppConfig
   run: |
-    if apcdeploy diff -c apcdeploy.yml --exit-nonzero --silent; then
+    if apcdeploy diff -c apcdeploy.yml --exit-nonzero --silent >/dev/null; then
       echo "No changes to deploy"
     else
       apcdeploy run -c apcdeploy.yml --silent
@@ -832,6 +832,8 @@ Gate deployment on `diff --exit-nonzero` so the pipeline is a no-op when nothing
 ```
 
 `--wait-*` is intentionally omitted here; check rollout progress with a follow-up `status` step if needed.
+
+The gate only needs the exit code, so stdout is discarded. The diff body is a byte-for-byte payload that includes the deployed configuration, which anyone with AppConfig deploy rights can write; in GitHub Actions the runner parses workflow commands (`::add-mask::`, `::warning::`, `##[...]`) out of a step's output, so printing it lets that content hide or forge log lines and annotations. If the diff must appear in the log, wrap it in `::stop-commands::<random token>` / `::<random token>::`. Human-facing stderr output (progress, errors, warnings, tables) is already neutralised: control characters and workflow-command markers in remote strings are rendered as visible escapes such as `\x1b`. `Data` payloads (`get`, `diff` stdout when piped, `ls-resources --json`, `context`) are never altered.
 
 ## Security and Access Control
 
