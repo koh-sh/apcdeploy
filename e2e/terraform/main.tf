@@ -175,12 +175,17 @@ resource "aws_lambda_function" "validator" {
   source_code_hash = data.archive_file.validator_lambda.output_base64sha256
 }
 
+# source_account keeps AppConfig in other accounts from invoking the
+# validator through this permission (confused deputy).
 resource "aws_lambda_permission" "appconfig_invoke_validator" {
-  statement_id  = "AllowAppConfigInvoke"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.validator.function_name
-  principal     = "appconfig.amazonaws.com"
+  statement_id   = "AllowAppConfigInvoke"
+  action         = "lambda:InvokeFunction"
+  function_name  = aws_lambda_function.validator.function_name
+  principal      = "appconfig.amazonaws.com"
+  source_account = data.aws_caller_identity.current.account_id
 }
+
+data "aws_caller_identity" "current" {}
 
 # 7. Freeform JSON profile with a LAMBDA validator. `validate` must SKIP it
 # (report syntax-only) because Lambda validators run only inside AWS.
