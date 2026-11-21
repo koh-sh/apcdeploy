@@ -35,6 +35,11 @@ func TestLoadDataFile(t *testing.T) {
 			path:    "../../testdata/data/toolarge.txt",
 			wantErr: true,
 		},
+		{
+			name:    "directory",
+			path:    t.TempDir(),
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -42,34 +47,6 @@ func TestLoadDataFile(t *testing.T) {
 			_, err := LoadDataFile(tt.path)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("LoadDataFile() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
-func Test_checkDataFileSize(t *testing.T) {
-	tests := []struct {
-		name    string
-		path    string
-		wantErr bool
-	}{
-		{
-			name:    "small file (< 2MB)",
-			path:    "../../testdata/data/valid.json",
-			wantErr: false,
-		},
-		{
-			name:    "large file (> 2MB)",
-			path:    "../../testdata/data/toolarge.txt",
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := checkDataFileSize(tt.path)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("checkDataFileSize() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}

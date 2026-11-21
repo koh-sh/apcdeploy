@@ -453,6 +453,89 @@ func TestWriteDataFileFeatureFlags(t *testing.T) {
 	}
 }
 
+func TestWriteDataFilePermissionsAndTargets(t *testing.T) {
+	t.Parallel()
+
+	content := []byte("remote content\n")
+
+	t.Run("new file is created private", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), "data.txt")
+		if err := WriteDataFile(content, ContentTypeText, path, "", false); err != nil {
+			t.Fatalf("WriteDataFile() error = %v", err)
+		}
+		assertFile(t, path, content, 0o600)
+	})
+
+	t.Run("existing file keeps its mode", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), "data.txt")
+		if err := os.WriteFile(path, []byte("old\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(path, 0o640); err != nil {
+			t.Fatal(err)
+		}
+		if err := WriteDataFile(content, ContentTypeText, path, "", true); err != nil {
+			t.Fatalf("WriteDataFile() error = %v", err)
+		}
+		assertFile(t, path, content, 0o640)
+	})
+
+	t.Run("symlink is followed and kept", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		target := filepath.Join(dir, "real.txt")
+		if err := os.WriteFile(target, []byte("old\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		link := filepath.Join(dir, "data.txt")
+		if err := os.Symlink(target, link); err != nil {
+			t.Fatal(err)
+		}
+		if err := WriteDataFile(content, ContentTypeText, link, "", true); err != nil {
+			t.Fatalf("WriteDataFile() error = %v", err)
+		}
+		if info, err := os.Lstat(link); err != nil || info.Mode()&os.ModeSymlink == 0 {
+			t.Errorf("symlink was replaced: info=%v err=%v", info, err)
+		}
+		assertFile(t, target, content, 0o644)
+	})
+
+	t.Run("no temporary file is left behind", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		if err := WriteDataFile(content, ContentTypeText, filepath.Join(dir, "data.txt"), "", false); err != nil {
+			t.Fatalf("WriteDataFile() error = %v", err)
+		}
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(entries) != 1 {
+			t.Errorf("expected only data.txt in %s, got %v", dir, entries)
+		}
+	})
+}
+
+func assertFile(t *testing.T, path string, want []byte, wantMode os.FileMode) {
+	t.Helper()
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	if string(got) != string(want) {
+		t.Errorf("content = %q, want %q", got, want)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat %s: %v", path, err)
+	}
+	if info.Mode().Perm() != wantMode {
+		t.Errorf("mode = %o, want %o", info.Mode().Perm(), wantMode)
+	}
+}
+
 func TestWriteDataFileOverwrite(t *testing.T) {
 	tempDir := t.TempDir()
 	dataPath := filepath.Join(tempDir, "data.json")

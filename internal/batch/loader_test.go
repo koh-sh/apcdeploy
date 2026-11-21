@@ -200,3 +200,52 @@ func TestLoadAll_DuplicateRespectsRegionDifference(t *testing.T) {
 		t.Fatalf("len(targets) = %d, want 2", len(targets))
 	}
 }
+
+func TestRequireDistinctDataFiles(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		files   map[string]string // yml path -> body
+		wantErr bool
+	}{
+		{
+			name: "distinct data files",
+			files: map[string]string{
+				"dev.yml":  goodYML("us-east-1", "app", "profile", "dev", "dev.json"),
+				"prod.yml": goodYML("us-east-1", "app", "profile", "prod", "prod.json"),
+			},
+		},
+		{
+			// Two environments pulled into one file would race and leave
+			// whichever finished last.
+			name: "shared data file",
+			files: map[string]string{
+				"dev.yml":  goodYML("us-east-1", "app", "profile", "dev", "data.json"),
+				"prod.yml": goodYML("us-east-1", "app", "profile", "prod", "./data.json"),
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			var paths []string
+			for name, body := range tt.files {
+				paths = append(paths, writeYML(t, dir, name, body))
+			}
+			targets, err := LoadAll(paths)
+			if err != nil {
+				t.Fatalf("LoadAll: %v", err)
+			}
+			err = RequireDistinctDataFiles(targets)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("RequireDistinctDataFiles() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantErr && !errors.Is(err, ErrSharedDataFile) {
+				t.Errorf("err = %v, want errors.Is(ErrSharedDataFile)", err)
+			}
+		})
+	}
+}

@@ -122,6 +122,7 @@ Unknown keys (including typos such as `deployment_stratgy`) and files with more 
 
 - **Relative path** (e.g. `data.json`, `config/data.json`): resolved against the directory containing `apcdeploy.yml`.
 - **Absolute path** (e.g. `/home/user/configs/data.json`): used as-is.
+- The file must be a regular file (or a symlink to one) of at most 2 MB; named pipes and devices are rejected.
 
 ### Deployment Strategies
 
@@ -542,6 +543,7 @@ Compare-before-write means the local file's mtime is unchanged when content alre
 - **Idempotent**: safe to run repeatedly; subsequent runs are no-ops if nothing changed.
 - **Content-Type aware**: respects the content type recorded on the hosted configuration version (JSON / YAML / plain text).
 - **No Data API charges**: uses control-plane APIs only (`ListDeployments` + `GetHostedConfigurationVersion`).
+- **Atomic write**: the data file is replaced via a temporary file and a rename, so an interrupted pull never leaves a truncated file. A symlinked `data_file` is followed (the link is kept), an existing file keeps its permissions, and a newly created file is `0600` (the content may hold secrets). `init` writes its data file the same way.
 
 #### Errors
 
@@ -737,6 +739,7 @@ Behavior:
 - Comma-separated values (`-c a.yml,b.yml`) are split by the CLI framework (Cobra), not by apcdeploy. Because of this, a path that itself contains a comma will be split incorrectly — repeat `-c` for such paths.
 - Each `-c` is loaded and validated up-front; any single load failure aborts the batch before any AWS call.
 - Targets are identified by the 4-tuple `region/app/profile/env`. Two configs that resolve to the same identifier produce `ErrDuplicateTarget`.
+- `pull` additionally rejects configs whose `data_file` resolves to the same path (it would write that file concurrently from several environments). `run` / `diff` / `validate` only read the data file, so sharing one across environments is fine there.
 - Default execution is fully parallel (equivalent to `--parallel 0`). Use `--parallel N` to cap concurrency or `--parallel 1` for strict serial order.
 - Default failure mode is fail-fast: queued targets that haven't started yet are reported as `⊘ skipped (fail-fast)`. Use `--continue-on-error` to run every target regardless of failures.
 - Each target's `--timeout` is independent (it is per-target, not a global wall-clock cap).

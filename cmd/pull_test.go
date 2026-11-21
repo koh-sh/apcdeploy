@@ -1,10 +1,13 @@
 package cmd
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/koh-sh/apcdeploy/internal/batch"
 )
 
 func TestPullCommand(t *testing.T) {
@@ -216,5 +219,26 @@ func TestPullCommandSilenceUsage(t *testing.T) {
 	// SilenceUsage should be true to prevent usage display on runtime errors
 	if !cmd.SilenceUsage {
 		t.Error("pull command should have SilenceUsage set to true")
+	}
+}
+
+func TestRunPull_SharedDataFileIsRejectedBeforeAWS(t *testing.T) {
+	tmpDir := t.TempDir()
+	var paths []string
+	for _, env := range []string{"dev", "prod"} {
+		p := filepath.Join(tmpDir, env+".yml")
+		body := "application: a\nconfiguration_profile: p\nenvironment: " + env + "\nregion: us-east-1\ndata_file: data.json\n"
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatalf("write %s: %v", p, err)
+		}
+		paths = append(paths, p)
+	}
+
+	configFiles = paths
+	t.Cleanup(func() { configFiles = []string{defaultConfigFile} })
+
+	err := runPull(newPullCmd(), nil)
+	if !errors.Is(err, batch.ErrSharedDataFile) {
+		t.Fatalf("err = %v, want errors.Is(batch.ErrSharedDataFile)", err)
 	}
 }

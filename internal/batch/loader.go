@@ -13,6 +13,10 @@ import (
 // command-layer code can react with a tailored exit message.
 var ErrDuplicateTarget = errors.New("duplicate target")
 
+// ErrSharedDataFile is returned by RequireDistinctDataFiles when two targets
+// resolve to the same data_file.
+var ErrSharedDataFile = errors.New("shared data_file")
+
 // LoadAll reads, parses, and validates every config path supplied on the
 // command line, returning one Target per *unique* path in argument order.
 //
@@ -68,4 +72,20 @@ func LoadAll(paths []string) ([]*Target, error) {
 	}
 
 	return targets, nil
+}
+
+// RequireDistinctDataFiles rejects targets whose data_file resolves to the
+// same path. Sharing a data file is fine for commands that only read it, but
+// a command that writes it (pull) would run the writes concurrently and keep
+// whichever target finished last.
+func RequireDistinctDataFiles(targets []*Target) error {
+	byDataFile := make(map[string]*Target, len(targets))
+	for _, t := range targets {
+		key := filepath.Clean(t.Config.DataFile)
+		if prev, dup := byDataFile[key]; dup {
+			return fmt.Errorf("%w: %q and %q both write %s", ErrSharedDataFile, prev.Path, t.Path, key)
+		}
+		byDataFile[key] = t
+	}
+	return nil
 }
