@@ -33,23 +33,34 @@ func TestReporter_NeutralisesControlSequences(t *testing.T) {
 	tests := []struct {
 		name   string
 		invoke func(r *Reporter)
+		// ttyOnly marks output that exists only on a TTY (the animated
+		// spinner label).
+		ttyOnly bool
 	}{
-		{"step", func(r *Reporter) { r.Step(injected) }},
-		{"success", func(r *Reporter) { r.Success(injected) }},
-		{"info", func(r *Reporter) { r.Info(injected) }},
-		{"warn", func(r *Reporter) { r.Warn(injected) }},
-		{"error", func(r *Reporter) { r.Error(injected) }},
-		{"header", func(r *Reporter) { r.Header(injected) }},
-		{"box title", func(r *Reporter) { r.Box(injected, []string{"line"}) }},
-		{"box line", func(r *Reporter) { r.Box("T", []string{injected}) }},
-		{"table header", func(r *Reporter) { r.Table([]string{injected}, [][]string{{"v"}}) }},
-		{"table cell", func(r *Reporter) { r.Table([]string{"Field", "Value"}, [][]string{{"Description", injected}}) }},
-		{"spinner done", func(r *Reporter) { r.Spin("working").Done(injected) }},
-		{"spinner fail", func(r *Reporter) { r.Spin("working").Fail(injected) }},
+		{"step", func(r *Reporter) { r.Step(injected) }, false},
+		{"success", func(r *Reporter) { r.Success(injected) }, false},
+		{"info", func(r *Reporter) { r.Info(injected) }, false},
+		{"warn", func(r *Reporter) { r.Warn(injected) }, false},
+		{"error", func(r *Reporter) { r.Error(injected) }, false},
+		{"header", func(r *Reporter) { r.Header(injected) }, false},
+		{"box title", func(r *Reporter) { r.Box(injected, []string{"line"}) }, false},
+		{"box line", func(r *Reporter) { r.Box("T", []string{injected}) }, false},
+		{"table header", func(r *Reporter) { r.Table([]string{injected}, [][]string{{"v"}}) }, false},
+		{"table cell", func(r *Reporter) { r.Table([]string{"Field", "Value"}, [][]string{{"Description", injected}}) }, false},
+		{"spinner done", func(r *Reporter) { r.Spin("working").Done(injected) }, false},
+		{"spinner fail", func(r *Reporter) { r.Spin("working").Fail(injected) }, false},
+		{"spinner label", func(r *Reporter) {
+			s := r.Spin(injected)
+			s.Update(injected)
+			s.Stop()
+		}, true},
 	}
 
 	for _, tty := range []bool{false, true} {
 		for _, tt := range tests {
+			if tt.ttyOnly && !tty {
+				continue
+			}
 			name := tt.name
 			if tty {
 				name += " tty"
@@ -65,55 +76,50 @@ func TestReporter_NeutralisesControlSequences(t *testing.T) {
 	}
 }
 
-func TestReporter_SpinTTYNeutralisesLabel(t *testing.T) {
+// TestReporter_Payloads covers stdout payloads: they stay byte-for-byte,
+// except the TTY diff render, which is for a human and is neutralised.
+func TestReporter_Payloads(t *testing.T) {
 	t.Parallel()
 
-	var out, errBuf bytes.Buffer
-	r := &Reporter{outW: &out, errW: &errBuf, outTTY: true, errTTY: true}
-	s := r.Spin(injected)
-	s.Update(injected)
-	s.Stop()
-	assertNeutralised(t, errBuf.String())
-}
+	diff := []byte("-" + injected + "\n+\tok\n")
 
-func TestReporter_ErrorKeepsLineBreaks(t *testing.T) {
-	t.Parallel()
-
-	r, _, errBuf := newTestReporter()
-	r.Error("schema validation failed:\n  - /a: bad")
-	if !strings.Contains(errBuf.String(), "failed:\n  - /a: bad") {
-		t.Errorf("multi-line error lost its layout: %q", errBuf.String())
+	tests := []struct {
+		name   string
+		tty    bool
+		invoke func(r *Reporter)
+		check  func(t *testing.T, out string)
+	}{
+		{
+			name:   "diff tty is neutralised",
+			tty:    true,
+			invoke: func(r *Reporter) { r.Diff(diff) },
+			check: func(t *testing.T, out string) {
+				assertNeutralised(t, out)
+				if strings.Contains(out, `\tok`) {
+					t.Errorf("TTY diff must not escape tabs in content: %q", out)
+				}
+			},
+		},
+		{name: "diff piped is raw", invoke: func(r *Reporter) { r.Diff(diff) }, check: assertExact(string(diff))},
+		{name: "data piped is raw", invoke: func(r *Reporter) { r.Data([]byte(injected)) }, check: assertExact(injected)},
+		{name: "data tty is raw", tty: true, invoke: func(r *Reporter) { r.Data([]byte(injected)) }, check: assertExact(injected)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var out, errBuf bytes.Buffer
+			r := &Reporter{outW: &out, errW: &errBuf, outTTY: tt.tty, errTTY: tt.tty}
+			tt.invoke(r)
+			tt.check(t, out.String())
+		})
 	}
 }
 
-func TestReporter_DiffTTYNeutralisesButPipedIsRaw(t *testing.T) {
-	t.Parallel()
-
-	payload := []byte("-" + injected + "\n+\tok\n")
-
-	tty, ttyOut, _ := newTTYReporter()
-	tty.Diff(payload)
-	assertNeutralised(t, ttyOut.String())
-	if strings.Contains(ttyOut.String(), `\tok`) {
-		t.Errorf("TTY diff must not escape tabs in content: %q", ttyOut.String())
-	}
-
-	piped, pipedOut, _ := newTestReporter()
-	piped.Diff(payload)
-	if pipedOut.String() != string(payload) {
-		t.Errorf("piped diff must be byte-for-byte: got %q, want %q", pipedOut.String(), payload)
-	}
-}
-
-func TestReporter_DataIsRaw(t *testing.T) {
-	t.Parallel()
-
-	for _, tty := range []bool{false, true} {
-		var out, errBuf bytes.Buffer
-		r := &Reporter{outW: &out, errW: &errBuf, outTTY: tty, errTTY: tty}
-		r.Data([]byte(injected))
-		if out.String() != injected {
-			t.Errorf("Data (tty=%v) must be byte-for-byte: got %q", tty, out.String())
+func assertExact(want string) func(t *testing.T, out string) {
+	return func(t *testing.T, out string) {
+		t.Helper()
+		if out != want {
+			t.Errorf("payload must be byte-for-byte: got %q, want %q", out, want)
 		}
 	}
 }
@@ -183,25 +189,55 @@ func TestTargets_NeutraliseControlSequences(t *testing.T) {
 	}
 }
 
-func TestTargets_FailErrorLayout(t *testing.T) {
+// TestMultiLineErrorLayout covers where a multi-line error keeps its line
+// breaks: lines appended to a log do, a TTY Targets row (redrawn in place)
+// renders it on one line.
+func TestMultiLineErrorLayout(t *testing.T) {
 	t.Parallel()
 
-	err := errors.New("schema validation failed:\n  - /a: bad")
+	const msg = "schema validation failed:\n  - /a: bad"
 
-	// Non-TTY lines are appended to a log, so a multi-line error keeps its
-	// layout there.
-	plain, plainBuf := newTestPlainTargets(t, []string{"id"})
-	plain.Fail("id", err)
-	plain.Close()
-	if !strings.Contains(plainBuf.String(), "failed:\n  - /a: bad") {
-		t.Errorf("plain Fail lost the error layout: %q", plainBuf.String())
+	tests := []struct {
+		name   string
+		render func(t *testing.T) string
+		want   string
+	}{
+		{
+			name: "reporter error keeps line breaks",
+			render: func(t *testing.T) string {
+				r, _, errBuf := newTestReporter()
+				r.Error(msg)
+				return errBuf.String()
+			},
+			want: "failed:\n  - /a: bad",
+		},
+		{
+			name: "plain targets fail keeps line breaks",
+			render: func(t *testing.T) string {
+				tg, buf := newTestPlainTargets(t, []string{"id"})
+				tg.Fail("id", errors.New(msg))
+				tg.Close()
+				return buf.String()
+			},
+			want: "failed:\n  - /a: bad",
+		},
+		{
+			name: "tty targets fail stays on one line",
+			render: func(t *testing.T) string {
+				tg, buf := newTestTTYTargets(t, []string{"id"})
+				tg.Fail("id", errors.New(msg))
+				tg.Close()
+				return stripANSI(buf.String())
+			},
+			want: `failed:\n`,
+		},
 	}
-
-	// A TTY row is redrawn in place and must stay on one line.
-	tty, ttyBuf := newTestTTYTargets(t, []string{"id"})
-	tty.Fail("id", err)
-	tty.Close()
-	if !strings.Contains(stripANSI(ttyBuf.String()), `failed:\n`) {
-		t.Errorf("TTY Fail row must render the error on one line: %q", ttyBuf.String())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := tt.render(t); !strings.Contains(got, tt.want) {
+				t.Errorf("output %q does not contain %q", got, tt.want)
+			}
+		})
 	}
 }

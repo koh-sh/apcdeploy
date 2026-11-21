@@ -105,6 +105,9 @@ func TestNormalizeYAML(t *testing.T) {
 		content string
 		want    string
 		wantErr bool
+		// errOmits must not appear in the error: the content may be the
+		// remote deployed version, so parse errors carry no source excerpt.
+		errOmits string
 	}{
 		{
 			name:    "simple YAML normalization",
@@ -152,6 +155,13 @@ func TestNormalizeYAML(t *testing.T) {
 			want:    "",
 			wantErr: true,
 		},
+		{
+			name:     "parse error omits the source",
+			content:  "a: 1\nb: [1, 2\nsecret: hunter2\n",
+			want:     "",
+			wantErr:  true,
+			errOmits: "hunter2",
+		},
 	}
 
 	for _, tt := range tests {
@@ -160,6 +170,9 @@ func TestNormalizeYAML(t *testing.T) {
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NormalizeYAML() error = %v, wantErr %v", err, tt.wantErr)
 				return
+			}
+			if err != nil && tt.errOmits != "" && strings.Contains(err.Error(), tt.errOmits) {
+				t.Errorf("NormalizeYAML() error includes source content: %q", err.Error())
 			}
 			if got != tt.want {
 				t.Errorf("NormalizeYAML() = %v, want %v", got, tt.want)
@@ -220,20 +233,6 @@ func TestExpandedYAMLSizeExceeds(t *testing.T) {
 				t.Errorf("expandedYAMLSizeExceeds() = %v, want %v", got, tt.want)
 			}
 		})
-	}
-}
-
-func TestNormalizeYAML_ErrorOmitsSource(t *testing.T) {
-	t.Parallel()
-
-	// The content may be the remote deployed version, so a parse error must
-	// not echo its lines into the terminal or a CI log.
-	_, err := NormalizeYAML("a: 1\nb: [1, 2\nsecret: hunter2\n")
-	if err == nil {
-		t.Fatal("expected a parse error, got nil")
-	}
-	if strings.Contains(err.Error(), "hunter2") {
-		t.Errorf("parse error includes source content: %q", err.Error())
 	}
 }
 

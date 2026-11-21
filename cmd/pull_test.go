@@ -223,22 +223,35 @@ func TestPullCommandSilenceUsage(t *testing.T) {
 }
 
 func TestRunPull_SharedDataFileIsRejectedBeforeAWS(t *testing.T) {
-	tmpDir := t.TempDir()
-	var paths []string
-	for _, env := range []string{"dev", "prod"} {
-		p := filepath.Join(tmpDir, env+".yml")
-		body := "application: a\nconfiguration_profile: p\nenvironment: " + env + "\nregion: us-east-1\ndata_file: data.json\n"
-		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
-			t.Fatalf("write %s: %v", p, err)
-		}
-		paths = append(paths, p)
+	tests := []struct {
+		name      string
+		dataFiles map[string]string // environment -> data_file
+	}{
+		{name: "same spelling", dataFiles: map[string]string{"dev": "data.json", "prod": "data.json"}},
+		{name: "different spelling", dataFiles: map[string]string{"dev": "data.json", "prod": "./sub/../data.json"}},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			var paths []string
+			for env, dataFile := range tt.dataFiles {
+				p := filepath.Join(tmpDir, env+".yml")
+				body := "application: a\nconfiguration_profile: p\nenvironment: " + env + "\nregion: us-east-1\ndata_file: " + dataFile + "\n"
+				if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+					t.Fatalf("write %s: %v", p, err)
+				}
+				paths = append(paths, p)
+			}
 
-	configFiles = paths
-	t.Cleanup(func() { configFiles = []string{defaultConfigFile} })
+			configFiles = paths
+			t.Cleanup(func() { configFiles = []string{defaultConfigFile} })
 
-	err := runPull(newPullCmd(), nil)
-	if !errors.Is(err, batch.ErrSharedDataFile) {
-		t.Fatalf("err = %v, want errors.Is(batch.ErrSharedDataFile)", err)
+			// No AWS client is created: the error must come from the
+			// pre-flight check.
+			err := runPull(newPullCmd(), nil)
+			if !errors.Is(err, batch.ErrSharedDataFile) {
+				t.Fatalf("err = %v, want errors.Is(batch.ErrSharedDataFile)", err)
+			}
+		})
 	}
 }
