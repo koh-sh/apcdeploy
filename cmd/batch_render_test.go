@@ -118,6 +118,24 @@ func TestRenderBatchSummary_ErrorsSection(t *testing.T) {
 	}
 }
 
+func TestRenderErrorsSection_NeutralisesControlSequences(t *testing.T) {
+	out := captureStderr(t, func() {
+		renderErrorsSection(batch.Summary{Failed: 1, Errors: []batch.TargetError{
+			{Identifier: "us-east-1/\x1b[2Ja/b/c", Err: errors.New("boom\x1b[2K\n::warning::injected")},
+		}}, false)
+	})
+	for _, raw := range []string{"\x1b[2J", "\x1b[2K", "\n::warning"} {
+		if strings.Contains(out, raw) {
+			t.Errorf("Errors: section contains raw %q; got %q", raw, out)
+		}
+	}
+	for _, want := range []string{`us-east-1/\x1b[2Ja/b/c`, `boom\x1b[2K`} {
+		if !strings.Contains(out, want) {
+			t.Errorf("Errors: section missing escaped %q; got %q", want, out)
+		}
+	}
+}
+
 func TestRenderErrorsSection_NoOpWhenEmpty(t *testing.T) {
 	out := captureStderr(t, func() {
 		renderErrorsSection(batch.Summary{OK: 3}, false)

@@ -3,6 +3,7 @@ package diff
 import (
 	"bytes"
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/koh-sh/apcdeploy/internal/aws"
@@ -113,6 +114,27 @@ func TestWriteDeploymentWarnings(t *testing.T) {
 				t.Errorf("sink = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestWriteDeploymentWarnings_NeutralisesControlSequences(t *testing.T) {
+	// Not parallel: swaps the package-level inProgressWarningSink.
+	var sink bytes.Buffer
+	withWarningSink(t, &sink)
+
+	WriteDeploymentWarnings(
+		[]*batch.Target{{Identifier: "us-east-1/\x1b[2Japp/p/dev"}},
+		[]string{"Deployment #3 is currently BAKING\x1b[2K"},
+	)
+
+	got := sink.String()
+	if strings.Contains(got, "\x1b") {
+		t.Errorf("warning contains a raw ESC: %q", got)
+	}
+	for _, want := range []string{`us-east-1/\x1b[2Japp/p/dev`, `BAKING\x1b[2K`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("warning missing escaped %q: %q", want, got)
+		}
 	}
 }
 

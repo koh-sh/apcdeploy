@@ -8,6 +8,7 @@ import (
 
 	"github.com/koh-sh/apcdeploy/internal/aws"
 	"github.com/koh-sh/apcdeploy/internal/batch"
+	"github.com/koh-sh/apcdeploy/internal/sanitize"
 )
 
 // inProgressWarningSink returns the writer used by the "deployment in progress"
@@ -69,7 +70,7 @@ func WriteDeploymentWarnings(targets []*batch.Target, warnings []string) {
 		if i >= len(warnings) || warnings[i] == "" {
 			continue
 		}
-		fmt.Fprintf(&b, "\n⚠ %s: %s\n", t.Identifier, warnings[i])
+		fmt.Fprintf(&b, "\n⚠ %s: %s\n", sanitize.Line(t.Identifier), sanitize.Text(warnings[i]))
 		b.WriteString("The diff is calculated against the currently deploying version.\n")
 	}
 	if b.Len() == 0 {

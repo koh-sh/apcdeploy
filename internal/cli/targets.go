@@ -2,43 +2,20 @@ package cli
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/koh-sh/apcdeploy/internal/reporter"
+	"github.com/koh-sh/apcdeploy/internal/sanitize"
 )
 
-// terminalEscapeRE matches ANSI / DEC escape sequences that could be smuggled
-// through a target identifier (which is built from user-controlled strings in
-// apcdeploy.yml — application / configuration_profile / environment / region).
-// Stripping them at the Targets boundary prevents an attacker-controlled
-// config from emitting cursor-positioning, screen-clearing, or palette
-// sequences that could mislead the user about deployment outcomes.
-//
-// The pattern covers CSI (\x1b[…final), OSC (\x1b]…BEL/ST), DCS / SOS / PM /
-// APC (\x1bP/X/^/_…ST), and the bare ESC. lipgloss appends its own escapes
-// at render time; those are constructed from styles defined in style.go and
-// are never derived from caller input, so they reach the terminal unmolested.
-var terminalEscapeRE = regexp.MustCompile(
-	`\x1b(?:` +
-		`\[[0-9;?]*[A-Za-z]` + // CSI: ESC [ params final
-		`|\][^\x07\x1b]*(?:\x07|\x1b\\)` + // OSC: ESC ] … BEL or ST
-		`|[PX^_][^\x1b]*\x1b\\` + // DCS / SOS / PM / APC: ESC P/X/^/_ … ST
-		`|.` + // ESC + any single char (covers two-byte forms)
-		`)`,
-)
-
-// sanitizeIdentifier strips ANSI / DEC escape sequences from id. Used at the
-// Targets boundary so caller-supplied identifiers cannot inject terminal
-// control codes.
-func sanitizeIdentifier(id string) string {
-	if !strings.ContainsRune(id, '\x1b') {
-		return id
-	}
-	return terminalEscapeRE.ReplaceAllString(id, "")
-}
+// Targets rows render caller strings that partly come from AWS (strategy
+// names in summaries, AWS error messages) and from apcdeploy.yml
+// (identifiers). Every one of them goes through internal/sanitize at the
+// method boundary, so neither can emit terminal control sequences. Row
+// fields are single-line, except a non-TTY Fail line, which keeps the
+// error's line breaks because it is appended to a log rather than redrawn.
 
 // targetsBarWidth is the fixed visual width of the deploying-phase progress
 // bar. Bars do not adapt to terminal width — they print at 20 cells
@@ -246,7 +223,7 @@ type targetsBase struct {
 func newTargetsBase(ids []string) targetsBase {
 	clean := make([]string, len(ids))
 	for i, id := range ids {
-		clean[i] = sanitizeIdentifier(id)
+		clean[i] = sanitize.Line(id)
 	}
 	rows := make(map[string]*targetsRow, len(clean))
 	for _, id := range clean {

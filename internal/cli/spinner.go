@@ -7,6 +7,7 @@ import (
 	"time"
 
 	bspinner "charm.land/bubbles/v2/spinner"
+	"github.com/koh-sh/apcdeploy/internal/sanitize"
 )
 
 // spinner is the concrete reporter.Spinner implementation. In TTY mode it
@@ -37,7 +38,7 @@ func newSpinner(r *Reporter, msg string) *spinner {
 		tty:  r.errTTY,
 		stop: make(chan struct{}),
 		done: make(chan struct{}),
-		msg:  msg,
+		msg:  sanitize.Line(msg),
 		r:    r,
 	}
 	if !s.tty {
@@ -58,7 +59,7 @@ func (s *spinner) Update(msg string) {
 	if s.finished {
 		return
 	}
-	s.msg = msg
+	s.msg = sanitize.Line(msg)
 }
 
 func (s *spinner) animate() {

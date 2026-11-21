@@ -125,7 +125,8 @@ When stderr is not a TTY (CI, pipes, redirects), the Reporter degrades:
   record terminal states.
 - `Header` / `Box` / `Table` drop borders and color but keep structure (plain
   text with the same content).
-- `Diff` drops ANSI color so piped consumers get clean text.
+- `Diff` drops ANSI color so piped consumers get clean text (and is the
+  untouched payload; see "Untrusted text").
 - `Data` is always raw bytes, regardless of TTY.
 
 ## Color and accessibility
@@ -137,6 +138,32 @@ When stderr is not a TTY (CI, pipes, redirects), the Reporter degrades:
   the progress bar, and the rest are line prefixes for their corresponding
   kinds. `⏳` survives only for `init`'s `Step` lines. No other emoji in CLI
   output.
+
+## Untrusted text
+
+Much of what reaches a Reporter comes from AWS and can be written by other
+principals (resource and strategy names, deployment descriptions, validator
+messages), so every human-facing string is passed through `internal/sanitize`
+before it is written. Control characters, bidi controls and invalid UTF-8
+become visible escapes (`\x1b`, `\r`, `\u009b`), and GitHub Actions workflow
+command markers (`::` at the start of a line, `##[` anywhere) are broken.
+
+- `sanitize.Line` (everything escaped, including LF / TAB): Step / Success /
+  Info / Warn / Header / Box / Table / Spin labels, every Targets field, and
+  the TTY Targets `Fail` row (a redrawn row must stay on one line).
+- `sanitize.Text` (LF / TAB kept): `Error`, non-TTY Targets `Fail` lines, the
+  TTY `Diff` render, and the message bodies of the two raw-stderr exceptions
+  below (their identifiers use `sanitize.Line`).
+- The Reporter implementations in `internal/cli` apply this themselves;
+  callers pass raw strings. Code that writes to stderr outside a Reporter
+  (the documented exceptions, prompt labels in `internal/prompt`) MUST call
+  `internal/sanitize` itself.
+- `Data` and piped `Diff` are payloads and are NEVER sanitized: they must stay
+  byte-for-byte.
+- When an error embeds remote text verbatim (e.g. the JSON Schema compiler
+  message, AWS validator output), neutralise that part with `sanitize.Text`
+  where the error is built, so it also stays safe on paths that bypass the
+  Reporter.
 
 ## Documented exceptions
 

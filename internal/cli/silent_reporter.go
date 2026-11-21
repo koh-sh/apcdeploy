@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/koh-sh/apcdeploy/internal/reporter"
+	"github.com/koh-sh/apcdeploy/internal/sanitize"
 )
 
 // SilentReporter is the --silent variant of Reporter. It suppresses every
@@ -35,7 +36,7 @@ func (r *SilentReporter) Warn(string)    {}
 
 // Error is the one stderr kind that is preserved in silent mode.
 func (r *SilentReporter) Error(msg string) {
-	fmt.Fprintf(r.errW, "%s %s\n", symError, msg)
+	fmt.Fprintf(r.errW, "%s %s\n", symError, sanitize.Text(msg))
 }
 
 func (r *SilentReporter) Header(string)              {}

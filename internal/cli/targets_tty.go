@@ -7,6 +7,7 @@ import (
 	"time"
 
 	bspinner "charm.land/bubbles/v2/spinner"
+	"github.com/koh-sh/apcdeploy/internal/sanitize"
 )
 
 // ttyTargets renders the multi-row Targets block in place. It pre-prints
@@ -144,9 +145,10 @@ func (t *ttyTargets) animate() {
 // row was previously in deploying with a real progress bar and the new phase
 // is something else, the progress flag is cleared.
 func (t *ttyTargets) SetPhase(id, phase, detail string) {
+	phase, detail = sanitize.Line(phase), sanitize.Line(detail)
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	row, ok := t.rows[sanitizeIdentifier(id)]
+	row, ok := t.rows[sanitize.Line(id)]
 	if !ok || t.closed || isTerminalState(row.state) {
 		return
 	}
@@ -163,7 +165,7 @@ func (t *ttyTargets) SetPhase(id, phase, detail string) {
 func (t *ttyTargets) SetProgress(id string, percent float64, eta time.Duration) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	row, ok := t.rows[sanitizeIdentifier(id)]
+	row, ok := t.rows[sanitize.Line(id)]
 	if !ok || t.closed || isTerminalState(row.state) {
 		return
 	}
@@ -175,25 +177,30 @@ func (t *ttyTargets) SetProgress(id string, percent float64, eta time.Duration) 
 }
 
 func (t *ttyTargets) Done(id, summary string) {
+	summary = sanitize.Line(summary)
 	t.transition(id, rowDone, func(row *targetsRow) { row.summary = summary })
 }
 
+// Fail renders the error on one line: the row is redrawn in place, and a
+// line break inside it would desynchronise the cursor-up redraw. The full
+// multi-line error still reaches the Errors: section / top-level Error.
 func (t *ttyTargets) Fail(id string, err error) {
 	msg := ""
 	if err != nil {
-		msg = err.Error()
+		msg = sanitize.Line(err.Error())
 	}
 	t.transition(id, rowFail, func(row *targetsRow) { row.errMsg = msg })
 }
 
 func (t *ttyTargets) Skip(id, reason string) {
+	reason = sanitize.Line(reason)
 	t.transition(id, rowSkip, func(row *targetsRow) { row.reason = reason })
 }
 
 func (t *ttyTargets) transition(id string, state targetsRowState, mutate func(*targetsRow)) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	row, ok := t.rows[sanitizeIdentifier(id)]
+	row, ok := t.rows[sanitize.Line(id)]
 	if !ok || t.closed || isTerminalState(row.state) {
 		return
 	}
