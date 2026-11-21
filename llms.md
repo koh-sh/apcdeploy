@@ -284,7 +284,7 @@ Partial flag specification is supported: any omitted flag triggers an interactiv
 #### Exit Codes
 
 - `0`: success
-- `1`: AWS error, file-overwrite refusal, or TTY error when prompts are needed without a TTY
+- `1`: AWS error, file-overwrite refusal, a resource name that cannot be written to `apcdeploy.yml` safely, or TTY error when prompts are needed without a TTY
 
 #### Examples
 
