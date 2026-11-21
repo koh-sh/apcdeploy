@@ -1,6 +1,9 @@
 package config
 
-import "fmt"
+import (
+	"fmt"
+	"regexp"
+)
 
 // Config represents the apcdeploy.yml configuration file
 type Config struct {
@@ -33,6 +36,21 @@ func (c *Config) validate() error {
 	// `init --force` rather than have them hand-edit yml.
 	if c.Region == "" {
 		return fmt.Errorf("region is required (add `region: <aws-region>` to apcdeploy.yml, or regenerate with `apcdeploy init --force`)")
+	}
+	return ValidateRegion(c.Region)
+}
+
+// regionRE matches a single lowercase DNS label such as "us-east-1" or
+// "eusc-de-east-1". It is deliberately not a list of known regions, so new
+// regions keep working.
+var regionRE = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
+
+// ValidateRegion rejects a region that is not a single lowercase host label.
+// The AWS SDK builds the endpoint host name from the region, so a value such
+// as "s3.amazonaws.com" would otherwise change which host requests go to.
+func ValidateRegion(region string) error {
+	if !regionRE.MatchString(region) {
+		return fmt.Errorf("invalid region %q: expected an AWS region name such as us-east-1", region)
 	}
 	return nil
 }

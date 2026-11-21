@@ -78,6 +78,35 @@ func TestConfigValidation(t *testing.T) {
 			wantErr: true,
 		},
 	}
+	// The region becomes part of the AWS endpoint host name, so only a single
+	// lowercase label is accepted.
+	for _, rc := range []struct {
+		region  string
+		wantErr bool
+	}{
+		{"us-gov-west-1", false},
+		{"eusc-de-east-1", false},
+		{"s3.amazonaws.com", true},
+		{"us-east-1/evil", true},
+		{"US-EAST-1", true},
+		{"us-east-1 ", true},
+	} {
+		tests = append(tests, struct {
+			name    string
+			config  Config
+			wantErr bool
+		}{
+			name: "region " + rc.region,
+			config: Config{
+				Application:          "MyApp",
+				ConfigurationProfile: "MyProfile",
+				Environment:          "Production",
+				DataFile:             "data.json",
+				Region:               rc.region,
+			},
+			wantErr: rc.wantErr,
+		})
+	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

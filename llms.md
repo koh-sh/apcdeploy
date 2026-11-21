@@ -116,7 +116,7 @@ data_file: data.json
 region: us-west-2
 ```
 
-Unknown keys (including typos such as `deployment_stratgy`) and files with more than one YAML document are rejected at load time, so a mistyped optional key never silently falls back to its default.
+Unknown keys (including typos such as `deployment_stratgy`) and files with more than one YAML document are rejected at load time, so a mistyped optional key never silently falls back to its default. `region` must be a region name such as `us-east-1` (lowercase letters, digits and hyphens); the same check applies to `--region` and to a region taken from the AWS environment.
 
 ### data_file Path Resolution
 
