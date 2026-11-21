@@ -444,7 +444,9 @@ State values:
 | `COMPLETE` | Deployment finished successfully. |
 | `ROLLING_BACK` | Deployment is being rolled back, automatically (e.g. a CloudWatch alarm) or via `apcdeploy rollback` (in-flight). |
 | `ROLLED_BACK` | Deployment was stopped (or rolled back by AppConfig); previous version is in effect. |
-| `REVERTED` | Deployment was reverted to the previous configuration version (terminal). |
+| `REVERTED` | Deployment was reverted to the previous configuration version (terminal); previous version is in effect. |
+
+`status` reports `ROLLED_BACK` / `REVERTED` deployments as the latest, but `run` / `diff` / `pull` / `edit` / `init` skip them when picking the deployed baseline and use the newest deployment whose version is still in effect.
 
 #### Errors
 
