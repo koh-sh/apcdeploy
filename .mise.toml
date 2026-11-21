@@ -2,7 +2,7 @@
 minimum_release_age = "3d"
 
 [tools]
-go = "1.27.3"
+go = "1.27.4"
 terraform = "1.16.6"
 "github:golangci/golangci-lint" = "2.15.0"
 "github:mfridman/tparse" = "0.18.0"
