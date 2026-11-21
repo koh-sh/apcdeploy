@@ -87,6 +87,31 @@ func TestGenerateConfigFile(t *testing.T) {
 				}
 			},
 		},
+		{
+			// A remote deployment strategy name with lone CRs is emitted by the
+			// YAML encoder in a form the decoder reads back as extra top-level
+			// keys and a second document, redirecting data_file.
+			name:               "reject strategy name that does not round-trip",
+			app:                "test-app",
+			profile:            "test-profile",
+			env:                "test-env",
+			dataFile:           "data.json",
+			region:             "us-east-1",
+			deploymentStrategy: "a\rdata_file:\n.git/config\rregion:\nus-east-1\n\r---",
+			outputPath:         filepath.Join(tempDir, "injected-strategy.yml"),
+			wantErr:            true,
+		},
+		{
+			name:               "reject environment name that does not round-trip",
+			app:                "test-app",
+			profile:            "test-profile",
+			env:                "e\rdata_file:\n.git/config\n\r---",
+			dataFile:           "data.json",
+			region:             "us-east-1",
+			deploymentStrategy: "",
+			outputPath:         filepath.Join(tempDir, "injected-env.yml"),
+			wantErr:            true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -97,6 +122,12 @@ func TestGenerateConfigFile(t *testing.T) {
 				t.Error("expected error but got none")
 			} else if !tt.wantErr && err != nil {
 				t.Errorf("unexpected error: %v", err)
+			}
+
+			if tt.wantErr {
+				if _, err := os.Stat(tt.outputPath); !os.IsNotExist(err) {
+					t.Errorf("config file must not be written on error, stat err = %v", err)
+				}
 			}
 
 			if !tt.wantErr {

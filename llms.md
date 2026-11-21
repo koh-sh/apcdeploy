@@ -116,6 +116,8 @@ data_file: data.json
 region: us-west-2
 ```
 
+Unknown keys (including typos such as `deployment_stratgy`) and files with more than one YAML document are rejected at load time, so a mistyped optional key never silently falls back to its default.
+
 ### data_file Path Resolution
 
 - **Relative path** (e.g. `data.json`, `config/data.json`): resolved against the directory containing `apcdeploy.yml`.
@@ -274,6 +276,7 @@ Partial flag specification is supported: any omitted flag triggers an interactiv
 #### Behavior
 
 - **Overwrite protection**: existing `apcdeploy.yml` or data file is preserved unless `-f` is supplied.
+- **Name safety**: the generated `apcdeploy.yml` is read back before it is written; if a resource or deployment strategy name contains characters that would not survive the round-trip (e.g. a lone carriage return), `init` fails without writing any file.
 - **IAM**: when `--region` is supplied, `account:ListRegions` is **not** required. The permission is only needed for the interactive region picker.
 - **AI workflow**: use `apcdeploy ls-resources --region <r> --json` to discover names, then call `init` with all four flags. Fallback if `ls-resources` is unavailable: ask the user to provide application / profile / environment names.
 

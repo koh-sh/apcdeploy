@@ -1,0 +1,6 @@
+---
+application: TestApp
+configuration_profile: TestProfile
+environment: Production
+data_file: data.json
+region: us-east-1

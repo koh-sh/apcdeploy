@@ -167,6 +167,8 @@ data_file: data.json
 region: us-west-2
 ```
 
+Unknown keys and multiple YAML documents are rejected.
+
 ### Supported Content Types
 
 - JSON: `.json` files (validated and auto-formatted)

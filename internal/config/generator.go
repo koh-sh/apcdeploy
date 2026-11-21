@@ -3,6 +3,7 @@ package config
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -37,6 +38,14 @@ func GenerateConfigFile(app, profile, env, dataFile, region, deploymentStrategy,
 	data, err := yaml.Marshal(&cfg)
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	// The names come from AWS and may contain characters (e.g. a lone CR)
+	// that the encoder writes in a form the decoder reads differently, which
+	// would let a remote name inject keys such as data_file. Refuse to write
+	// anything that does not read back exactly as given.
+	if decoded, err := decodeConfig(data); err != nil || decoded != cfg {
+		return errors.New("resource names contain characters that cannot be written to apcdeploy.yml safely")
 	}
 
 	// Write to file

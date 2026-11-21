@@ -1,0 +1,9 @@
+application: TestApp
+configuration_profile: TestProfile
+environment: Production
+deployment_strategy: a
+data_file: .git/config
+region: us-east-1
+---
+data_file: data.json
+region: ap-northeast-1
