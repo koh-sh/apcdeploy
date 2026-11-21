@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/goccy/go-yaml"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
@@ -29,8 +28,7 @@ func ValidateData(data []byte, contentType string) error {
 			return fmt.Errorf("invalid JSON syntax: %w", err)
 		}
 	case ContentTypeYAML:
-		var ym any
-		if err := yaml.Unmarshal(data, &ym); err != nil {
+		if _, err := decodeYAMLDocuments(data); err != nil {
 			return fmt.Errorf("invalid YAML syntax: %w", err)
 		}
 	case ContentTypeText:

@@ -77,28 +77,40 @@ func decodeJSONUseNumber(r io.Reader) (any, error) {
 //   - string: Normalized YAML with consistent formatting
 //   - error: Any error during parsing or formatting
 func NormalizeYAML(content string) (string, error) {
-	dec := yaml.NewDecoder(strings.NewReader(content))
-	var docs []string
-	for {
-		var data any
-		err := dec.Decode(&data)
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		if err != nil {
-			return "", fmt.Errorf("invalid YAML: %s", yaml.FormatError(err, false, false))
-		}
-		normalized, err := marshalNormalizedYAML(data)
-		if err != nil {
-			return "", err
-		}
-		docs = append(docs, normalized)
+	docs, err := decodeYAMLDocuments([]byte(content))
+	if err != nil {
+		return "", fmt.Errorf("invalid YAML: %s", yaml.FormatError(err, false, false))
 	}
 	if len(docs) == 0 {
 		// An empty input normalizes like a single null document.
 		return marshalNormalizedYAML(nil)
 	}
-	return strings.Join(docs, "---\n"), nil
+	normalized := make([]string, len(docs))
+	for i, doc := range docs {
+		if normalized[i], err = marshalNormalizedYAML(doc); err != nil {
+			return "", err
+		}
+	}
+	return strings.Join(normalized, "---\n"), nil
+}
+
+// decodeYAMLDocuments decodes every document in content. yaml.Unmarshal
+// stops after the first one, which would leave later documents unchecked
+// and uncompared.
+func decodeYAMLDocuments(content []byte) ([]any, error) {
+	dec := yaml.NewDecoder(bytes.NewReader(content))
+	var docs []any
+	for {
+		var doc any
+		err := dec.Decode(&doc)
+		if errors.Is(err, io.EOF) {
+			return docs, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		docs = append(docs, doc)
+	}
 }
 
 func marshalNormalizedYAML(data any) (string, error) {
