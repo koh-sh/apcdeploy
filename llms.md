@@ -436,7 +436,7 @@ apcdeploy status -c apcdeploy.yml
 
 #### Behavior
 
-Displayed fields: deployment number, state, percentage complete, configuration version, start time.
+Displayed fields: application, profile, environment, deployment number, state, hosted configuration version, description (omitted for `ROLLED_BACK`), deployment strategy, start time, and — once finished — completion time and duration. While `DEPLOYING` / `BAKING`, a progress table adds percentage complete, elapsed and estimated remaining time, growth factor, bake time and the current phase. For `ROLLED_BACK`, a warning and the rollback reason from the event log follow. Description, strategy and other names are written by whoever started the deployment; control characters in them are shown as visible escapes (e.g. `\x1b`).
 
 State values:
 
