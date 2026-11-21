@@ -197,6 +197,9 @@ func TestValidateDescription(t *testing.T) {
 		{name: "null byte rejected", input: "bad\x00value", wantErr: true},
 		{name: "ANSI escape rejected", input: "\x1b[31mred\x1b[0m", wantErr: true},
 		{name: "DEL rejected", input: "bad\x7fvalue", wantErr: true},
+		{name: "C1 CSI rejected", input: "bad\u009b2Jvalue", wantErr: true},
+		{name: "bidi override rejected", input: "bad\u202evalue", wantErr: true},
+		{name: "invalid UTF-8 rejected", input: "bad\xffvalue", wantErr: true},
 	}
 
 	for _, tt := range tests {

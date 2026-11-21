@@ -320,7 +320,7 @@ apcdeploy run -c apcdeploy.yml
 | `--wait-bake` | Wait until the full deployment completes (DEPLOYING → BAKING → COMPLETE). Mutually exclusive with `--wait-deploy`. |
 | `--force` | Deploy even when content is unchanged (bypasses auto-skip). |
 | `--timeout <seconds>` | Timeout for deployment wait (default: 1800). Must be greater than 0. Shared across both phases when `--wait-bake` is used. |
-| `--description <text>` | Description attached to the configuration version and deployment. Visible in the AppConfig console and in `apcdeploy status` output. Defaults to `"Deployed by apcdeploy"`. Pass `--description ""` to clear. Maximum 1024 Unicode characters (counted by rune); rejected client-side when exceeded. |
+| `--description <text>` | Description attached to the configuration version and deployment. Visible in the AppConfig console and in `apcdeploy status` output. Defaults to `"Deployed by apcdeploy"`. Pass `--description ""` to clear. Maximum 1024 Unicode characters (counted by rune); rejected client-side when exceeded. Control characters other than tab / newline / carriage return, bidirectional formatting characters and invalid UTF-8 are also rejected client-side. |
 
 #### Operation Details
 
